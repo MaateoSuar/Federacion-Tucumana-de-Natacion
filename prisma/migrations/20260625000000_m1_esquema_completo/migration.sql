@@ -1,4 +1,4 @@
-﻿-- CreateEnum
+-- CreateEnum
 CREATE TYPE "Gender" AS ENUM ('M', 'F');
 
 -- CreateEnum

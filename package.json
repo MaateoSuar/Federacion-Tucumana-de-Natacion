@@ -13,9 +13,9 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "db:migrate": "prisma migrate dev --schema=prisma/schema.prisma",
+    "db:migrate": "prisma migrate deploy --schema=prisma/schema.prisma",
     "db:migrate:prod": "prisma migrate deploy --schema=prisma/schema.prisma",
-    "db:seed": "ts-node prisma/seed.ts",
+    "db:seed": "node --env-file=.env --require ts-node/register prisma/seed.ts",
     "db:studio": "prisma studio --schema=prisma/schema.prisma",
     "db:reset": "prisma migrate reset --schema=prisma/schema.prisma",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\" --ignore-path .gitignore"
