@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  ci:
+    name: Lint · Typecheck · Test · Build
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ftn
+          POSTGRES_PASSWORD: ftn_password
+          POSTGRES_DB: ftn_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://ftn:ftn_password@localhost:5432/ftn_db
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci_jwt_secret_min_32_chars_placeholder
+      JWT_REFRESH_SECRET: ci_refresh_secret_min_32_chars_placeholder
+      NODE_ENV: test
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm exec prisma generate --schema=prisma/schema.prisma
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
