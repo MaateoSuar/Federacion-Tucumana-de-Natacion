@@ -34,8 +34,8 @@ Thumbs.db
 # Turbo
 .turbo/
 
-# Prisma
-prisma/migrations/
+# Prisma — las migraciones deben commitearse al repo
+# prisma/migrations/  ← NO ignorar
 
 # Testing
 coverage/

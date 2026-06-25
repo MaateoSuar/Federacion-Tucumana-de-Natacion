@@ -1,5 +1,7 @@
-// Plataforma FTN — Schema Prisma inicial (Sesión 0)
-// Tiempos SIEMPRE en milisegundos enteros (Int). Nunca strings, nunca floats.
+// Plataforma FTN — Schema Prisma M1 (esquema completo)
+// REGLA INVIOLABLE: tiempos SIEMPRE en milisegundos enteros (Int). Nunca strings, nunca floats.
+// Campos congelados en results (category_id, club_id) y registrations (category_id, club_id):
+//   se graban al momento de inscripción/homologación y NUNCA se recalculan.
 
 generator client {
   provider = "prisma-client-js"
@@ -10,7 +12,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── Enums ─────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// ENUMS
+// ═══════════════════════════════════════════════════════════════════════════
 
 enum Gender {
   M
@@ -22,7 +26,20 @@ enum PoolLength {
   P50
 }
 
-enum UserRole {
+// Ámbito deportivo — usado en récords, rankings, categorías
+enum Scope {
+  provincial
+  nacional
+}
+
+enum CategoryScope {
+  provincial
+  nacional
+}
+
+// Rol principal del usuario (conveniencia para guards rápidos en NestJS).
+// Fuente de verdad de permisos: tabla user_role_assignments.
+enum SystemRole {
   SUPER_ADMIN
   ADMIN
   CLUB_DELEGATE
@@ -37,8 +54,16 @@ enum ClubStatus {
   baja
 }
 
+enum AffiliationStatus {
+  vigente
+  vencida
+  suspendida
+}
+
 enum TournamentStatus {
   programado
+  inscripciones_abiertas
+  cerrado
   en_curso
   finalizado
   homologado
@@ -50,6 +75,25 @@ enum TournamentType {
   promocional
 }
 
+enum EventStatus {
+  pendiente
+  en_curso
+  finalizado
+}
+
+enum EventRound {
+  clasificatorio
+  final
+  serie_unica
+}
+
+enum RegistrationStatus {
+  pendiente
+  aceptada
+  rechazada
+  cancelada
+}
+
 enum ResultStatus {
   OK
   DSQ
@@ -57,9 +101,99 @@ enum ResultStatus {
   DNF
 }
 
-enum RecordScope {
-  provincial
-  nacional
+// Origen de un resultado o swimmer — habilita histórico mixto
+enum ResultSource {
+  hy3
+  sd3
+  lenex
+  csv
+  excel
+  pdf
+  ftn_manager
+  manual
+}
+
+enum RecordStatus {
+  pending_homologation
+  homologated
+  superseded
+}
+
+enum ImportStatus {
+  uploaded
+  parsing
+  validating
+  matching
+  preview
+  confirmed
+  failed
+  rolled_back
+}
+
+enum ImportSource {
+  meet_manager
+  lenex
+  csv
+  excel
+  pdf
+  manual
+  ftn_manager
+}
+
+enum MeetFormat {
+  hy3
+  sd3
+  lenex
+  csv
+  excel
+  pdf
+}
+
+enum ExportFormat {
+  lenex
+  sd3
+  pdf
+  html
+}
+
+enum ExportScope {
+  entries
+  results
+  heat_sheet
+}
+
+enum TournamentDocType {
+  convocatoria
+  reglamento
+  programa
+  resultados
+  otros
+}
+
+enum AchievementType {
+  medal
+  record
+  badge
+  milestone
+}
+
+enum MedalType {
+  gold
+  silver
+  bronze
+}
+
+enum ScoringSchemeType {
+  placement
+  fina_points
+  mixed
+}
+
+enum AccountLinkStatus {
+  pending
+  approved
+  rejected
+  cancelled
 }
 
 enum NewsStatus {
@@ -67,31 +201,116 @@ enum NewsStatus {
   publicada
 }
 
-// ─── Identidad y acceso ────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// RBAC — Roles, permisos y asignaciones
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  permissions     RolePermission[]
+  userAssignments UserRoleAssignment[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id       String @id @default(cuid())
+  name     String @unique
+  resource String // e.g. "tournament", "result", "record"
+  action   String // e.g. "create", "homologate", "read"
+
+  roles RolePermission[]
+
+  @@unique([resource, action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @map("role_id")
+  permissionId String @map("permission_id")
+
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// Asignación de rol a usuario; clubId lo acota a un club específico (scoped roles)
+model UserRoleAssignment {
+  id     String  @id @default(cuid())
+  userId String  @map("user_id")
+  roleId String  @map("role_id")
+  clubId String? @map("club_id") // null = global; not-null = scoped to this club
+
+  user User  @relation(fields: [userId], references: [id])
+  role Role  @relation(fields: [roleId], references: [id])
+  club Club? @relation("ScopedRoles", fields: [clubId], references: [id])
+
+  @@unique([userId, roleId, clubId])
+  @@map("user_role_assignments")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// IDENTIDAD Y ACCESO
+// "AthleteAccount" = User con primaryRole=SWIMMER y swimmerId vinculado (v3 §10 A1)
+// ═══════════════════════════════════════════════════════════════════════════
 
 model User {
-  id         String   @id @default(cuid())
-  email      String   @unique
-  password   String
-  firstName  String   @map("first_name")
-  lastName   String   @map("last_name")
-  role       UserRole @default(SWIMMER)
-  isActive   Boolean  @default(true) @map("is_active")
-  swimmerId  String?  @unique @map("swimmer_id")
-  clubId     String?  @map("club_id")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
-  lastLogin  DateTime? @map("last_login")
+  id          String     @id @default(cuid())
+  email       String     @unique
+  passwordHash String    @map("password_hash")
+  firstName   String     @map("first_name")
+  lastName    String     @map("last_name")
+  // Conveniencia para guards; fuente de verdad = user_role_assignments
+  primaryRole SystemRole @default(SWIMMER) @map("primary_role")
+  isActive    Boolean    @default(true) @map("is_active")
 
-  swimmer    Swimmer? @relation(fields: [swimmerId], references: [id])
-  club       Club?    @relation(fields: [clubId], references: [id])
-  auditLogs  AuditLog[]
-  news       News[]
+  // Vínculo atleta — seteado ÚNICAMENTE al aprobar un AccountLinkRequest
+  swimmerId   String?    @unique @map("swimmer_id")
+  // Delegado de club — para scoping sin JOIN al user_role_assignments en cada request
+  clubId      String?    @map("club_id")
+
+  // Menores de edad
+  isMinor        Boolean  @default(false) @map("is_minor")
+  guardianName   String?  @map("guardian_name")
+  guardianEmail  String?  @map("guardian_email")
+
+  // Ciclo de vida de auth
+  emailVerifiedAt        DateTime? @map("email_verified_at")
+  passwordResetToken     String?   @map("password_reset_token")
+  passwordResetExpiresAt DateTime? @map("password_reset_expires_at")
+  refreshTokenHash       String?   @map("refresh_token_hash")
+  lastLoginAt            DateTime? @map("last_login_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relaciones
+  swimmer              Swimmer?             @relation(fields: [swimmerId], references: [id])
+  club                 Club?                @relation("UserClub", fields: [clubId], references: [id])
+  roles                UserRoleAssignment[]
+  auditLogs            AuditLog[]
+  news                 News[]
+  importJobs           ImportJob[]          @relation("UploadedBy")
+  linkRequestsMade     AccountLinkRequest[] @relation("RequestedBy")
+  linkRequestsReviewed AccountLinkRequest[] @relation("ReviewedBy")
+  homologatedResults   Result[]             @relation("ResultHomologator")
+  homologatedRecords   Record[]             @relation("RecordHomologator")
+  uploadedDocuments    TournamentDocument[]
+  generatedExports     MeetManagerExport[]
+  uploadedMedia        Media[]
 
   @@map("users")
 }
 
-// ─── Organización deportiva ────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// ORGANIZACIÓN DEPORTIVA
+// ═══════════════════════════════════════════════════════════════════════════
 
 model Club {
   id           String     @id @default(cuid())
@@ -105,161 +324,271 @@ model Club {
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
-  users        User[]
-  swimmers     Swimmer[]
-  affiliations Affiliation[]
-  clubHistory  SwimmerClubHistory[]
-  tournaments  Tournament[]
+  users          User[]               @relation("UserClub")
+  scopedRoles    UserRoleAssignment[] @relation("ScopedRoles")
+  swimmers       Swimmer[]
+  coaches        Coach[]
+  affiliations   Affiliation[]
+  clubHistory    SwimmerClubHistory[]
+  tournaments    Tournament[]
+  // Resultados y registraciones donde clubId fue congelado
+  frozenResults       Result[]        @relation("ResultFrozenClub")
+  frozenRegistrations Registration[]  @relation("RegistrationFrozenClub")
 
   @@map("clubs")
 }
 
 model Season {
-  id          String   @id @default(cuid())
-  year        Int      @unique
-  startDate   DateTime @map("start_date")
-  endDate     DateTime @map("end_date")
-  isActive    Boolean  @default(false) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id        String   @id @default(cuid())
+  year      Int      @unique
+  startDate DateTime @map("start_date")
+  endDate   DateTime @map("end_date")
+  isActive  Boolean  @default(false) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
 
-  affiliations Affiliation[]
-  tournaments  Tournament[]
-  clubHistory  SwimmerClubHistory[]
+  affiliations      Affiliation[]
+  tournaments       Tournament[]
+  clubHistory       SwimmerClubHistory[]
+  rankingHistories  RankingHistory[]
+  athleteStatistics AthleteStatistics[]
+  personalBests     PersonalBest[]
+  categoriesFrom    Category[]          @relation("CategoryValidFrom")
+  categoriesTo      Category[]          @relation("CategoryValidTo")
+  schemesFrom       ScoringScheme[]     @relation("SchemeValidFrom")
+  schemesTo         ScoringScheme[]     @relation("SchemeValidTo")
 
   @@map("seasons")
 }
 
 model Affiliation {
-  id        String   @id @default(cuid())
-  clubId    String   @map("club_id")
-  seasonId  String   @map("season_id")
-  status    String   @default("vigente")
-  paidAt    DateTime? @map("paid_at")
-  createdAt DateTime @default(now()) @map("created_at")
+  id        String            @id @default(cuid())
+  clubId    String            @map("club_id")
+  seasonId  String            @map("season_id")
+  status    AffiliationStatus @default(vigente)
+  paidAt    DateTime?         @map("paid_at")
+  createdAt DateTime          @default(now()) @map("created_at")
 
-  club      Club     @relation(fields: [clubId], references: [id])
-  season    Season   @relation(fields: [seasonId], references: [id])
+  club   Club   @relation(fields: [clubId], references: [id])
+  season Season @relation(fields: [seasonId], references: [id])
 
   @@unique([clubId, seasonId])
   @@map("affiliations")
 }
 
+// Catálogo de categorías con versionado temporal.
+// La función resolveCategory(birthDate, seasonYear, scope) → Category es la única fuente de verdad.
 model Category {
-  id         String  @id @default(cuid())
-  name       String  @unique
-  code       String  @unique
-  minAge     Int     @map("min_age")
-  maxAge     Int?    @map("max_age")
-  gender     Gender?
-  isNational Boolean @default(false) @map("is_national")
-  sortOrder  Int     @default(0) @map("sort_order")
+  id                String        @id @default(cuid())
+  code              String        @unique // PRE_A, INF_1, MEN_1, ..., MAY, JUN
+  name              String
+  minAge            Int?          @map("min_age")    // null = sin límite inferior (Pre A)
+  maxAge            Int?          @map("max_age")    // null = sin límite superior (Mayores)
+  scope             CategoryScope @default(provincial)
+  orderNo           Int           @default(0) @map("order_no")
+  isActive          Boolean       @default(true) @map("is_active")
+  validFromSeasonId String?       @map("valid_from_season_id")
+  validToSeasonId   String?       @map("valid_to_season_id")
 
-  events   Event[]
-  records  Record[]
+  validFromSeason   Season?        @relation("CategoryValidFrom", fields: [validFromSeasonId], references: [id])
+  validToSeason     Season?        @relation("CategoryValidTo", fields: [validToSeasonId], references: [id])
+  events            Event[]
+  records           Record[]
+  rankingHistories  RankingHistory[]
+  rankings          Ranking[]
+  // Categoría congelada en registraciones y resultados
+  frozenResults       Result[]       @relation("ResultFrozenCategory")
+  frozenRegistrations Registration[] @relation("RegistrationFrozenCategory")
 
   @@map("categories")
 }
 
 model Swimmer {
-  id            String   @id @default(cuid())
-  firstName     String   @map("first_name")
-  lastName      String   @map("last_name")
-  documentId    String   @unique @map("document_id")
-  birthDate     DateTime @map("birth_date")
+  id            String       @id @default(cuid())
+  firstName     String       @map("first_name")
+  lastName      String       @map("last_name")
+  documentId    String?      @unique @map("document_id") // nullable: imports sin DNI
+  birthDate     DateTime?    @map("birth_date")
   gender        Gender
-  nationality   String   @default("ARG")
-  currentClubId String?  @map("current_club_id")
-  photoUrl      String?  @map("photo_url")
-  isActive      Boolean  @default(true) @map("is_active")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  nationality   String       @default("ARG")
+  currentClubId String?      @map("current_club_id")
+  photoUrl      String?      @map("photo_url")
+  isActive      Boolean      @default(true) @map("is_active")
+  source        ResultSource @default(manual) // cómo fue creado este registro
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
 
   currentClub   Club?                @relation(fields: [currentClubId], references: [id])
-  user          User?
+  user          User?                // cuenta vinculada (via users.swimmer_id)
+  profile       AthleteProfile?
   clubHistory   SwimmerClubHistory[]
   registrations Registration[]
   results       Result[]
   personalBests PersonalBest[]
   records       Record[]
+  rankings      Ranking[]
+  rankingHistory RankingHistory[]
+  statistics    AthleteStatistics[]
+  achievements  AthleteAchievement[]
+  linkRequests  AccountLinkRequest[]
 
   @@map("swimmers")
 }
 
+// Historial de club por temporada — permite rastrear transferencias.
+// Un nadador puede tener múltiples filas por temporada si hubo transferencia.
 model SwimmerClubHistory {
-  id        String   @id @default(cuid())
-  swimmerId String   @map("swimmer_id")
-  clubId    String   @map("club_id")
-  seasonId  String   @map("season_id")
-  startDate DateTime @map("start_date")
+  id        String    @id @default(cuid())
+  swimmerId String    @map("swimmer_id")
+  clubId    String    @map("club_id")
+  seasonId  String    @map("season_id")
+  startDate DateTime  @map("start_date")
   endDate   DateTime? @map("end_date")
+  isActive  Boolean   @default(false) @map("is_active") // true = pertenencia vigente en esta temporada
 
-  swimmer   Swimmer  @relation(fields: [swimmerId], references: [id])
-  club      Club     @relation(fields: [clubId], references: [id])
-  season    Season   @relation(fields: [seasonId], references: [id])
+  swimmer Swimmer @relation(fields: [swimmerId], references: [id])
+  club    Club    @relation(fields: [clubId], references: [id])
+  season  Season  @relation(fields: [seasonId], references: [id])
 
-  @@unique([swimmerId, seasonId])
+  @@index([swimmerId, seasonId])
   @@map("swimmer_club_history")
 }
 
-// ─── Competencia ──────────────────────────────────────────────────────────
+model Coach {
+  id        String   @id @default(cuid())
+  userId    String?  @unique @map("user_id") // cuenta propia (opcional)
+  clubId    String   @map("club_id")
+  firstName String   @map("first_name")
+  lastName  String   @map("last_name")
+  licenseNo String?  @map("license_no")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
+  club Club @relation(fields: [clubId], references: [id])
+
+  @@map("coaches")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PERFIL Y CUENTA DEL NADADOR
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Capa editable por el nadador; cuelga del swimmer, no del user (existe sin cuenta).
+model AthleteProfile {
+  id                  String   @id @default(cuid())
+  swimmerId           String   @unique @map("swimmer_id")
+  bio                 String?
+  photoUrl            String?  @map("photo_url")
+  socialLinks         Json?    @map("social_links")
+  publicVisibility    Boolean  @default(true) @map("public_visibility")
+  // Token no adivinable para URL del pasaporte digital (/pasaporte/{token})
+  passportPublicToken String   @unique @default(cuid()) @map("passport_public_token")
+  preferences         Json?
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  swimmer Swimmer @relation(fields: [swimmerId], references: [id])
+
+  @@map("athlete_profiles")
+}
+
+// Solicitud de vinculación User ↔ Swimmer; siempre aprobada por Admin (nunca automática).
+// PARTIAL UNIQUE INDEXES (agregados via migration SQL, no soportados nativamente por Prisma):
+//   CREATE UNIQUE INDEX uq_link_req_approved_swimmer ON account_link_requests (swimmer_id) WHERE status = 'approved';
+//   CREATE UNIQUE INDEX uq_link_req_approved_user    ON account_link_requests (user_id)    WHERE status = 'approved';
+model AccountLinkRequest {
+  id              String            @id @default(cuid())
+  userId          String            @map("user_id")
+  swimmerId       String            @map("swimmer_id")
+  status          AccountLinkStatus @default(pending)
+  matchConfidence Int               @default(0) @map("match_confidence") // 0–100, solo informativo
+  requestedAt     DateTime          @default(now()) @map("requested_at")
+  reviewedBy      String?           @map("reviewed_by")
+  reviewedAt      DateTime?         @map("reviewed_at")
+  decisionReason  String?           @map("decision_reason")
+  createdAt       DateTime          @default(now()) @map("created_at")
+
+  user     User    @relation("RequestedBy", fields: [userId], references: [id])
+  swimmer  Swimmer @relation(fields: [swimmerId], references: [id])
+  reviewer User?   @relation("ReviewedBy", fields: [reviewedBy], references: [id])
+
+  @@index([swimmerId, status])
+  @@index([userId, status])
+  @@map("account_link_requests")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COMPETENCIA
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Catálogo maestro de pruebas reutilizable entre torneos.
 model EventDefinition {
-  id       String @id @default(cuid())
-  stroke   String
-  distance Int
-  gender   Gender
-  code     String @unique
+  id          String  @id @default(cuid())
+  code        String  @unique // e.g. "50L_M", "100E_F", "4x100L_M"
+  stroke      String  // libre, espalda, pecho, mariposa, combinado, relevo_libre, relevo_combinado
+  distance    Int     // metros
+  gender      Gender
+  isRelay     Boolean @default(false) @map("is_relay")
+  description String?
 
-  events  Event[]
-  records Record[]
+  events         Event[]
+  personalBests  PersonalBest[]
+  records        Record[]
+  rankingHistory RankingHistory[]
+  rankings       Ranking[]
 
   @@map("event_definitions")
 }
 
 model Tournament {
-  id          String           @id @default(cuid())
-  name        String
-  hostClubId  String?          @map("host_club_id")
-  venue       String?
-  poolLength  PoolLength       @map("pool_length")
-  startDate   DateTime         @map("start_date")
-  endDate     DateTime         @map("end_date")
-  type        TournamentType
-  status      TournamentStatus @default(programado)
-  seasonId    String           @map("season_id")
-  createdAt   DateTime         @default(now()) @map("created_at")
-  updatedAt   DateTime         @updatedAt @map("updated_at")
+  id         String           @id @default(cuid())
+  name       String
+  hostClubId String?          @map("host_club_id")
+  venue      String?
+  poolLength PoolLength       @map("pool_length") // parte de la clave de récords/PB/rankings
+  startDate  DateTime         @map("start_date")
+  endDate    DateTime         @map("end_date")
+  type       TournamentType
+  scope      Scope            @default(provincial)
+  status     TournamentStatus @default(programado)
+  seasonId   String           @map("season_id")
+  createdAt  DateTime         @default(now()) @map("created_at")
+  updatedAt  DateTime         @updatedAt @map("updated_at")
 
-  hostClub    Club?    @relation(fields: [hostClubId], references: [id])
-  season      Season   @relation(fields: [seasonId], references: [id])
-  events      Event[]
+  hostClub     Club?                @relation(fields: [hostClubId], references: [id])
+  season       Season               @relation(fields: [seasonId], references: [id])
+  events       Event[]
+  documents    TournamentDocument[]
+  importJobs   ImportJob[]
+  exports      MeetManagerExport[]
+  achievements AthleteAchievement[]
 
   @@map("tournaments")
 }
 
 model Event {
-  id                String  @id @default(cuid())
-  tournamentId      String  @map("tournament_id")
-  eventDefinitionId String  @map("event_definition_id")
-  categoryId        String  @map("category_id")
-  round             String  @default("clasif")
-  orderNo           Int     @map("order_no")
-  status            String  @default("pendiente")
+  id                String      @id @default(cuid())
+  tournamentId      String      @map("tournament_id")
+  eventDefinitionId String      @map("event_definition_id")
+  categoryId        String      @map("category_id")
+  round             EventRound  @default(serie_unica)
+  orderNo           Int         @map("order_no")
+  status            EventStatus @default(pendiente)
 
-  tournament        Tournament      @relation(fields: [tournamentId], references: [id])
-  eventDefinition   EventDefinition @relation(fields: [eventDefinitionId], references: [id])
-  category          Category        @relation(fields: [categoryId], references: [id])
-  heats             Heat[]
-  registrations     Registration[]
-  results           Result[]
+  tournament      Tournament      @relation(fields: [tournamentId], references: [id])
+  eventDefinition EventDefinition @relation(fields: [eventDefinitionId], references: [id])
+  category        Category        @relation(fields: [categoryId], references: [id])
+  heats           Heat[]
+  registrations   Registration[]
+  results         Result[]
+  achievements    AthleteAchievement[]
 
   @@map("events")
 }
 
 model Heat {
-  id          String @id @default(cuid())
-  eventId     String @map("event_id")
-  heatNumber  Int    @map("heat_number")
+  id          String    @id @default(cuid())
+  eventId     String    @map("event_id")
+  heatNumber  Int       @map("heat_number")
   scheduledAt DateTime? @map("scheduled_at")
 
   event           Event            @relation(fields: [eventId], references: [id])
@@ -271,16 +600,20 @@ model Heat {
 }
 
 model Registration {
-  id          String  @id @default(cuid())
-  eventId     String  @map("event_id")
-  swimmerId   String  @map("swimmer_id")
-  clubId      String  @map("club_id")
-  entryTime   Int?    @map("entry_time")
-  status      String  @default("pendiente")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id         String             @id @default(cuid())
+  eventId    String             @map("event_id")
+  swimmerId  String             @map("swimmer_id")
+  // Campos congelados en inscripción — NUNCA recalcular
+  clubId     String             @map("club_id")
+  categoryId String             @map("category_id")
+  entryTime  Int?               @map("entry_time") // ms; null si sin marca previa
+  status     RegistrationStatus @default(pendiente)
+  createdAt  DateTime           @default(now()) @map("created_at")
 
-  event       Event   @relation(fields: [eventId], references: [id])
-  swimmer     Swimmer @relation(fields: [swimmerId], references: [id])
+  event           Event            @relation(fields: [eventId], references: [id])
+  swimmer         Swimmer          @relation(fields: [swimmerId], references: [id])
+  club            Club             @relation("RegistrationFrozenClub", fields: [clubId], references: [id])
+  category        Category         @relation("RegistrationFrozenCategory", fields: [categoryId], references: [id])
   laneAssignments LaneAssignment[]
 
   @@unique([eventId, swimmerId])
@@ -293,93 +626,338 @@ model LaneAssignment {
   registrationId String @map("registration_id")
   lane           Int
 
-  heat           Heat         @relation(fields: [heatId], references: [id])
-  registration   Registration @relation(fields: [registrationId], references: [id])
+  heat         Heat         @relation(fields: [heatId], references: [id])
+  registration Registration @relation(fields: [registrationId], references: [id])
 
   @@unique([heatId, lane])
   @@map("lane_assignments")
 }
 
 model Result {
-  id          String       @id @default(cuid())
-  eventId     String       @map("event_id")
-  swimmerId   String       @map("swimmer_id")
-  heatId      String?      @map("heat_id")
-  lane        Int?
-  finalTime   Int?         @map("final_time")
-  place       Int?
-  status      ResultStatus @default(OK)
-  points      Int?
-  isRecord    Boolean      @default(false) @map("is_record")
-  homologated Boolean      @default(false)
-  categoryId  String       @map("category_id")
-  clubId      String       @map("club_id")
-  createdAt   DateTime     @default(now()) @map("created_at")
+  id            String       @id @default(cuid())
+  eventId       String       @map("event_id")
+  swimmerId     String       @map("swimmer_id")
+  heatId        String?      @map("heat_id")
+  lane          Int?
+  finalTime     Int?         @map("final_time")     // ms; null para DNS/DNF
+  place         Int?
+  status        ResultStatus @default(OK)
+  finaPoints    Decimal?     @map("fina_points")    @db.Decimal(8, 4)
+  isPb          Boolean      @default(false) @map("is_pb")
+  isRecord      Boolean      @default(false) @map("is_record")
+  homologated   Boolean      @default(false)
+  homologatedAt DateTime?    @map("homologated_at")
+  homologatedBy String?      @map("homologated_by")
+  dsqCode       String?      @map("dsq_code")       // código de descalificación
+  reactionTime  Int?         @map("reaction_time")  // ms
+  source        ResultSource @default(manual)
+  // Campos congelados al momento de inscripción/homologación — NUNCA recalcular
+  categoryId    String       @map("category_id")
+  clubId        String       @map("club_id")
+  createdAt     DateTime     @default(now()) @map("created_at")
 
-  event       Event    @relation(fields: [eventId], references: [id])
-  swimmer     Swimmer  @relation(fields: [swimmerId], references: [id])
-  heat        Heat?    @relation(fields: [heatId], references: [id])
-  splits      Split[]
-  record      Record?
+  event        Event     @relation(fields: [eventId], references: [id])
+  swimmer      Swimmer   @relation(fields: [swimmerId], references: [id])
+  heat         Heat?     @relation(fields: [heatId], references: [id])
+  category     Category  @relation("ResultFrozenCategory", fields: [categoryId], references: [id])
+  club         Club      @relation("ResultFrozenClub", fields: [clubId], references: [id])
+  homologator  User?     @relation("ResultHomologator", fields: [homologatedBy], references: [id])
+  splits       Split[]
+  record       Record?   @relation("RecordSourceResult")
+  personalBest PersonalBest? @relation("PBSourceResult")
 
+  @@index([swimmerId, eventId])
+  @@index([homologated, eventId])
   @@map("results")
 }
 
+// Parciales del resultado — distancia y tiempo son CUMULATIVOS (v3 MODULO-INGESTA §2.1)
 model Split {
-  id        String @id @default(cuid())
-  resultId  String @map("result_id")
-  distance  Int
-  splitTime Int    @map("split_time")
+  id             String @id @default(cuid())
+  resultId       String @map("result_id")
+  distance       Int    // metros acumulados (p.ej. 25, 50, 75, 100…)
+  cumulativeTime Int    @map("cumulative_time") // ms acumulados al pasar por esa marca
 
-  result    Result @relation(fields: [resultId], references: [id])
+  result Result @relation(fields: [resultId], references: [id])
 
   @@unique([resultId, distance])
   @@map("splits")
 }
 
-// ─── Marcas, récords y rankings ───────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// MARCAS, RÉCORDS Y RANKINGS
+// ═══════════════════════════════════════════════════════════════════════════
 
+// Caché derivada de la mejor marca por (nadador, prueba, piscina).
+// Se actualiza por evento de dominio ResultHomologated si mejora la vigente.
 model PersonalBest {
   id                String     @id @default(cuid())
   swimmerId         String     @map("swimmer_id")
   eventDefinitionId String     @map("event_definition_id")
   poolLength        PoolLength @map("pool_length")
-  bestTime          Int        @map("best_time")
+  bestTime          Int        @map("best_time") // ms
+  sourceResultId    String?    @unique @map("source_result_id")
+  seasonId          String?    @map("season_id") // temporada en que se logró
+  finaPoints        Decimal?   @map("fina_points") @db.Decimal(8, 4)
   achievedAt        DateTime   @map("achieved_at")
   updatedAt         DateTime   @updatedAt @map("updated_at")
 
-  swimmer           Swimmer @relation(fields: [swimmerId], references: [id])
+  swimmer         Swimmer         @relation(fields: [swimmerId], references: [id])
+  eventDefinition EventDefinition @relation(fields: [eventDefinitionId], references: [id])
+  sourceResult    Result?         @relation("PBSourceResult", fields: [sourceResultId], references: [id])
+  season          Season?         @relation(fields: [seasonId], references: [id])
 
   @@unique([swimmerId, eventDefinitionId, poolLength])
   @@map("personal_bests")
 }
 
+// Récords provinciales y nacionales.
+// Clave de récord: (scope, event_definition_id, category_id, gender, pool_length).
+// Récords 25m y 50m son INDEPENDIENTES.
+// PARTIAL UNIQUE INDEX (agregar via migration SQL):
+//   CREATE UNIQUE INDEX uq_record_current
+//     ON records (scope, event_definition_id, category_id, gender, pool_length)
+//     WHERE is_current = true;
 model Record {
+  id                String       @id @default(cuid())
+  scope             Scope
+  eventDefinitionId String       @map("event_definition_id")
+  categoryId        String       @map("category_id")
+  gender            Gender
+  poolLength        PoolLength   @map("pool_length") // parte de la clave — 25m y 50m independientes
+  timeMs            Int          @map("time_ms")
+  swimmerId         String       @map("swimmer_id")
+  clubId            String       @map("club_id")
+  recordDate        DateTime     @map("record_date")
+  sourceResultId    String?      @unique @map("source_result_id")
+  status            RecordStatus @default(pending_homologation)
+  isCurrent         Boolean      @default(false) @map("is_current")
+  previousRecordId  String?      @map("previous_record_id") // cadena histórica
+  homologatedBy     String?      @map("homologated_by")
+  homologatedAt     DateTime?    @map("homologated_at")
+  createdAt         DateTime     @default(now()) @map("created_at")
+
+  eventDefinition EventDefinition @relation(fields: [eventDefinitionId], references: [id])
+  category        Category        @relation(fields: [categoryId], references: [id])
+  swimmer         Swimmer         @relation(fields: [swimmerId], references: [id])
+  sourceResult    Result?         @relation("RecordSourceResult", fields: [sourceResultId], references: [id])
+  homologator     User?           @relation("RecordHomologator", fields: [homologatedBy], references: [id])
+  previousRecord  Record?         @relation("RecordChain", fields: [previousRecordId], references: [id])
+  supersededBy    Record[]        @relation("RecordChain")
+  achievements    AthleteAchievement[]
+
+  @@index([scope, eventDefinitionId, categoryId, gender, poolLength, isCurrent])
+  @@map("records")
+}
+
+// Proyección materializada de rankings (modo best_per_swimmer).
+// Recalculada incrementalmente por worker (BullMQ) al homologar resultados.
+// El modo all_performances se resuelve con queries directas sobre results.
+model Ranking {
   id                String     @id @default(cuid())
-  scope             RecordScope
+  swimmerId         String     @map("swimmer_id")
+  eventDefinitionId String     @map("event_definition_id")
+  poolLength        PoolLength @map("pool_length")
+  gender            Gender
+  scope             Scope      @default(provincial)
+  seasonId          String?    @map("season_id") // null = histórico global
+  categoryId        String     @map("category_id")
+  clubId            String     @map("club_id")   // club con el que compitió (congelado)
+  position          Int
+  finalTime         Int        @map("final_time") // ms
+  finaPoints        Decimal?   @map("fina_points") @db.Decimal(8, 4)
+  sourceResultId    String     @map("source_result_id")
+  computedAt        DateTime   @map("computed_at")
+
+  swimmer         Swimmer         @relation(fields: [swimmerId], references: [id])
+  eventDefinition EventDefinition @relation(fields: [eventDefinitionId], references: [id])
+  category        Category        @relation(fields: [categoryId], references: [id])
+
+  @@unique([swimmerId, eventDefinitionId, poolLength, scope, seasonId, categoryId])
+  @@index([eventDefinitionId, poolLength, gender, scope, seasonId, position])
+  @@map("rankings")
+}
+
+// Snapshot de posición de ranking al cierre de cada temporada.
+// Habilita "ranking histórico" y "evolución de posición" sin recomputar el pasado.
+model RankingHistory {
+  id                String     @id @default(cuid())
+  swimmerId         String     @map("swimmer_id")
   eventDefinitionId String     @map("event_definition_id")
   categoryId        String     @map("category_id")
   gender            Gender
   poolLength        PoolLength @map("pool_length")
-  time              Int
-  swimmerId         String     @map("swimmer_id")
-  clubId            String     @map("club_id")
-  recordDate        DateTime   @map("record_date")
-  sourceResultId    String?    @unique @map("source_result_id")
-  isCurrent         Boolean    @default(true) @map("is_current")
-  previousRecordId  String?    @map("previous_record_id")
-  createdAt         DateTime   @default(now()) @map("created_at")
+  scope             Scope      @default(provincial)
+  seasonId          String     @map("season_id")
+  position          Int
+  bestTimeMs        Int        @map("best_time_ms") // ms
+  finaPoints        Decimal?   @map("fina_points") @db.Decimal(8, 4)
+  snapshotDate      DateTime   @map("snapshot_date")
 
-  eventDefinition   EventDefinition @relation(fields: [eventDefinitionId], references: [id])
-  category          Category        @relation(fields: [categoryId], references: [id])
-  swimmer           Swimmer         @relation(fields: [swimmerId], references: [id])
-  sourceResult      Result?         @relation(fields: [sourceResultId], references: [id])
+  swimmer         Swimmer         @relation(fields: [swimmerId], references: [id])
+  eventDefinition EventDefinition @relation(fields: [eventDefinitionId], references: [id])
+  category        Category        @relation(fields: [categoryId], references: [id])
+  season          Season          @relation(fields: [seasonId], references: [id])
 
-  @@unique([scope, eventDefinitionId, categoryId, gender, poolLength, isCurrent])
-  @@map("records")
+  @@unique([swimmerId, eventDefinitionId, categoryId, poolLength, scope, seasonId])
+  @@map("ranking_history")
 }
 
-// ─── Contenido ────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// ESTADÍSTICAS Y LOGROS DEL ATLETA
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Métricas precalculadas por worker tras cada homologación.
+// Una fila por temporada + una fila global (seasonId = null).
+model AthleteStatistics {
+  id                String   @id @default(cuid())
+  swimmerId         String   @map("swimmer_id")
+  seasonId          String?  @map("season_id") // null = estadísticas históricas globales
+  totalCompetitions Int      @default(0) @map("total_competitions")
+  totalEvents       Int      @default(0) @map("total_events")
+  totalPbs          Int      @default(0) @map("total_pbs")
+  gold              Int      @default(0)
+  silver            Int      @default(0)
+  bronze            Int      @default(0)
+  totalMedals       Int      @default(0) @map("total_medals")
+  bestFinaPoints    Decimal? @map("best_fina_points") @db.Decimal(8, 4)
+  improvementPct    Decimal? @map("improvement_pct") @db.Decimal(5, 2)
+  computedAt        DateTime @map("computed_at")
+
+  swimmer Swimmer @relation(fields: [swimmerId], references: [id])
+  season  Season? @relation(fields: [seasonId], references: [id])
+
+  @@unique([swimmerId, seasonId])
+  @@map("athlete_statistics")
+}
+
+// Medallas, récords y badges motivacionales del atleta.
+model AthleteAchievement {
+  id           String          @id @default(cuid())
+  swimmerId    String          @map("swimmer_id")
+  type         AchievementType
+  medal        MedalType?
+  tournamentId String?         @map("tournament_id")
+  eventId      String?         @map("event_id")
+  recordId     String?         @map("record_id")
+  title        String
+  description  String?
+  achievedAt   DateTime        @map("achieved_at")
+
+  swimmer    Swimmer     @relation(fields: [swimmerId], references: [id])
+  tournament Tournament? @relation(fields: [tournamentId], references: [id])
+  event      Event?      @relation(fields: [eventId], references: [id])
+  record     Record?     @relation(fields: [recordId], references: [id])
+
+  @@map("athlete_achievements")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// IMPORTACIÓN / EXPORTACIÓN / INGESTA
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Esquema de puntuación versionado — NUNCA hardcodear puntos.
+// Config JSONB: { points: [9,7,6,5,4,3,2,1], relay_multiplier: 2, min_competitors: 1 }
+model ScoringScheme {
+  id                String            @id @default(cuid())
+  name              String
+  type              ScoringSchemeType
+  config            Json
+  validFromSeasonId String?           @map("valid_from_season_id")
+  validToSeasonId   String?           @map("valid_to_season_id")
+  isActive          Boolean           @default(true) @map("is_active")
+  createdAt         DateTime          @default(now()) @map("created_at")
+
+  validFromSeason Season? @relation("SchemeValidFrom", fields: [validFromSeasonId], references: [id])
+  validToSeason   Season? @relation("SchemeValidTo", fields: [validToSeasonId], references: [id])
+
+  @@map("scoring_schemes")
+}
+
+// Documentos adjuntos a un torneo (convocatoria, reglamento, programa, etc.)
+model TournamentDocument {
+  id           String            @id @default(cuid())
+  tournamentId String            @map("tournament_id")
+  type         TournamentDocType
+  title        String
+  fileUrl      String            @map("file_url")
+  mimeType     String            @map("mime_type")
+  uploadedBy   String            @map("uploaded_by")
+  createdAt    DateTime          @default(now()) @map("created_at")
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id])
+  uploader   User       @relation(fields: [uploadedBy], references: [id])
+
+  @@map("tournament_documents")
+}
+
+// Orquestación de importaciones asíncronas (BullMQ).
+// fileHash garantiza idempotencia: reimportar el mismo archivo hace upsert, no duplica.
+model ImportJob {
+  id           String       @id @default(cuid())
+  source       ImportSource
+  fileUrl      String?      @map("file_url")    // URL en S3 del archivo original
+  fileHash     String?      @unique @map("file_hash") // clave de idempotencia
+  status       ImportStatus @default(uploaded)
+  uploadedBy   String       @map("uploaded_by")
+  tournamentId String?      @map("tournament_id")
+  totalRows    Int?         @map("total_rows")
+  okRows       Int?         @map("ok_rows")
+  errorRows    Int?         @map("error_rows")
+  // Array de issues: [{severity, stage, message, sourceRow, suggestion}]
+  issues       Json?
+  createdAt    DateTime     @default(now()) @map("created_at")
+  finishedAt   DateTime?    @map("finished_at")
+
+  uploader          User               @relation("UploadedBy", fields: [uploadedBy], references: [id])
+  tournament        Tournament?        @relation(fields: [tournamentId], references: [id])
+  meetManagerImport MeetManagerImport?
+
+  @@map("import_jobs")
+}
+
+// Detalle específico de importaciones Meet Manager / Lenex / HY3.
+// parsedPayload guarda el NormalizedMeet completo como JSONB (staging diferido).
+model MeetManagerImport {
+  id                   String     @id @default(cuid())
+  importJobId          String     @unique @map("import_job_id")
+  format               MeetFormat
+  externalMeetId       String?    @map("external_meet_id")
+  meetName             String?    @map("meet_name")
+  meetCourse           PoolLength? @map("meet_course")
+  // NormalizedMeet staging — estructura completa del meet antes del commit a tablas oficiales
+  parsedPayload        Json       @map("parsed_payload")
+  newSwimmersCount     Int        @default(0) @map("new_swimmers_count")
+  matchedSwimmersCount Int        @default(0) @map("matched_swimmers_count")
+  recordsDetectedCount Int        @default(0) @map("records_detected_count")
+  // Mapa external_id → internal_id para conciliaciones futuras
+  mapping              Json?
+  createdAt            DateTime   @default(now()) @map("created_at")
+
+  importJob ImportJob @relation(fields: [importJobId], references: [id])
+
+  @@map("meet_manager_imports")
+}
+
+// Registro de exportaciones generadas (Lenex, PDF, heat sheets).
+model MeetManagerExport {
+  id           String       @id @default(cuid())
+  format       ExportFormat
+  scope        ExportScope
+  tournamentId String       @map("tournament_id")
+  fileUrl      String       @map("file_url")
+  generatedBy  String       @map("generated_by")
+  createdAt    DateTime     @default(now()) @map("created_at")
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id])
+  generator  User       @relation(fields: [generatedBy], references: [id])
+
+  @@map("meet_manager_exports")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONTENIDO Y SOPORTE
+// ═══════════════════════════════════════════════════════════════════════════
 
 model News {
   id          String     @id @default(cuid())
@@ -395,21 +973,44 @@ model News {
   createdAt   DateTime   @default(now()) @map("created_at")
   updatedAt   DateTime   @updatedAt @map("updated_at")
 
-  author      User       @relation(fields: [authorId], references: [id])
+  author User @relation(fields: [authorId], references: [id])
 
   @@map("news")
 }
 
+// Referencias a archivos en S3 (logos, fotos, PDFs, reglamentos).
+// entityType + entityId proveen referencia polimórfica ligera.
+model Media {
+  id         String   @id @default(cuid())
+  url        String
+  mimeType   String   @map("mime_type")
+  fileSize   Int?     @map("file_size") // bytes
+  uploadedBy String   @map("uploaded_by")
+  entityType String?  @map("entity_type") // "tournament" | "swimmer" | "news" | ...
+  entityId   String?  @map("entity_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  uploader User @relation(fields: [uploadedBy], references: [id])
+
+  @@index([entityType, entityId])
+  @@map("media")
+}
+
+// Auditoría de acciones administrativas y de vinculación.
+// userId nullable para acciones del sistema (workers, cron).
 model AuditLog {
   id         String   @id @default(cuid())
-  userId     String   @map("user_id")
-  action     String
+  userId     String?  @map("user_id")
+  action     String   // e.g. "RECORD_HOMOLOGATED", "ACCOUNT_LINK_APPROVED"
   entityType String   @map("entity_type")
   entityId   String   @map("entity_id")
   payload    Json?
+  ipAddress  String?  @map("ip_address")
   createdAt  DateTime @default(now()) @map("created_at")
 
-  user       User     @relation(fields: [userId], references: [id])
+  user User? @relation(fields: [userId], references: [id])
 
+  @@index([entityType, entityId])
+  @@index([userId])
   @@map("audit_logs")
 }
