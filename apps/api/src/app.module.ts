@@ -9,6 +9,7 @@ import { ClubsModule } from './clubs/clubs.module';
 import { SwimmersModule } from './swimmers/swimmers.module';
 import { TournamentsModule } from './tournaments/tournaments.module';
 import { StorageModule } from './storage/storage.module';
+import { IngestModule } from './ingest/ingest.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { StorageModule } from './storage/storage.module';
     SwimmersModule,
     TournamentsModule,
     StorageModule,
+    IngestModule,
   ],
   controllers: [AppController],
   providers: [AppService],
