@@ -9,7 +9,9 @@ import { ImportService } from './import.service';
 import { ImportRepository } from './import.repository';
 import { ImportProcessor } from './processors/import.processor';
 import { CommitProcessor } from './processors/commit.processor';
-import { StubMatcher } from './matching/stub-matcher';
+import { AthleteMatcher } from './matching/athlete-matcher';
+import { ClubMatcher } from './matching/club-matcher';
+import { DuplicateDetector } from './matching/duplicate-detector';
 import { MeetManagerPdfAdapter } from '../ingest/adapters/meet-manager-pdf/meet-manager-pdf-adapter';
 import { IMPORT_QUEUE } from './import.queue';
 
@@ -39,7 +41,9 @@ import { IMPORT_QUEUE } from './import.queue';
     ImportRepository,
     ImportProcessor,
     CommitProcessor,
-    StubMatcher,
+    AthleteMatcher,
+    ClubMatcher,
+    DuplicateDetector,
     MeetManagerPdfAdapter,
   ],
   exports: [ImportService],

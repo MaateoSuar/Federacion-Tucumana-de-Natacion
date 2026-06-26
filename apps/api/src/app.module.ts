@@ -13,6 +13,7 @@ import { TournamentsModule } from './tournaments/tournaments.module';
 import { StorageModule } from './storage/storage.module';
 import { IngestModule } from './ingest/ingest.module';
 import { ImportModule } from './import/import.module';
+import { HomologationModule } from './homologation/homologation.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { ImportModule } from './import/import.module';
     StorageModule,
     IngestModule,
     ImportModule,
+    HomologationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

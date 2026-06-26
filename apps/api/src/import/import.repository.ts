@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ImportStatus, ImportSource, MeetFormat, Prisma, PoolLength } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { NormalizedMeet } from '../ingest/types/normalized-meet.types';
+import type { MatchResultsPayload } from './matching/types';
 
 @Injectable()
 export class ImportRepository {
@@ -60,6 +61,7 @@ export class ImportRepository {
       externalMeetId?: string;
       meetName?: string;
       meetCourse?: PoolLength;
+      matchResults?: MatchResultsPayload;
     },
   ) {
     return this.prisma.meetManagerImport.upsert({
@@ -74,6 +76,7 @@ export class ImportRepository {
         externalMeetId: stats.externalMeetId,
         meetName: stats.meetName,
         meetCourse: stats.meetCourse,
+        matchResults: stats.matchResults as unknown as Prisma.InputJsonValue ?? Prisma.JsonNull,
       },
       update: {
         format,
@@ -84,6 +87,7 @@ export class ImportRepository {
         externalMeetId: stats.externalMeetId,
         meetName: stats.meetName,
         meetCourse: stats.meetCourse,
+        matchResults: stats.matchResults as unknown as Prisma.InputJsonValue ?? Prisma.JsonNull,
       },
     });
   }

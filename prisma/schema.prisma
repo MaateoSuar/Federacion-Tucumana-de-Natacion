@@ -334,6 +334,7 @@ model Club {
   // Resultados y registraciones donde clubId fue congelado
   frozenResults       Result[]        @relation("ResultFrozenClub")
   frozenRegistrations Registration[]  @relation("RegistrationFrozenClub")
+  externalIdMaps      ExternalIdMap[]
 
   @@map("clubs")
 }
@@ -427,9 +428,10 @@ model Swimmer {
   records       Record[]
   rankings      Ranking[]
   rankingHistory RankingHistory[]
-  statistics    AthleteStatistics[]
-  achievements  AthleteAchievement[]
-  linkRequests  AccountLinkRequest[]
+  statistics      AthleteStatistics[]
+  achievements    AthleteAchievement[]
+  linkRequests    AccountLinkRequest[]
+  externalIdMaps  ExternalIdMap[]
 
   @@map("swimmers")
 }
@@ -932,11 +934,30 @@ model MeetManagerImport {
   recordsDetectedCount Int        @default(0) @map("records_detected_count")
   // Mapa external_id → internal_id para conciliaciones futuras
   mapping              Json?
+  // Resultados de la cascada de matching (M8): { swimmers: [...], clubs: [...] }
+  matchResults         Json?      @map("match_results")
   createdAt            DateTime   @default(now()) @map("created_at")
 
   importJob ImportJob @relation(fields: [importJobId], references: [id])
 
   @@map("meet_manager_imports")
+}
+
+// Mapa de IDs externos (Meet Manager) → IDs internos (swimmers/clubs).
+// Permite que re-importaciones del mismo club resuelvan automáticamente.
+model ExternalIdMap {
+  id           String   @id @default(cuid())
+  sourceSystem String   @map("source_system") // "meet_manager", "hy3", etc.
+  externalId   String   @map("external_id")
+  swimmerId    String?  @map("swimmer_id")
+  clubId       String?  @map("club_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  swimmer Swimmer? @relation(fields: [swimmerId], references: [id])
+  club    Club?    @relation(fields: [clubId], references: [id])
+
+  @@unique([sourceSystem, externalId])
+  @@map("external_id_map")
 }
 
 // Registro de exportaciones generadas (Lenex, PDF, heat sheets).

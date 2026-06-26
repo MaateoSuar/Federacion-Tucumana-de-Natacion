@@ -1,5 +1,5 @@
 export type IssueSeverity = 'FATAL' | 'ERROR' | 'WARNING' | 'INFO';
-export type IssueStage = 'detect' | 'parse' | 'normalize';
+export type IssueStage = 'detect' | 'parse' | 'normalize' | 'validate' | 'match';
 
 export interface ImportIssue {
   severity: IssueSeverity;

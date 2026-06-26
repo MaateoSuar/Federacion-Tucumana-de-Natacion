@@ -133,6 +133,12 @@ describe('ImportService', () => {
           issues: [],
           meta: { source_file_name: 'test.pdf', parsed_at: '2026-05-01', total_lines: 10 },
         },
+        matchResults: {
+          swimmers: [],
+          clubs: [
+            { clubRef: 'T1', confidence: 'none', clubId: null, matchedBy: 'none', requiresConfirmation: false, displayName: 'Club A' },
+          ],
+        },
       };
       mockRepo.findById.mockResolvedValue({
         id: 'job-1',

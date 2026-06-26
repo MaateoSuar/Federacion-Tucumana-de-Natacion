@@ -14,9 +14,10 @@ import { ImportRepository } from './import.repository';
 import { CommitProcessor } from './processors/commit.processor';
 import { IMPORT_QUEUE, PROCESS_JOB } from './import.queue';
 import type { ProcessImportJobData } from './processors/import.processor';
-import type { PreviewResponseDto } from './dto/preview-response.dto';
+import type { PreviewResponseDto, SwimmerMatchGroups, ClubMatchGroups } from './dto/preview-response.dto';
 import type { NormalizedMeet } from '../ingest/types/normalized-meet.types';
 import type { ImportIssue } from '../ingest/types/import-issue.types';
+import type { MatchResultsPayload, SwimmerMatchResult, ClubMatchResult } from './matching/types';
 
 const UPLOAD_DIR = join(process.cwd(), 'uploads', 'imports');
 
@@ -35,14 +36,12 @@ export class ImportService {
   async upload(file: Express.Multer.File, uploadedBy: string): Promise<{ jobId: string; existing: boolean }> {
     const fileHash = createHash('sha256').update(file.buffer).digest('hex');
 
-    // Idempotencia: mismo archivo → mismo job
     const existing = await this.repo.findByHash(fileHash);
     if (existing && existing.status !== 'failed') {
       this.logger.log(`File hash ${fileHash.slice(0, 8)} already imported — returning existing job ${existing.id}`);
       return { jobId: existing.id, existing: true };
     }
 
-    // Guardar archivo en disco (stub local; en prod → S3)
     const ext = file.originalname.split('.').pop() ?? 'bin';
     const filename = `${randomUUID()}.${ext}`;
     const filePath = join(UPLOAD_DIR, filename);
@@ -83,6 +82,13 @@ export class ImportService {
     const staging = job.meetManagerImport;
     const payload = staging?.parsedPayload as unknown as NormalizedMeet | null;
     const issues = (job.issues as unknown as ImportIssue[]) ?? [];
+    const matchResults = staging?.matchResults as unknown as MatchResultsPayload | null;
+
+    const swimmerMatches = buildSwimmerGroups(matchResults?.swimmers ?? []);
+    const clubMatches = buildClubGroups(matchResults?.clubs ?? []);
+
+    const confirmationRequired =
+      swimmerMatches.needsConfirmation.length + clubMatches.needsConfirmation.length;
 
     return {
       jobId: job.id,
@@ -94,7 +100,8 @@ export class ImportService {
         warningCount: issues.filter((i) => i.severity === 'WARNING').length,
         newSwimmers: staging?.newSwimmersCount ?? 0,
         matchedSwimmers: staging?.matchedSwimmersCount ?? 0,
-        newClubs: payload?.clubs?.length ?? 0,
+        confirmationRequired,
+        newClubs: clubMatches.new.length,
         recordCandidates: staging?.recordsDetectedCount ?? 0,
       },
       issues,
@@ -108,6 +115,8 @@ export class ImportService {
             source: payload.meet.source,
           }
         : null,
+      swimmerMatches,
+      clubMatches,
     };
   }
 
@@ -119,4 +128,24 @@ export class ImportService {
   async rollback(jobId: string): Promise<void> {
     await this.commitProcessor.rollback(jobId);
   }
+}
+
+function buildSwimmerGroups(swimmers: SwimmerMatchResult[]): SwimmerMatchGroups {
+  return {
+    strong: swimmers.filter(
+      (s) => (s.confidence === 'strong' || s.confidence === 'high') && !s.requiresConfirmation,
+    ),
+    needsConfirmation: swimmers.filter((s) => s.requiresConfirmation),
+    new: swimmers.filter((s) => s.confidence === 'none'),
+  };
+}
+
+function buildClubGroups(clubs: ClubMatchResult[]): ClubMatchGroups {
+  return {
+    strong: clubs.filter(
+      (c) => (c.confidence === 'strong' || c.confidence === 'high') && !c.requiresConfirmation,
+    ),
+    needsConfirmation: clubs.filter((c) => c.requiresConfirmation),
+    new: clubs.filter((c) => c.confidence === 'none'),
+  };
 }
