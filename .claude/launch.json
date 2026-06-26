@@ -1,0 +1,24 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "FTN Web (Next.js)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@ftn/web", "dev"],
+      "port": 3000,
+      "autoPort": false
+    },
+    {
+      "name": "FTN API (NestJS)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@ftn/api", "dev"],
+      "port": 3001
+    },
+    {
+      "name": "FTN Full Stack (Turbo)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev"],
+      "port": 3000
+    }
+  ]
+}

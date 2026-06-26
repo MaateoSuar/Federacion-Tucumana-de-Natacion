@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { BullModule } from '@nestjs/bullmq';
+import { ConfigService } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -10,12 +12,26 @@ import { SwimmersModule } from './swimmers/swimmers.module';
 import { TournamentsModule } from './tournaments/tournaments.module';
 import { StorageModule } from './storage/storage.module';
 import { IngestModule } from './ingest/ingest.module';
+import { ImportModule } from './import/import.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '../../.env',
+    }),
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const redisUrl = config.get<string>('REDIS_URL') ?? 'redis://localhost:6379';
+        const url = new URL(redisUrl);
+        return {
+          connection: {
+            host: url.hostname,
+            port: parseInt(url.port || '6379', 10),
+          },
+        };
+      },
     }),
     PrismaModule,
     AuthModule,
@@ -25,6 +41,7 @@ import { IngestModule } from './ingest/ingest.module';
     TournamentsModule,
     StorageModule,
     IngestModule,
+    ImportModule,
   ],
   controllers: [AppController],
   providers: [AppService],
