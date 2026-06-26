@@ -1,3 +1,91 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer components {
+  /* Inputs */
+  .input {
+    @apply w-full border border-gray-200 rounded-lg px-3 py-2 text-sm
+           focus:outline-none focus:ring-2 focus:ring-aqua-400 focus:border-transparent
+           bg-white transition-shadow placeholder-gray-400;
+  }
+
+  /* Botones primarios */
+  .btn-primary {
+    @apply inline-flex items-center gap-2 bg-gradient-to-r from-pool-600 to-aqua-500
+           text-white px-5 py-2.5 rounded-lg text-sm font-semibold
+           hover:from-pool-700 hover:to-aqua-600 transition-all shadow-md
+           hover:shadow-aqua-400/30 active:scale-95;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 bg-white border border-gray-200
+           text-gray-700 px-5 py-2.5 rounded-lg text-sm font-medium
+           hover:bg-gray-50 hover:border-gray-300 transition-all;
+  }
+
+  /* Card base */
+  .card {
+    @apply bg-white rounded-2xl border border-gray-100 shadow-sm;
+  }
+
+  /* Badge de estado */
+  .badge-green  { @apply inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700; }
+  .badge-yellow { @apply inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700; }
+  .badge-red    { @apply inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700; }
+  .badge-gray   { @apply inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500; }
+
+  /* Lane divider — decorativo */
+  .lane-divider {
+    background: repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 18px,
+      #e2e8f0 18px,
+      #e2e8f0 20px
+    );
+  }
+}
+
+/* Olas SVG animadas */
+.wave-svg {
+  animation: waveAnim 8s ease-in-out infinite;
+}
+.wave-svg-2 {
+  animation: waveAnim 10s ease-in-out infinite reverse;
+  opacity: 0.5;
+}
+
+@keyframes waveAnim {
+  0%, 100% { transform: translateX(0px); }
+  50%       { transform: translateX(-40px); }
+}
+
+/* Agua shimmer */
+.water-shimmer {
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(0,180,216,0.15) 50%,
+    transparent 60%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 3s linear infinite;
+}
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
