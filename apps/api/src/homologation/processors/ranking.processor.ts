@@ -1,13 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PoolLength } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisService } from '../../redis/redis.service';
 import type { PostProcessJobData } from '../homologation.queue';
 
 @Injectable()
 export class RankingProcessor {
   private readonly logger = new Logger(RankingProcessor.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+  ) {}
 
   async process(data: PostProcessJobData): Promise<void> {
     const { eventDefinitionId, poolLength, gender, seasonId, categoryId } = data;
@@ -119,6 +123,17 @@ export class RankingProcessor {
         });
       }
     }
+
+    // Invalida cache de ambos modos y ambos cortes (global + por temporada)
+    const cacheBase = `ranking:event:${eventDefinitionId}:${prismaPool}:${gender}:provincial`;
+    await this.redis.del(`${cacheBase}:all:${categoryId}`);
+    await this.redis.del(`${cacheBase}:all:${categoryId}:all`);
+    if (seasonId) {
+      await this.redis.del(`${cacheBase}:${seasonId}:${categoryId}`);
+      await this.redis.del(`${cacheBase}:${seasonId}:${categoryId}:all`);
+    }
+    await this.redis.del(`ranking:club:provincial:all`);
+    if (seasonId) await this.redis.del(`ranking:club:provincial:${seasonId}`);
 
     this.logger.log(`Ranking recalculated for event ${eventDefinitionId}/${poolLength}/${gender} — ${ranked.length} entries`);
   }

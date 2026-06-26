@@ -14,6 +14,9 @@ import { StorageModule } from './storage/storage.module';
 import { IngestModule } from './ingest/ingest.module';
 import { ImportModule } from './import/import.module';
 import { HomologationModule } from './homologation/homologation.module';
+import { RedisModule } from './redis/redis.module';
+import { RankingsModule } from './rankings/rankings.module';
+import { RecordsModule } from './records/records.module';
 
 @Module({
   imports: [
@@ -34,6 +37,7 @@ import { HomologationModule } from './homologation/homologation.module';
         };
       },
     }),
+    RedisModule,
     PrismaModule,
     AuthModule,
     UsersModule,
@@ -44,6 +48,8 @@ import { HomologationModule } from './homologation/homologation.module';
     IngestModule,
     ImportModule,
     HomologationModule,
+    RankingsModule,
+    RecordsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

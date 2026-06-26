@@ -1,5 +1,5 @@
 // pdf-parse v1 exports a callable function as the default CJS export
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+// eslint-disable-next-line @typescript-eslint/no-var-requires
 const pdfParse = require('pdf-parse') as (
   dataBuffer: Buffer,
   options?: object,

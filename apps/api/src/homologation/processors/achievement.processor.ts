@@ -15,7 +15,7 @@ export class AchievementProcessor {
   constructor(private readonly prisma: PrismaService) {}
 
   async process(data: PostProcessJobData): Promise<void> {
-    const { swimmerId, resultId, tournamentId, eventId, place, resultDate } = data;
+    const { swimmerId, tournamentId, eventId, place, resultDate } = data;
 
     if (place === null) return;
 

@@ -196,7 +196,7 @@ export function parseLines(lines: string[], _fileName: string): LineParserResult
 
     // ── Event header: "Evento N  Gender AgeGroup Distance CC|LC Metro Stroke Type [Relevo]" ──
     const eventMatch = trimmed.match(
-      /^Evento\s+(\d+)\s+(Ni[ñn]as?|Mujeres|Ni[ñn]os?|Hombres|Mixto)\s+([\d\-]+(?:\s*&\s*Mayores)?)\s+(\d+)\s+(CC|LC|LM)\s+Metro\s+(.+)/i,
+      /^Evento\s+(\d+)\s+(Ni[ñn]as?|Mujeres|Ni[ñn]os?|Hombres|Mixto)\s+([\d-]+(?:\s*&\s*Mayores)?)\s+(\d+)\s+(CC|LC|LM)\s+Metro\s+(.+)/i,
     );
     if (eventMatch) {
       pendingClub = null;
