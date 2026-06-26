@@ -156,6 +156,12 @@ export class TournamentsController {
 
   // ─── Series (Heats) ────────────────────────────────────────────────────────
 
+  @Get(':id/events/:eventId/results')
+  @ApiOperation({ summary: 'Resultados públicos de una prueba con parciales' })
+  getEventResults(@Param('id') id: string, @Param('eventId') eventId: string) {
+    return this.service.getEventResults(id, eventId);
+  }
+
   @Get(':id/events/:eventId/heats')
   @ApiOperation({ summary: 'Listar series de una prueba con carriles' })
   getHeats(@Param('id') id: string, @Param('eventId') eventId: string) {

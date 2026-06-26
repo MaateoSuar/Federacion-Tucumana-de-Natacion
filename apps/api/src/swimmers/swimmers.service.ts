@@ -216,6 +216,48 @@ export class SwimmersService {
     });
   }
 
+  async getPersonalBests(id: string) {
+    await this.findOne(id);
+    return this.prisma.personalBest.findMany({
+      where: { swimmerId: id },
+      include: {
+        eventDefinition: { select: { id: true, code: true, stroke: true, distance: true } },
+        sourceResult: {
+          select: {
+            id: true,
+            event: { select: { tournament: { select: { id: true, name: true, startDate: true } } } },
+          },
+        },
+      },
+      orderBy: [{ eventDefinition: { distance: 'asc' } }, { poolLength: 'asc' }],
+    });
+  }
+
+  async getResults(id: string, page = 1, limit = 20) {
+    await this.findOne(id);
+    const skip = (page - 1) * limit;
+    const [total, results] = await Promise.all([
+      this.prisma.result.count({ where: { swimmerId: id, homologated: true, status: 'OK' } }),
+      this.prisma.result.findMany({
+        where: { swimmerId: id, homologated: true, status: 'OK' },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+        include: {
+          event: {
+            include: {
+              eventDefinition: { select: { id: true, code: true, stroke: true, distance: true } },
+              tournament: { select: { id: true, name: true, startDate: true, poolLength: true } },
+            },
+          },
+          club: { select: { id: true, name: true, shortName: true } },
+          category: { select: { id: true, code: true, name: true } },
+        },
+      }),
+    ]);
+    return { total, page, limit, results };
+  }
+
   private async ensureClubExists(clubId: string) {
     const club = await this.prisma.club.findUnique({ where: { id: clubId } });
     if (!club) throw new NotFoundException(`Club ${clubId} no encontrado`);

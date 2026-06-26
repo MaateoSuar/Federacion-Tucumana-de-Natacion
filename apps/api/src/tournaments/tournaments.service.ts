@@ -370,6 +370,35 @@ export class TournamentsService {
     });
   }
 
+  // ─── Resultados públicos de una prueba ───────────────────────────────────
+
+  async getEventResults(tournamentId: string, eventId: string) {
+    const event = await this.prisma.event.findFirst({
+      where: { id: eventId, tournamentId },
+      include: {
+        eventDefinition: true,
+        category: true,
+        tournament: { select: { id: true, name: true, poolLength: true, startDate: true, scope: true } },
+      },
+    });
+    if (!event) throw new NotFoundException(`Prueba ${eventId} no encontrada en este torneo`);
+
+    const results = await this.prisma.result.findMany({
+      where: { eventId },
+      orderBy: [
+        { status: 'asc' }, // OK primero
+        { finalTime: { sort: 'asc', nulls: 'last' } },
+      ],
+      include: {
+        swimmer: { select: { id: true, firstName: true, lastName: true, gender: true } },
+        club: { select: { id: true, name: true, shortName: true } },
+        splits: { orderBy: { distance: 'asc' } },
+      },
+    });
+
+    return { event, results };
+  }
+
   // ─── Documentos ───────────────────────────────────────────────────────────
 
   async addDocument(

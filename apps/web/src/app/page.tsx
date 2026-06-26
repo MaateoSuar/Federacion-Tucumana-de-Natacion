@@ -13,10 +13,9 @@ export default function HomePage() {
           </span>
         </div>
         <div className="hidden md:flex items-center gap-6 text-sm text-pool-200">
-          <Link href="#" className="hover:text-white transition-colors">Torneos</Link>
-          <Link href="#" className="hover:text-white transition-colors">Resultados</Link>
-          <Link href="#" className="hover:text-white transition-colors">Rankings</Link>
-          <Link href="#" className="hover:text-white transition-colors">Récords</Link>
+          <Link href="/torneos" className="hover:text-white transition-colors">Torneos</Link>
+          <Link href="/rankings" className="hover:text-white transition-colors">Rankings</Link>
+          <Link href="/records" className="hover:text-white transition-colors">Récords</Link>
           <Link
             href="/admin"
             className="bg-aqua-500 text-white px-4 py-1.5 rounded-full text-xs font-semibold hover:bg-aqua-400 transition-colors"
@@ -55,17 +54,17 @@ export default function HomePage() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
-              href="#"
+              href="/torneos"
               className="group relative overflow-hidden bg-gradient-to-r from-aqua-500 to-pool-400 px-8 py-3.5 rounded-full font-bold text-white shadow-lg shadow-aqua-500/30 hover:shadow-aqua-500/50 transition-all hover:scale-105"
             >
-              <span className="relative z-10">Ver resultados</span>
+              <span className="relative z-10">Ver torneos</span>
               <div className="absolute inset-0 water-shimmer" />
             </Link>
             <Link
-              href="#"
+              href="/rankings"
               className="border border-pool-500 text-pool-200 hover:text-white hover:border-pool-400 px-8 py-3.5 rounded-full font-semibold transition-all"
             >
-              Rankings 2025 →
+              Rankings →
             </Link>
           </div>
         </div>

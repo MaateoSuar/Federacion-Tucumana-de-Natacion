@@ -103,4 +103,20 @@ export class SwimmersController {
   getClubHistory(@Param('id') id: string) {
     return this.swimmersService.getClubHistory(id);
   }
+
+  @Get(':id/personal-bests')
+  @ApiOperation({ summary: 'Mejores marcas personales del nadador' })
+  getPersonalBests(@Param('id') id: string) {
+    return this.swimmersService.getPersonalBests(id);
+  }
+
+  @Get(':id/results')
+  @ApiOperation({ summary: 'Historial de resultados homologados del nadador' })
+  getResults(
+    @Param('id') id: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number = 20,
+  ) {
+    return this.swimmersService.getResults(id, page, limit);
+  }
 }
