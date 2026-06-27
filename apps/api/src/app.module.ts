@@ -17,6 +17,8 @@ import { HomologationModule } from './homologation/homologation.module';
 import { RedisModule } from './redis/redis.module';
 import { RankingsModule } from './rankings/rankings.module';
 import { RecordsModule } from './records/records.module';
+import { ResultsGatewayModule } from './results-gateway/results-gateway.module';
+import { AccountLinkModule } from './account-link/account-link.module';
 
 @Module({
   imports: [
@@ -50,6 +52,8 @@ import { RecordsModule } from './records/records.module';
     HomologationModule,
     RankingsModule,
     RecordsModule,
+    ResultsGatewayModule,
+    AccountLinkModule,
   ],
   controllers: [AppController],
   providers: [AppService],

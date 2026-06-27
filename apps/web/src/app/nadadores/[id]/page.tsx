@@ -9,7 +9,10 @@ import {
   fetchSwimmerPersonalBests,
   fetchSwimmerResults,
   fetchSwimmerClubHistory,
+  fetchSwimmerStatistics,
+  fetchSwimmerTimeEvolution,
 } from '@/lib/api';
+import { SwimmerEvolutionChart } from '@/components/SwimmerEvolutionChart';
 
 export const revalidate = 300;
 
@@ -19,11 +22,13 @@ const STROKE_ES: Record<string, string> = {
 
 export default async function NadadorPage({ params }: { params: { id: string } }) {
   try {
-    const [swimmer, pbs, resultsPage, clubHistory] = await Promise.all([
+    const [swimmer, pbs, resultsPage, clubHistory, stats, evolution] = await Promise.all([
       fetchSwimmer(params.id),
       fetchSwimmerPersonalBests(params.id),
       fetchSwimmerResults(params.id),
       fetchSwimmerClubHistory(params.id),
+      fetchSwimmerStatistics(params.id).catch(() => null),
+      fetchSwimmerTimeEvolution(params.id).catch(() => []),
     ]);
 
     const gender = swimmer.gender === 'M' ? 'Masculino' : 'Femenino';
@@ -56,6 +61,48 @@ export default async function NadadorPage({ params }: { params: { id: string } }
               </div>
             </div>
           </div>
+
+          {/* Estadísticas globales */}
+          {stats?.global && (
+            <section className="mb-10">
+              <h2 className="text-lg font-bold text-white mb-4">Estadísticas</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: 'Competencias', value: stats.global.totalCompetitions },
+                  { label: 'PBs logrados', value: stats.global.totalPbs },
+                  { label: 'Medallas', value: stats.global.gold + stats.global.silver + stats.global.bronze },
+                  { label: 'Mejora total', value: stats.global.improvementPct != null ? `${Number(stats.global.improvementPct).toFixed(1)} %` : '—' },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-pool-800/30 rounded-xl border border-pool-700/40 p-4 text-center">
+                    <p className="text-2xl font-black text-white">{value ?? 0}</p>
+                    <p className="text-xs text-pool-400 mt-1">{label}</p>
+                  </div>
+                ))}
+              </div>
+              {(stats.global.gold + stats.global.silver + stats.global.bronze) > 0 && (
+                <div className="flex gap-4 mt-4">
+                  {[{ label: 'Oro', count: stats.global.gold, color: 'text-yellow-400' },
+                    { label: 'Plata', count: stats.global.silver, color: 'text-slate-300' },
+                    { label: 'Bronce', count: stats.global.bronze, color: 'text-amber-600' }]
+                    .filter((m) => m.count > 0)
+                    .map((m) => (
+                      <div key={m.label} className="flex items-center gap-1.5">
+                        <span className={`text-lg font-black ${m.color}`}>{m.count}</span>
+                        <span className="text-pool-400 text-sm">{m.label}</span>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Evolución de tiempos */}
+          {Array.isArray(evolution) && evolution.length > 0 && (
+            <section className="mb-10">
+              <h2 className="text-lg font-bold text-white mb-4">Evolución de tiempos</h2>
+              <SwimmerEvolutionChart data={evolution} />
+            </section>
+          )}
 
           {/* Mejores marcas personales */}
           {pbs.length > 0 && (

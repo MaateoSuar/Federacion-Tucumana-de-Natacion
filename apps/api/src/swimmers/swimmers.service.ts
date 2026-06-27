@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSwimmerDto } from './dto/create-swimmer.dto';
@@ -256,6 +257,135 @@ export class SwimmersService {
       }),
     ]);
     return { total, page, limit, results };
+  }
+
+  async getStatistics(swimmerId: string) {
+    await this.findOne(swimmerId);
+    const [stats, achievements] = await Promise.all([
+      this.prisma.athleteStatistics.findMany({
+        where: { swimmerId },
+        include: { season: { select: { id: true, year: true } } },
+        orderBy: [{ seasonId: 'asc' }],
+      }),
+      this.prisma.athleteAchievement.findMany({
+        where: { swimmerId },
+        orderBy: { achievedAt: 'desc' },
+        take: 20,
+        include: {
+          tournament: { select: { id: true, name: true } },
+          event: { select: { id: true, eventDefinition: { select: { stroke: true, distance: true } } } },
+        },
+      }),
+    ]);
+    const global = stats.find((s) => s.seasonId === null);
+    const bySeason = stats.filter((s) => s.seasonId !== null);
+    return { global, bySeason, achievements };
+  }
+
+  async getTimeEvolution(swimmerId: string, poolLength?: string) {
+    await this.findOne(swimmerId);
+
+    const where: Prisma.ResultWhereInput = {
+      swimmerId,
+      homologated: true,
+      status: 'OK',
+      finalTime: { not: null },
+    };
+    if (poolLength === 'P25' || poolLength === 'P50') {
+      where.event = { tournament: { poolLength: poolLength as 'P25' | 'P50' } };
+    }
+
+    const results = await this.prisma.result.findMany({
+      where,
+      select: {
+        finalTime: true,
+        isPb: true,
+        createdAt: true,
+        event: {
+          select: {
+            eventDefinition: { select: { id: true, stroke: true, distance: true, gender: true } },
+            tournament: {
+              select: { poolLength: true, startDate: true, season: { select: { year: true } } },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Group by eventDefinitionId + poolLength → array of {year, bestTime}
+    const map = new Map<string, { eventDef: { id: string; stroke: string; distance: number; gender: string }; pool: string; bySeason: Map<number, number> }>();
+
+    for (const r of results) {
+      if (r.finalTime === null) continue;
+      const key = `${r.event.eventDefinition.id}_${r.event.tournament.poolLength}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          eventDef: r.event.eventDefinition,
+          pool: r.event.tournament.poolLength,
+          bySeason: new Map(),
+        });
+      }
+      const entry = map.get(key)!;
+      const year = r.event.tournament.season?.year ?? new Date(r.event.tournament.startDate).getFullYear();
+      const current = entry.bySeason.get(year);
+      if (current === undefined || r.finalTime < current) {
+        entry.bySeason.set(year, r.finalTime);
+      }
+    }
+
+    return Array.from(map.values()).map(({ eventDef, pool, bySeason }) => {
+      const seasons = Array.from(bySeason.entries())
+        .sort(([a], [b]) => a - b)
+        .map(([year, bestTime]) => ({ year, bestTime }));
+      const times = seasons.map((s) => s.bestTime);
+      const firstTime = times[0] ?? null;
+      const bestTime = times.length ? Math.min(...times) : null;
+      const improvementMs = firstTime && bestTime ? firstTime - bestTime : null;
+      return { eventDef, pool, seasons, bestTime, improvementMs };
+    });
+  }
+
+  async getProfile(swimmerId: string) {
+    const swimmer = await this.prisma.swimmer.findUnique({
+      where: { id: swimmerId },
+      select: { id: true, isActive: true },
+    });
+    if (!swimmer) throw new NotFoundException(`Nadador ${swimmerId} no encontrado`);
+
+    const profile = await this.prisma.athleteProfile.findUnique({
+      where: { swimmerId },
+    });
+    if (!profile) {
+      return this.prisma.athleteProfile.create({
+        data: { swimmerId },
+      });
+    }
+    return profile;
+  }
+
+  async updateProfile(
+    swimmerId: string,
+    requestingUserId: string,
+    data: { bio?: string; photoUrl?: string; publicVisibility?: boolean },
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: requestingUserId },
+      select: { swimmerId: true, primaryRole: true },
+    });
+    const isAdmin = user?.primaryRole === 'ADMIN' || user?.primaryRole === 'SUPER_ADMIN';
+    const isOwner = user?.swimmerId === swimmerId;
+    if (!isAdmin && !isOwner) {
+      throw new ForbiddenException('Solo el nadador vinculado o un Admin pueden editar este perfil.');
+    }
+
+    await this.findOne(swimmerId);
+
+    return this.prisma.athleteProfile.upsert({
+      where: { swimmerId },
+      create: { swimmerId, ...data },
+      update: data,
+    });
   }
 
   private async ensureClubExists(clubId: string) {

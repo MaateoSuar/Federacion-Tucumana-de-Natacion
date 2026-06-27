@@ -86,6 +86,36 @@ export function fetchSwimmerClubHistory(id: string) {
   return serverFetch<ClubHistoryEntry[]>(`/swimmers/${id}/club-history`, 300);
 }
 
+export interface SwimmerSeasonPoint { year: number; bestTime: number }
+export interface SwimmerEvolutionEntry {
+  eventDef: { id: string; stroke: string; distance: number; gender: string };
+  pool: string;
+  seasons: SwimmerSeasonPoint[];
+  bestTime: number | null;
+  improvementMs: number | null;
+}
+export interface SwimmerAchievement {
+  id: string;
+  type: string;
+  medal?: string;
+  title: string;
+  description?: string;
+  achievedAt: string;
+}
+export interface SwimmerStatistics {
+  global: { totalCompetitions: number; totalPbs: number; gold: number; silver: number; bronze: number; improvementPct?: number } | null;
+  bySeason: Array<{ season: { year: number } | null; totalCompetitions: number; gold: number; silver: number; bronze: number }>;
+  achievements: SwimmerAchievement[];
+}
+
+export function fetchSwimmerTimeEvolution(id: string) {
+  return serverFetch<SwimmerEvolutionEntry[]>(`/swimmers/${id}/time-evolution`, 300);
+}
+
+export function fetchSwimmerStatistics(id: string) {
+  return serverFetch<SwimmerStatistics>(`/swimmers/${id}/statistics`, 300);
+}
+
 // ─── Récords ─────────────────────────────────────────────────────────────────
 
 export function fetchRecords(params?: Record<string, string>) {

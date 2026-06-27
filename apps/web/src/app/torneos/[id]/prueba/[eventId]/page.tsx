@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { NavBar } from '@/components/NavBar';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { MedalIcon, positionClass } from '@/components/ui/MedalIcon';
 import { RecordBadge } from '@/components/ui/RecordBadge';
 import { formatTime } from '@/lib/formatTime';
+import { useResultsSocket } from '@/hooks/useResultsSocket';
 import type { EventResultsResponse } from '@/lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -15,13 +16,28 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
   const [data, setData] = useState<EventResultsResponse | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [error, setError] = useState(false);
+  const [liveUpdate, setLiveUpdate] = useState(false);
 
-  useEffect(() => {
+  const fetchResults = useCallback(() => {
     fetch(`${API_BASE}/tournaments/${params.id}/events/${params.eventId}/results`)
       .then((r) => r.json())
-      .then((d) => setData(d as EventResultsResponse))
+      .then((d) => {
+        setData(d as EventResultsResponse);
+        setLiveUpdate(true);
+        setTimeout(() => setLiveUpdate(false), 2000);
+      })
       .catch(() => setError(true));
   }, [params.id, params.eventId]);
+
+  useEffect(() => {
+    fetchResults();
+  }, [fetchResults]);
+
+  useResultsSocket({
+    tournamentId: params.id,
+    eventId: params.eventId,
+    onResultsUpdated: fetchResults,
+  });
 
   const toggle = (id: string) =>
     setExpanded((prev) => {
@@ -67,13 +83,24 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
         </div>
 
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-black text-white">
-            {event.eventDefinition.distance} m {stroke}
-          </h1>
-          <p className="text-pool-300 text-sm mt-1">
-            {event.category.name} · {gender} · Piscina {pool}
-          </p>
+        <div className="mb-8 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-black text-white">
+              {event.eventDefinition.distance} m {stroke}
+            </h1>
+            <p className="text-pool-300 text-sm mt-1">
+              {event.category.name} · {gender} · Piscina {pool}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-aqua-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-aqua-500" />
+            </span>
+            <span className={`text-xs transition-colors duration-300 ${liveUpdate ? 'text-aqua-300 font-semibold' : 'text-pool-500'}`}>
+              {liveUpdate ? 'Actualizado' : 'En vivo'}
+            </span>
+          </div>
         </div>
 
         {/* Tabla de resultados */}

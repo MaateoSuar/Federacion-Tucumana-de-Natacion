@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger, Optional } from '@nestjs/common';
 import {
   Gender,
   ResultStatus,
@@ -8,6 +8,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ImportRepository } from '../import.repository';
+import { ResultsGateway } from '../../results-gateway/results.gateway';
 import type {
   NormalizedMeet,
   NormalizedStroke,
@@ -67,6 +68,7 @@ export class CommitProcessor {
   constructor(
     private readonly prisma: PrismaService,
     private readonly repo: ImportRepository,
+    @Optional() private readonly resultsGateway: ResultsGateway | null,
   ) {}
 
   async commit(jobId: string): Promise<string> {
@@ -287,6 +289,11 @@ export class CommitProcessor {
       `Job ${jobId} committed — tournament ${rollback.tournamentId}, ` +
         `${rollback.resultIds.length} results, ${rollback.newSwimmerIds.length} new swimmers`,
     );
+
+    if (this.resultsGateway && rollback.tournamentId) {
+      this.resultsGateway.notifyResultsUpdated(rollback.tournamentId, rollback.newEventIds);
+    }
+
     return rollback.tournamentId!;
   }
 

@@ -24,9 +24,11 @@ import { SwimmersService } from './swimmers.service';
 import { CreateSwimmerDto } from './dto/create-swimmer.dto';
 import { UpdateSwimmerDto } from './dto/update-swimmer.dto';
 import { AssignClubDto } from './dto/assign-club.dto';
+import { UpdateAthleteProfileDto } from './dto/update-athlete-profile.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser, AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { SystemRole } from '@ftn/shared';
 
 @ApiTags('swimmers')
@@ -118,5 +120,36 @@ export class SwimmersController {
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number = 20,
   ) {
     return this.swimmersService.getResults(id, page, limit);
+  }
+
+  @Get(':id/statistics')
+  @ApiOperation({ summary: 'Estadísticas del nadador (medallas, PBs, logros)' })
+  getStatistics(@Param('id') id: string) {
+    return this.swimmersService.getStatistics(id);
+  }
+
+  @Get(':id/time-evolution')
+  @ApiOperation({ summary: 'Evolución de tiempos por prueba/temporada' })
+  @ApiQuery({ name: 'poolLength', required: false, enum: ['P25', 'P50'] })
+  getTimeEvolution(@Param('id') id: string, @Query('poolLength') poolLength?: string) {
+    return this.swimmersService.getTimeEvolution(id, poolLength);
+  }
+
+  @Get(':id/profile')
+  @ApiOperation({ summary: 'Perfil público del atleta' })
+  getProfile(@Param('id') id: string) {
+    return this.swimmersService.getProfile(id);
+  }
+
+  @Patch(':id/profile')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Editar perfil del atleta (nadador vinculado o admin)' })
+  updateProfile(
+    @Param('id') id: string,
+    @Body() dto: UpdateAthleteProfileDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.swimmersService.updateProfile(id, user.id, dto);
   }
 }
