@@ -13,6 +13,8 @@ import { AthleteMatcher } from './matching/athlete-matcher';
 import { ClubMatcher } from './matching/club-matcher';
 import { DuplicateDetector } from './matching/duplicate-detector';
 import { MeetManagerPdfAdapter } from '../ingest/adapters/meet-manager-pdf/meet-manager-pdf-adapter';
+import { CsvAdapter } from '../ingest/adapters/csv/csv-adapter';
+import { ExcelAdapter } from '../ingest/adapters/excel/excel-adapter';
 import { IMPORT_QUEUE } from './import.queue';
 
 @Module({
@@ -45,6 +47,8 @@ import { IMPORT_QUEUE } from './import.queue';
     ClubMatcher,
     DuplicateDetector,
     MeetManagerPdfAdapter,
+    CsvAdapter,
+    ExcelAdapter,
   ],
   exports: [ImportService],
 })

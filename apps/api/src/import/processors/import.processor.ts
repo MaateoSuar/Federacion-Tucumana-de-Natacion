@@ -6,10 +6,13 @@ import { IMPORT_QUEUE } from '../import.queue';
 import { ImportRepository } from '../import.repository';
 import { FormatDetector } from '../../ingest/format-detector';
 import { MeetManagerPdfAdapter } from '../../ingest/adapters/meet-manager-pdf/meet-manager-pdf-adapter';
+import { CsvAdapter } from '../../ingest/adapters/csv/csv-adapter';
+import { ExcelAdapter } from '../../ingest/adapters/excel/excel-adapter';
 import { AthleteMatcher } from '../matching/athlete-matcher';
 import { ClubMatcher } from '../matching/club-matcher';
 import { DuplicateDetector } from '../matching/duplicate-detector';
 import type { MatchResultsPayload } from '../matching/types';
+import type { FormatAdapter } from '../../ingest/types/format-adapter.interface';
 import { readFileSync } from 'fs';
 
 export interface ProcessImportJobData {
@@ -23,15 +26,20 @@ const SOURCE_SYSTEM = 'meet_manager';
 export class ImportProcessor extends WorkerHost {
   private readonly logger = new Logger(ImportProcessor.name);
 
+  private readonly adapters: FormatAdapter[];
+
   constructor(
     private readonly repo: ImportRepository,
     private readonly formatDetector: FormatDetector,
     private readonly pdfAdapter: MeetManagerPdfAdapter,
+    private readonly csvAdapter: CsvAdapter,
+    private readonly excelAdapter: ExcelAdapter,
     private readonly athleteMatcher: AthleteMatcher,
     private readonly clubMatcher: ClubMatcher,
     private readonly duplicateDetector: DuplicateDetector,
   ) {
     super();
+    this.adapters = [pdfAdapter, csvAdapter, excelAdapter];
   }
 
   async process(job: Job<ProcessImportJobData>): Promise<void> {
@@ -59,20 +67,22 @@ export class ImportProcessor extends WorkerHost {
         return;
       }
 
-      if (detected !== 'pdf') {
+      const adapter = this.adapters.find((a) => a.detect(filePath, fileBuffer.slice(0, 512).toString('utf8')));
+
+      if (!adapter) {
         await this.repo.updateStatus(jobId, 'failed', {
           issues: [
             {
               severity: 'FATAL',
               stage: 'DETECT',
-              message: `Formato "${detected}" aún no soportado. Usá PDF por ahora.`,
+              message: `Formato "${detected}" no soportado. Usá PDF, CSV o Excel.`,
             },
           ],
         });
         return;
       }
 
-      const normalizedMeet = await this.pdfAdapter.parse(fileBuffer, filePath);
+      const normalizedMeet = await adapter.parse(fileBuffer, filePath);
 
       // ─── 2. VALIDATE ────────────────────────────────────────────
       await this.repo.updateStatus(jobId, 'validating');
@@ -132,7 +142,12 @@ export class ImportProcessor extends WorkerHost {
       }
 
       // ─── 4. SAVE STAGING ────────────────────────────────────────
-      await this.repo.saveStagingPayload(jobId, normalizedMeet, MeetFormat.pdf, {
+      const meetFormat =
+        detected === 'csv' ? MeetFormat.csv
+        : detected === 'excel' ? MeetFormat.excel
+        : MeetFormat.pdf;
+
+      await this.repo.saveStagingPayload(jobId, normalizedMeet, meetFormat, {
         newSwimmersCount: newSwimmers,
         matchedSwimmersCount: matchedSwimmers,
         meetName: normalizedMeet.meet.name,
