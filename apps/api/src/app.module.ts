@@ -19,6 +19,7 @@ import { RankingsModule } from './rankings/rankings.module';
 import { RecordsModule } from './records/records.module';
 import { ResultsGatewayModule } from './results-gateway/results-gateway.module';
 import { AccountLinkModule } from './account-link/account-link.module';
+import { ExportModule } from './export/export.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { AccountLinkModule } from './account-link/account-link.module';
     RecordsModule,
     ResultsGatewayModule,
     AccountLinkModule,
+    ExportModule,
   ],
   controllers: [AppController],
   providers: [AppService],
