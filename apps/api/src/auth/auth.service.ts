@@ -209,6 +209,21 @@ export class AuthService {
     return { message: 'Contraseña restablecida correctamente' };
   }
 
+  async getMe(userId: string) {
+    return this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        primaryRole: true,
+        clubId: true,
+        swimmerId: true,
+      },
+    });
+  }
+
   // ── Helpers privados ──────────────────────────────────────────────────────
 
   private async generateTokenPair(

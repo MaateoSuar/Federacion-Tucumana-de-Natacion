@@ -59,6 +59,17 @@
   }
 }
 
+/* Burbuja animada (login page) */
+@keyframes rise {
+  0%   { transform: translateY(0) scale(1); opacity: 0.4; }
+  100% { transform: translateY(-100vh) scale(1.5); opacity: 0; }
+}
+.bubble {
+  animation: rise linear infinite;
+  border-radius: 9999px;
+  position: absolute;
+}
+
 /* Olas SVG animadas */
 .wave-svg {
   animation: waveAnim 8s ease-in-out infinite;

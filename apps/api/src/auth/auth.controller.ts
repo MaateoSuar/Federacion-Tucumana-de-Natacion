@@ -84,6 +84,6 @@ export class AuthController {
   @ApiOperation({ summary: 'Perfil del usuario autenticado' })
   @ApiOkResponse({ description: 'Datos del usuario autenticado' })
   me(@CurrentUser() user: AuthenticatedUser) {
-    return user;
+    return this.authService.getMe(user.id);
   }
 }

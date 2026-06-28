@@ -17,10 +17,10 @@ export default function HomePage() {
           <Link href="/rankings" className="hover:text-white transition-colors">Rankings</Link>
           <Link href="/records" className="hover:text-white transition-colors">Récords</Link>
           <Link
-            href="/admin"
+            href="/login"
             className="bg-aqua-500 text-white px-4 py-1.5 rounded-full text-xs font-semibold hover:bg-aqua-400 transition-colors"
           >
-            Panel Admin
+            Iniciar sesión
           </Link>
         </div>
       </nav>
@@ -241,7 +241,7 @@ function Bubble({
         background:
           'radial-gradient(circle at 30% 30%, rgba(0,180,216,0.12), rgba(0,119,182,0.04))',
         border: '1px solid rgba(0,180,216,0.08)',
-        animation: `float ${6 + Math.random() * 4}s ease-in-out infinite`,
+        animation: `float ${6 + (size % 4)}s ease-in-out infinite`,
         animationDelay: delay,
       }}
     />
