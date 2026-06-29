@@ -178,6 +178,7 @@ export interface ResultEntry {
   homologated: boolean;
   swimmer: { id: string; firstName: string; lastName: string; gender: string };
   club: { id: string; name: string; shortName: string };
+  category: { id: string; name: string; orderNo: number };
   splits: { distance: number; cumulativeTime: number }[];
 }
 
@@ -295,6 +296,8 @@ export interface Category {
   name: string;
   orderNo: number;
   scope: string;
+  minAge?: number | null;
+  maxAge?: number | null;
 }
 
 export interface Season {

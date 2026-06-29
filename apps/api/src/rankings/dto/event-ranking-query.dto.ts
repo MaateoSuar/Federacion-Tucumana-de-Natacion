@@ -23,10 +23,11 @@ export class EventRankingQueryDto {
   @IsString()
   seasonId?: string;
 
+  @IsOptional()
   @IsString()
-  categoryId!: string;
+  categoryId?: string;
 
   @IsOptional()
   @IsEnum(RankingMode)
-  mode?: RankingMode = RankingMode.BEST_PER_SWIMMER;
+  mode?: RankingMode = RankingMode.ALL_PERFORMANCES;
 }

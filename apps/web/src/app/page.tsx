@@ -1,16 +1,39 @@
 import Link from 'next/link';
+import { fetchTournaments } from '@/lib/api';
 
-export default function HomePage() {
+export const revalidate = 60;
+
+const STATUS_LABEL: Record<string, { label: string; color: string }> = {
+  homologado:             { label: 'Homologado',    color: 'bg-purple-500/20 text-purple-300 border-purple-500/30' },
+  finalizado:             { label: 'Finalizado',    color: 'bg-slate-500/20 text-slate-300 border-slate-500/30'   },
+  en_curso:               { label: 'En curso',      color: 'bg-green-500/20 text-green-300 border-green-500/30'   },
+  inscripciones_abiertas: { label: 'Inscripciones abiertas', color: 'bg-aqua-500/20 text-aqua-300 border-aqua-500/30' },
+  programado:             { label: 'Programado',    color: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30' },
+  cerrado:                { label: 'Cerrado',       color: 'bg-red-500/20 text-red-300 border-red-500/30'         },
+};
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+export default async function HomePage() {
+  let recentTournaments: { id: string; name: string; startDate: string; poolLength: string; status: string; hostClub?: { shortName: string }; _count?: { events: number } }[] = [];
+
+  try {
+    const data = await fetchTournaments({ limit: '6', page: '1' });
+    recentTournaments = data.items;
+  } catch {
+    // API no disponible — se muestra la home igual
+  }
+
   return (
     <div className="min-h-screen bg-pool-950 text-white overflow-hidden">
       {/* NAV */}
       <nav className="relative z-20 flex items-center justify-between px-6 md:px-12 py-5">
-        <div className="flex items-center gap-3">
-          <WaveIcon className="w-9 h-9 text-aqua-400" />
-          <span className="text-lg font-bold tracking-tight">
-            <span className="text-white">FTN</span>
-            <span className="text-aqua-400 ml-1 font-light text-sm">Federación Tucumana de Natación</span>
-          </span>
+        <div className="flex items-center">
+          <div className="bg-white rounded-md px-2 py-0.5">
+            <img src="/LogoPNGSinLetras.png" alt="FTN - Federación Tucumana de Natación" className="h-9 w-auto" />
+          </div>
         </div>
         <div className="hidden md:flex items-center gap-6 text-sm text-pool-200">
           <Link href="/torneos" className="hover:text-white transition-colors">Torneos</Link>
@@ -23,17 +46,19 @@ export default function HomePage() {
             Iniciar sesión
           </Link>
         </div>
+        {/* Mobile */}
+        <Link href="/login" className="md:hidden bg-aqua-500 text-white px-3 py-1.5 rounded-full text-xs font-semibold">
+          Acceder
+        </Link>
       </nav>
 
       {/* HERO */}
-      <section className="relative min-h-[92vh] flex flex-col items-center justify-center px-6 overflow-hidden">
-        {/* Burbujas de fondo */}
+      <section className="relative min-h-[70vh] flex flex-col items-center justify-center px-6 overflow-hidden">
         <Bubble size={320} top="10%" left="5%"  delay="0s" />
         <Bubble size={200} top="60%" left="80%" delay="1.5s" />
         <Bubble size={140} top="30%" left="70%" delay="3s" />
         <Bubble size={80}  top="75%" left="20%" delay="2s" />
 
-        {/* Contenido */}
         <div className="relative z-10 text-center max-w-4xl">
           <div className="inline-flex items-center gap-2 bg-aqua-500/20 border border-aqua-400/30 text-aqua-300 text-xs font-semibold px-4 py-1.5 rounded-full mb-6 uppercase tracking-widest">
             <span className="w-1.5 h-1.5 rounded-full bg-aqua-400 animate-pulse" />
@@ -69,177 +94,153 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Olas animadas en el fondo */}
-        <div className="absolute bottom-0 left-0 right-0 overflow-hidden h-40 pointer-events-none">
-          <svg
-            viewBox="0 0 1440 160"
-            xmlns="http://www.w3.org/2000/svg"
-            className="absolute bottom-0 left-0 right-0 wave-svg"
-            style={{ width: '130%', marginLeft: '-15%' }}
-          >
-            <path
-              fill="#0096c7"
-              fillOpacity="0.2"
-              d="M0,64L80,58.7C160,53,320,43,480,53.3C640,64,800,96,960,96C1120,96,1280,64,1360,48L1440,32L1440,160L0,160Z"
-            />
-          </svg>
-          <svg
-            viewBox="0 0 1440 160"
-            xmlns="http://www.w3.org/2000/svg"
-            className="absolute bottom-0 left-0 right-0 wave-svg-2"
-            style={{ width: '130%', marginLeft: '-15%' }}
-          >
-            <path
-              fill="#00b4d8"
-              fillOpacity="0.15"
-              d="M0,96L80,106.7C160,117,320,139,480,128C640,117,800,75,960,64C1120,53,1280,75,1360,85.3L1440,96L1440,160L0,160Z"
-            />
+        {/* Olas */}
+        <div className="absolute bottom-0 left-0 right-0 overflow-hidden h-32 pointer-events-none">
+          <svg viewBox="0 0 1440 128" xmlns="http://www.w3.org/2000/svg" className="absolute bottom-0 wave-svg" style={{ width: '130%', marginLeft: '-15%' }}>
+            <path fill="#0096c7" fillOpacity="0.15" d="M0,64L80,58.7C160,53,320,43,480,53.3C640,64,800,96,960,96C1120,96,1280,64,1360,48L1440,32L1440,128L0,128Z" />
           </svg>
         </div>
       </section>
 
-      {/* STATS */}
-      <section className="bg-gradient-to-b from-pool-900 to-pool-950 px-6 md:px-12 py-20">
+      {/* TORNEOS RECIENTES */}
+      <section className="bg-gradient-to-b from-pool-900 to-pool-950 px-6 md:px-12 py-16">
         <div className="max-w-5xl mx-auto">
-          <p className="text-aqua-400 text-xs font-bold uppercase tracking-widest text-center mb-12">
-            La federación en números
-          </p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {[
-              { value: '32', label: 'Clubes afiliados', icon: '🏊' },
-              { value: '800+', label: 'Nadadores activos', icon: '🥇' },
-              { value: '120+', label: 'Récords provinciales', icon: '⏱️' },
-              { value: '18', label: 'Torneos por año', icon: '🏆' },
-            ].map((stat) => (
-              <div
-                key={stat.label}
-                className="bg-pool-800/60 border border-pool-700/50 rounded-2xl p-6 text-center hover:border-aqua-500/40 transition-all hover:-translate-y-1 duration-300"
-              >
-                <div className="text-3xl mb-2">{stat.icon}</div>
-                <div className="text-3xl font-black text-white mb-1">{stat.value}</div>
-                <div className="text-pool-300 text-xs font-medium">{stat.label}</div>
-              </div>
-            ))}
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <p className="text-aqua-400 text-xs font-bold uppercase tracking-widest mb-1">Actividad reciente</p>
+              <h2 className="text-2xl font-black text-white">Torneos</h2>
+            </div>
+            <Link href="/torneos" className="text-aqua-400 hover:text-aqua-300 text-sm font-semibold transition-colors">
+              Ver todos →
+            </Link>
           </div>
+
+          {recentTournaments.length === 0 ? (
+            <div className="bg-pool-800/30 border border-pool-700/30 rounded-2xl p-10 text-center">
+              <p className="text-pool-400 text-sm">No hay torneos disponibles.</p>
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {recentTournaments.map((t) => {
+                const st = STATUS_LABEL[t.status] ?? { label: t.status, color: 'bg-slate-500/20 text-slate-300 border-slate-500/30' };
+                return (
+                  <Link
+                    key={t.id}
+                    href={`/torneos/${t.id}`}
+                    className="group bg-pool-800/40 border border-pool-700/40 rounded-2xl p-5 hover:border-aqua-500/40 hover:bg-pool-800/70 transition-all duration-200"
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${st.color}`}>
+                        {st.label}
+                      </span>
+                      <span className="text-pool-500 text-[10px]">
+                        {t.poolLength === 'P25' ? '25 m' : '50 m'}
+                      </span>
+                    </div>
+                    <h3 className="font-bold text-white text-sm leading-snug mb-1 group-hover:text-aqua-200 transition-colors">
+                      {t.name}
+                    </h3>
+                    <p className="text-pool-400 text-xs">{formatDate(t.startDate)}</p>
+                    {t.hostClub && (
+                      <p className="text-pool-500 text-[10px] mt-1">{t.hostClub.shortName}</p>
+                    )}
+                    {t._count && (
+                      <p className="text-pool-500 text-[10px] mt-2">
+                        {t._count.events} prueba{t._count.events !== 1 ? 's' : ''}
+                      </p>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
 
       {/* FEATURES */}
-      <section className="bg-pool-950 px-6 md:px-12 py-20">
+      <section className="bg-pool-950 px-6 md:px-12 py-16">
         <div className="max-w-5xl mx-auto">
-          <h2 className="text-3xl font-black text-white text-center mb-4">
-            Todo lo que necesitás
-          </h2>
-          <p className="text-pool-300 text-center mb-14 max-w-xl mx-auto">
+          <h2 className="text-2xl font-black text-white text-center mb-3">Todo lo que necesitás</h2>
+          <p className="text-pool-300 text-center mb-10 max-w-xl mx-auto text-sm">
             Una plataforma moderna que reemplaza planillas, PDFs y Excel por datos en tiempo real.
           </p>
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-3 gap-5">
             {[
               {
                 icon: (
-                  <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                   </svg>
                 ),
+                href: '/rankings',
                 title: 'Rankings en tiempo real',
-                desc: 'Rankings históricos y por temporada, con filtros por categoría, piscina y prueba. Actualizados al instante al homologar resultados.',
+                desc: 'Rankings históricos y por temporada, con filtros por categoría, piscina y prueba.',
               },
               {
                 icon: (
-                  <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 ),
+                href: '/records',
                 title: 'Tiempos y récords',
-                desc: 'Cada resultado guardado en milisegundos. Detección automática de récords provinciales con homologación humana requerida.',
+                desc: 'Cada resultado guardado en milisegundos. Detección automática de récords provinciales.',
               },
               {
                 icon: (
-                  <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                 ),
+                href: '/torneos',
                 title: 'Perfil del nadador',
-                desc: 'Historial completo de competencias, evolución de tiempos, mejores marcas personales y pasaporte digital compartible.',
+                desc: 'Historial completo de competencias, evolución de tiempos y mejores marcas personales.',
               },
             ].map((f) => (
-              <div
+              <Link
                 key={f.title}
-                className="group bg-pool-800/40 border border-pool-700/40 rounded-2xl p-7 hover:border-aqua-500/40 hover:bg-pool-800/70 transition-all duration-300"
+                href={f.href}
+                className="group bg-pool-800/40 border border-pool-700/40 rounded-2xl p-6 hover:border-aqua-500/40 hover:bg-pool-800/70 transition-all duration-200"
               >
-                <div className="w-12 h-12 rounded-xl bg-aqua-500/20 flex items-center justify-center text-aqua-400 mb-5 group-hover:bg-aqua-500/30 transition-colors">
+                <div className="w-10 h-10 rounded-xl bg-aqua-500/20 flex items-center justify-center text-aqua-400 mb-4 group-hover:bg-aqua-500/30 transition-colors">
                   {f.icon}
                 </div>
-                <h3 className="font-bold text-white mb-2">{f.title}</h3>
-                <p className="text-pool-300 text-sm leading-relaxed">{f.desc}</p>
-              </div>
+                <h3 className="font-bold text-white mb-1 text-sm">{f.title}</h3>
+                <p className="text-pool-300 text-xs leading-relaxed">{f.desc}</p>
+              </Link>
             ))}
           </div>
         </div>
       </section>
 
       {/* FOOTER */}
-      <footer className="bg-pool-950 border-t border-pool-800 px-6 md:px-12 py-10">
+      <footer className="bg-pool-950 border-t border-pool-800 px-6 md:px-12 py-8">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <WaveIcon className="w-6 h-6 text-aqua-500" />
-            <span className="text-sm text-pool-400">
-              Federación Tucumana de Natación · Tucumán, Argentina
-            </span>
+            <div className="bg-white rounded px-1.5 py-0.5">
+              <img src="/LogoPNGSinLetras.png" alt="FTN" className="h-4 w-auto" />
+            </div>
+            <span className="text-xs text-pool-400">Federación Tucumana de Natación · Tucumán, Argentina</span>
           </div>
-          <p className="text-xs text-pool-600">
-            Plataforma digital en desarrollo — 2025
-          </p>
+          <div className="flex items-center gap-4 text-xs text-pool-600">
+            <Link href="/torneos" className="hover:text-pool-400 transition-colors">Torneos</Link>
+            <Link href="/rankings" className="hover:text-pool-400 transition-colors">Rankings</Link>
+            <Link href="/records" className="hover:text-pool-400 transition-colors">Récords</Link>
+            <Link href="/login" className="hover:text-aqua-400 transition-colors">Acceso privado</Link>
+          </div>
         </div>
       </footer>
     </div>
   );
 }
 
-function WaveIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="20" cy="20" r="18" fill="currentColor" fillOpacity="0.15" />
-      <path
-        d="M8 22c2-3 4-5 6-5s4 4 6 4 4-4 6-4 4 2 6 5"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        fill="none"
-      />
-      <path
-        d="M8 17c2-3 4-5 6-5s4 4 6 4 4-4 6-4 4 2 6 5"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        fill="none"
-        opacity="0.5"
-      />
-    </svg>
-  );
-}
-
-function Bubble({
-  size,
-  top,
-  left,
-  delay,
-}: {
-  size: number;
-  top: string;
-  left: string;
-  delay: string;
-}) {
+function Bubble({ size, top, left, delay }: { size: number; top: string; left: string; delay: string }) {
   return (
     <div
       className="absolute rounded-full pointer-events-none"
       style={{
-        width: size,
-        height: size,
-        top,
-        left,
-        background:
-          'radial-gradient(circle at 30% 30%, rgba(0,180,216,0.12), rgba(0,119,182,0.04))',
+        width: size, height: size, top, left,
+        background: 'radial-gradient(circle at 30% 30%, rgba(0,180,216,0.12), rgba(0,119,182,0.04))',
         border: '1px solid rgba(0,180,216,0.08)',
         animation: `float ${6 + (size % 4)}s ease-in-out infinite`,
         animationDelay: delay,

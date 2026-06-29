@@ -34,11 +34,10 @@ export default function NadadorPage() {
       {/* NAV */}
       <nav className="border-b border-pool-800 px-6 md:px-10 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <WaveIcon className="w-8 h-8 text-aqua-400" />
-          <div>
-            <span className="text-white font-black text-base">FTN</span>
-            <span className="text-pool-500 text-xs ml-2">Mi perfil</span>
+          <div className="bg-white rounded-md px-1.5 py-0.5">
+            <img src="/LogoPNGSinLetras.png" alt="FTN" className="h-7 w-auto" />
           </div>
+          <span className="text-pool-500 text-xs">Mi perfil</span>
         </div>
         <div className="flex items-center gap-4">
           <div className="hidden sm:flex items-center gap-2 bg-pool-800/60 border border-aqua-500/30 rounded-full px-3 py-1.5">
@@ -130,17 +129,7 @@ export default function NadadorPage() {
 function LoadingScreen() {
   return (
     <div className="min-h-screen bg-pool-950 flex items-center justify-center">
-      <WaveIcon className="w-12 h-12 text-aqua-400 animate-pulse" />
+      <div className="w-10 h-10 border-2 border-aqua-400 border-t-transparent rounded-full animate-spin" />
     </div>
-  );
-}
-
-function WaveIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 40 40" fill="none">
-      <circle cx="20" cy="20" r="18" fill="currentColor" fillOpacity="0.15" />
-      <path d="M8 22c2-3 4-5 6-5s4 4 6 4 4-4 6-4 4 2 6 5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-      <path d="M8 17c2-3 4-5 6-5s4 4 6 4 4-4 6-4 4 2 6 5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" fill="none" opacity="0.5" />
-    </svg>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { NavBar } from '@/components/NavBar';
 import { MedalIcon } from '@/components/ui/MedalIcon';
@@ -12,6 +12,11 @@ import type {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
+const STROKE_ES: Record<string, string> = {
+  libre: 'Libre', espalda: 'Espalda', pecho: 'Pecho',
+  mariposa: 'Mariposa', combinado: 'Combinado',
+};
+
 async function fetchJson<T>(url: string): Promise<T> {
   const r = await fetch(url);
   if (!r.ok) throw new Error(`${r.status}`);
@@ -21,9 +26,12 @@ async function fetchJson<T>(url: string): Promise<T> {
 type Tab = 'prueba' | 'club';
 type Mode = 'best_per_swimmer' | 'all_performances';
 
+// Key to identify a "base event" (distance + stroke), without gender
+function baseKey(e: EventDefinition) { return `${e.distance}-${e.stroke}`; }
+
 export default function RankingsPage() {
   const [tab, setTab] = useState<Tab>('prueba');
-  const [mode, setMode] = useState<Mode>('best_per_swimmer');
+  const [mode, setMode] = useState<Mode>('all_performances');
 
   // Catálogos
   const [eventDefs, setEventDefs] = useState<EventDefinition[]>([]);
@@ -31,12 +39,33 @@ export default function RankingsPage() {
   const [seasons, setSeasons] = useState<Season[]>([]);
 
   // Filtros
-  const [eventDefId, setEventDefId] = useState('');
+  // selectedBaseKey: "{distance}-{stroke}" — gender-independent selection
+  const [selectedBaseKey, setSelectedBaseKey] = useState('');
   const [poolLength, setPoolLength] = useState<'P25' | 'P50'>('P25');
   const [gender, setGender] = useState<'M' | 'F'>('M');
   const [categoryId, setCategoryId] = useState('');
   const [seasonId, setSeasonId] = useState('');
   const [clubScope, setClubScope] = useState('');
+
+  // Unique base events (distance+stroke), excluding relays and <50m races, sorted
+  const uniqueBaseEvents = useMemo<EventDefinition[]>(() => {
+    const seen = new Set<string>();
+    return eventDefs
+      .filter((e) => !e.isRelay && e.distance >= 50)
+      .sort((a, b) => a.distance - b.distance || a.stroke.localeCompare(b.stroke))
+      .filter((e) => {
+        const k = baseKey(e);
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+  }, [eventDefs]);
+
+  // Resolved eventDefId: find the eventDef matching selectedBaseKey + current gender
+  const eventDefId = useMemo(() => {
+    if (!selectedBaseKey) return '';
+    return eventDefs.find((e) => baseKey(e) === selectedBaseKey && e.gender === gender)?.id ?? '';
+  }, [selectedBaseKey, gender, eventDefs]);
 
   // Resultados
   const [eventRankings, setEventRankings] = useState<RankingEntry[] | null>(null);
@@ -54,13 +83,14 @@ export default function RankingsPage() {
       setEventDefs(eds);
       setCategories(cats.filter((c) => c.scope === 'provincial'));
       setSeasons(seas);
-      if (eds[0]) setEventDefId(eds[0].id);
-      if (cats[0]) setCategoryId(cats[0].id);
+      // Pick first valid base event (distance >= 50, not relay)
+      const first = eds.find((e) => !e.isRelay && e.distance >= 50);
+      if (first) setSelectedBaseKey(baseKey(first));
     }).catch(() => {});
   }, []);
 
   const loadEventRankings = useCallback(async () => {
-    if (!eventDefId || !categoryId) return;
+    if (!eventDefId) return;
     setLoading(true);
     setError('');
     try {
@@ -79,7 +109,7 @@ export default function RankingsPage() {
     } finally {
       setLoading(false);
     }
-  }, [eventDefId, poolLength, gender, categoryId, mode, seasonId]);
+  }, [eventDefId, poolLength, gender, categoryId, mode, seasonId]); // categoryId puede ser ''
 
   const loadClubRankings = useCallback(async () => {
     setLoading(true);
@@ -96,7 +126,7 @@ export default function RankingsPage() {
   }, [clubScope]);
 
   useEffect(() => {
-    if (tab === 'prueba' && eventDefId && categoryId) loadEventRankings();
+    if (tab === 'prueba' && eventDefId) void loadEventRankings();
   }, [tab, eventDefId, categoryId, poolLength, gender, mode, seasonId, loadEventRankings]);
 
   useEffect(() => {
@@ -129,9 +159,11 @@ export default function RankingsPage() {
         {/* Filtros — prueba */}
         {tab === 'prueba' && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
-            <select value={eventDefId} onChange={(e) => setEventDefId(e.target.value)} className="bg-pool-800 border border-pool-600 rounded-lg px-3 py-2 text-sm text-white col-span-2 md:col-span-1">
-              {eventDefs.filter((e) => !e.isRelay).map((e) => (
-                <option key={e.id} value={e.id}>{e.distance} m {e.stroke} ({e.gender})</option>
+            <select value={selectedBaseKey} onChange={(e) => setSelectedBaseKey(e.target.value)} className="bg-pool-800 border border-pool-600 rounded-lg px-3 py-2 text-sm text-white col-span-2 md:col-span-1">
+              {uniqueBaseEvents.map((e) => (
+                <option key={baseKey(e)} value={baseKey(e)}>
+                  {e.distance} m {STROKE_ES[e.stroke] ?? e.stroke}
+                </option>
               ))}
             </select>
             <select value={poolLength} onChange={(e) => setPoolLength(e.target.value as 'P25' | 'P50')} className="bg-pool-800 border border-pool-600 rounded-lg px-3 py-2 text-sm text-white">
@@ -143,6 +175,7 @@ export default function RankingsPage() {
               <option value="F">Mujeres</option>
             </select>
             <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="bg-pool-800 border border-pool-600 rounded-lg px-3 py-2 text-sm text-white">
+              <option value="">Todos</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}

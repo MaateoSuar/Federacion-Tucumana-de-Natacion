@@ -2,14 +2,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { NavBar } from '@/components/NavBar';
 import { fetchTournament, fetchTournamentEvents } from '@/lib/api';
+import { EventList } from './EventList';
 
 export const revalidate = 30;
-
-const STROKE_ES: Record<string, string> = {
-  libre: 'Libre', espalda: 'Espalda', pecho: 'Pecho',
-  mariposa: 'Mariposa', combinado: 'Combinado',
-  relevo_libre: 'Relevo L.', relevo_combinado: 'Relevo C.',
-};
 
 export default async function TorneoPage({ params }: { params: { id: string } }) {
   try {
@@ -42,40 +37,8 @@ export default async function TorneoPage({ params }: { params: { id: string } })
 
           {/* Pruebas */}
           <section>
-            <h2 className="text-lg font-bold text-white mb-4">Pruebas ({events.length})</h2>
-            {events.length === 0 ? (
-              <p className="text-pool-400">Sin pruebas registradas.</p>
-            ) : (
-              <div className="space-y-2">
-                {events.map((ev) => {
-                  const hasResults = ev._count.results > 0;
-                  const stroke = STROKE_ES[ev.eventDefinition.stroke] ?? ev.eventDefinition.stroke;
-                  const gender = ev.eventDefinition.gender === 'M' ? 'Hombres' : 'Mujeres';
-                  return (
-                    <div key={ev.id} className="flex items-center justify-between gap-4 bg-pool-800/40 border border-pool-700/30 rounded-xl px-5 py-3.5">
-                      <div>
-                        <p className="font-semibold text-white text-sm">
-                          {ev.eventDefinition.distance} m {stroke} — {ev.category.name} {gender}
-                        </p>
-                        <p className="text-pool-400 text-xs mt-0.5">
-                          {ev._count.results} resultado{ev._count.results !== 1 ? 's' : ''}
-                        </p>
-                      </div>
-                      {hasResults ? (
-                        <Link
-                          href={`/torneos/${params.id}/prueba/${ev.id}`}
-                          className="text-aqua-400 hover:text-aqua-300 text-sm font-semibold transition-colors shrink-0"
-                        >
-                          Ver resultados →
-                        </Link>
-                      ) : (
-                        <span className="text-pool-600 text-sm shrink-0">Sin resultados</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            <h2 className="text-lg font-bold text-white mb-4">Pruebas</h2>
+            <EventList events={events} tournamentId={params.id} />
           </section>
         </div>
       </div>

@@ -58,7 +58,7 @@ export class RankingsService {
   }
 
   private cacheKeyEvent(dto: EventRankingQueryDto): string {
-    return `ranking:event:${dto.eventDefinitionId}:${dto.poolLength}:${dto.gender}:${dto.scope ?? 'provincial'}:${dto.seasonId ?? 'all'}:${dto.categoryId}`;
+    return `ranking:event:${dto.eventDefinitionId}:${dto.poolLength}:${dto.gender}:${dto.scope ?? 'provincial'}:${dto.seasonId ?? 'all'}:${dto.categoryId ?? 'all'}`;
   }
 
   private async queryBestPerSwimmer(dto: EventRankingQueryDto): Promise<RankingEntry[]> {
@@ -73,7 +73,7 @@ export class RankingsService {
         gender: dto.gender,
         scope: dto.scope ?? 'provincial',
         seasonId: dto.seasonId ?? null,
-        categoryId: dto.categoryId,
+        ...(dto.categoryId ? { categoryId: dto.categoryId } : {}),
       },
       orderBy: { position: 'asc' },
       include: {
@@ -112,10 +112,9 @@ export class RankingsService {
 
     const results = await this.prisma.result.findMany({
       where: {
-        homologated: true,
         status: 'OK',
         finalTime: { not: null },
-        categoryId: dto.categoryId,
+        ...(dto.categoryId ? { categoryId: dto.categoryId } : {}),
         event: {
           eventDefinitionId: dto.eventDefinitionId,
           tournament: {
@@ -139,7 +138,19 @@ export class RankingsService {
     });
     const clubMap = new Map(clubs.map((c) => [c.id, c.name]));
 
-    const entries: RankingEntry[] = results.map((r, idx) => ({
+    // Deduplicate: keep best time per swimmer
+    const bestBySwimmer = new Map<string, (typeof results)[0]>();
+    for (const r of results) {
+      const existing = bestBySwimmer.get(r.swimmerId);
+      if (!existing || r.finalTime! < existing.finalTime!) {
+        bestBySwimmer.set(r.swimmerId, r);
+      }
+    }
+    const dedupedResults = [...bestBySwimmer.values()].sort(
+      (a, b) => a.finalTime! - b.finalTime!,
+    );
+
+    const entries: RankingEntry[] = dedupedResults.map((r, idx) => ({
       position: idx + 1,
       swimmerId: r.swimmerId,
       swimmerName: `${r.swimmer.firstName} ${r.swimmer.lastName}`,

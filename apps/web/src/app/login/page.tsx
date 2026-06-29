@@ -83,61 +83,17 @@ export default function LoginPage() {
 
   return (
     <div className="relative min-h-screen bg-pool-950 overflow-hidden flex">
-      {/* ── BUBBLES ─────────────────────────────────────────────────────── */}
+      {/* ── AQUATIC BACKGROUND ──────────────────────────────────────────── */}
+      <AquaticBackground />
       <Bubbles />
-
-      {/* ── LIGHT RAYS ──────────────────────────────────────────────────── */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div
-          className="absolute -top-40 left-1/4 w-96 h-[120vh] opacity-[0.04]"
-          style={{
-            background: 'linear-gradient(180deg, #00b4d8 0%, transparent 100%)',
-            transform: 'rotate(-15deg)',
-            filter: 'blur(40px)',
-          }}
-        />
-        <div
-          className="absolute -top-40 left-1/3 w-64 h-[100vh] opacity-[0.06]"
-          style={{
-            background: 'linear-gradient(180deg, #48cae4 0%, transparent 100%)',
-            transform: 'rotate(8deg)',
-            filter: 'blur(30px)',
-          }}
-        />
-        <div
-          className="absolute -top-20 right-1/4 w-80 h-[90vh] opacity-[0.03]"
-          style={{
-            background: 'linear-gradient(180deg, #0096c7 0%, transparent 100%)',
-            transform: 'rotate(-5deg)',
-            filter: 'blur(50px)',
-          }}
-        />
-      </div>
-
-      {/* ── LANE LINES ──────────────────────────────────────────────────── */}
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.035]"
-        style={{
-          backgroundImage:
-            'repeating-linear-gradient(90deg, transparent, transparent calc(12.5% - 1px), rgba(0,180,216,1) calc(12.5% - 1px), rgba(0,180,216,1) 12.5%)',
-        }}
-      />
 
       {/* ── LEFT PANEL ──────────────────────────────────────────────────── */}
       <div className="hidden lg:flex flex-col justify-between w-[55%] px-14 py-12 relative z-10">
-        {/* Logo */}
-        <div className="flex items-center gap-3">
-          <WaveIcon className="w-10 h-10 text-aqua-400" />
-          <div>
-            <div className="text-white font-black text-xl tracking-tight">FTN</div>
-            <div className="text-aqua-400 text-xs font-light tracking-widest uppercase">
-              Federación Tucumana de Natación
-            </div>
-          </div>
-        </div>
+        {/* Logo placeholder — logo shown above form on right panel */}
+        <div />
 
-        {/* Hero text + swimmer */}
-        <div className="flex flex-col items-start gap-10">
+        {/* Hero text */}
+        <div className="flex flex-col items-start gap-6">
           <div>
             <div className="inline-flex items-center gap-2 bg-aqua-500/10 border border-aqua-400/20 text-aqua-300 text-xs font-semibold px-4 py-1.5 rounded-full mb-6 uppercase tracking-widest">
               <span className="w-1.5 h-1.5 rounded-full bg-aqua-400 animate-pulse" />
@@ -152,11 +108,6 @@ export default function LoginPage() {
             <p className="text-pool-300 text-lg leading-relaxed max-w-md">
               Resultados, rankings y récords de la natación federada de Tucumán en tiempo real.
             </p>
-          </div>
-
-          {/* Swimmer SVG */}
-          <div className="relative w-full flex justify-center">
-            <SwimmerSilhouette />
           </div>
         </div>
 
@@ -197,12 +148,10 @@ export default function LoginPage() {
       {/* ── RIGHT PANEL (FORM) ───────────────────────────────────────────── */}
       <div className="flex-1 flex items-center justify-center px-6 py-12 relative z-10">
         <div className="w-full max-w-md">
-          {/* Mobile logo */}
-          <div className="flex lg:hidden items-center gap-3 mb-10 justify-center">
-            <WaveIcon className="w-9 h-9 text-aqua-400" />
-            <div>
-              <div className="text-white font-black text-lg">FTN</div>
-              <div className="text-aqua-400 text-xs font-light tracking-wide">Federación Tucumana de Natación</div>
+          {/* Logo above form — visible on all screen sizes */}
+          <div className="flex justify-center mb-10">
+            <div className="bg-white rounded-2xl px-5 py-3">
+              <img src="/LogoPNGSinLetras.png" alt="FTN" className="h-20 w-auto" />
             </div>
           </div>
 
@@ -354,91 +303,146 @@ export default function LoginPage() {
   );
 }
 
-// ─── Swimmer SVG ──────────────────────────────────────────────────────────────
+// ─── Aquatic background — carrera de natación animada ─────────────────────────
 
-function SwimmerSilhouette() {
+function AquaticBackground() {
+  const LANES = 6;
+  const SURFACE = 11;   // % from top where water starts
+  const POOL_BOT = 96;
+  const laneH = (POOL_BOT - SURFACE) / LANES;
+  const centers = Array.from({ length: LANES }, (_, i) => SURFACE + (i + 0.5) * laneH);
+  const ropes   = Array.from({ length: LANES - 1 }, (_, i) => SURFACE + (i + 1) * laneH);
+
+  // [laneIndex, animClass, opacity]
+  const swimmers: [number, string, number][] = [
+    [0, 'aq-s1', 0.28],
+    [1, 'aq-s2', 0.22],
+    [3, 'aq-s3', 0.30],
+    [4, 'aq-s4', 0.24],
+    [5, 'aq-s5', 0.26],
+  ];
+
   return (
-    <div className="relative w-full h-48 flex items-center justify-center">
-      {/* Water surface */}
-      <div className="absolute inset-x-0 top-1/2 h-px bg-gradient-to-r from-transparent via-aqua-400/30 to-transparent" />
-      {/* Glow behind swimmer */}
-      <div
-        className="absolute w-72 h-32 rounded-full opacity-10"
-        style={{ background: 'radial-gradient(ellipse, #00b4d8 0%, transparent 70%)' }}
-      />
-      <svg
-        viewBox="0 0 480 100"
-        xmlns="http://www.w3.org/2000/svg"
-        className="w-full max-w-md"
-        style={{ filter: 'drop-shadow(0 0 20px rgba(0,180,216,0.3))' }}
-      >
-        {/* Water ripples */}
-        <ellipse cx="240" cy="55" rx="200" ry="4" fill="none" stroke="rgba(0,180,216,0.2)" strokeWidth="1.5" />
-        <ellipse cx="240" cy="60" rx="160" ry="3" fill="none" stroke="rgba(0,180,216,0.12)" strokeWidth="1" />
+    <>
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes aqWA { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+        @keyframes aqWB { from{transform:translateX(-50%)} to{transform:translateX(0)} }
+        @keyframes aqSwim { from{transform:translateX(108vw)} to{transform:translateX(-220px)} }
+        .aq-wa{animation:aqWA 9s linear infinite}
+        .aq-wb{animation:aqWB 14s linear infinite}
+        .aq-s1{animation:aqSwim 17s linear infinite}
+        .aq-s2{animation:aqSwim 24s linear infinite;animation-delay:-9s}
+        .aq-s3{animation:aqSwim 13s linear infinite;animation-delay:-4s}
+        .aq-s4{animation:aqSwim 21s linear infinite;animation-delay:-13s}
+        .aq-s5{animation:aqSwim 19s linear infinite;animation-delay:-17s}
+      ` }} />
 
-        {/* Swim cap */}
-        <ellipse cx="80" cy="44" rx="17" ry="15" fill="#48cae4" opacity="0.9" transform="rotate(-10 80 44)" />
-        {/* Goggle strap */}
-        <path d="M68 38 Q80 34 92 38" stroke="#0077b6" strokeWidth="2.5" fill="none" />
-        {/* Goggle lens */}
-        <ellipse cx="75" cy="46" rx="5" ry="4" fill="none" stroke="#0096c7" strokeWidth="1.5" />
-        <ellipse cx="86" cy="46" rx="5" ry="4" fill="none" stroke="#0096c7" strokeWidth="1.5" />
-        <path d="M80 46 h2" stroke="#0096c7" strokeWidth="1" />
-        {/* Face */}
-        <path d="M63 50 Q70 56 78 54" stroke="#90e0ef" strokeWidth="1.5" fill="none" opacity="0.6" />
+      <div className="pointer-events-none absolute inset-0 overflow-hidden z-0">
+        {/* Deep pool gradient */}
+        <div className="absolute inset-0" style={{
+          background: 'linear-gradient(180deg,#020b14 0%,#082032 15%,#0b3254 40%,#093050 70%,#040f1e 100%)'
+        }} />
 
-        {/* Body / torso */}
-        <path
-          d="M94 50 Q160 42 260 48 Q320 51 380 56"
-          stroke="#0096c7"
-          strokeWidth="22"
-          fill="none"
-          strokeLinecap="round"
-          opacity="0.85"
-        />
-        {/* Body highlight */}
-        <path
-          d="M94 46 Q160 38 260 44 Q320 47 380 52"
-          stroke="#48cae4"
-          strokeWidth="4"
-          fill="none"
-          strokeLinecap="round"
-          opacity="0.3"
-        />
+        {/* Caustic light shafts */}
+        <div className="absolute inset-0" style={{ opacity: 0.09 }}>
+          {([
+            { left:'16%', skew:'skewX(-7deg)', color:'#90e0ef', blur:'blur(22px)', w:40 },
+            { left:'42%', skew:'skewX(11deg)',  color:'#48cae4', blur:'blur(15px)', w:28 },
+            { left:'68%', skew:'skewX(-4deg)',  color:'#0096c7', blur:'blur(30px)', w:36 },
+            { left:'85%', skew:'skewX(6deg)',   color:'#48cae4', blur:'blur(18px)', w:22 },
+          ] as const).map((b, i) => (
+            <div key={i} className="absolute top-0 h-full" style={{
+              left: b.left, width: b.w,
+              background: `linear-gradient(180deg,${b.color},transparent)`,
+              transform: b.skew, filter: b.blur,
+            }} />
+          ))}
+        </div>
 
-        {/* Lead arm (extended forward, underwater) */}
-        <path d="M76 48 Q45 46 16 42" stroke="#0096c7" strokeWidth="12" fill="none" strokeLinecap="round" />
-        <path d="M76 46 Q45 44 16 40" stroke="#48cae4" strokeWidth="2.5" fill="none" strokeLinecap="round" opacity="0.35" />
-        {/* Hand (lead) */}
-        <ellipse cx="13" cy="41" rx="6" ry="4" fill="#48cae4" opacity="0.8" transform="rotate(-10 13 41)" />
+        {/* Lane ropes */}
+        {ropes.map((yPct, ri) => (
+          <div key={ri} className="absolute left-0 right-0" style={{ top: `${yPct}%` }}>
+            <div className="absolute inset-x-0 h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
+            <div className="absolute inset-x-0 flex justify-around" style={{ transform: 'translateY(-50%)' }}>
+              {Array.from({ length: 24 }, (_, j) => (
+                <div key={j} className="rounded-full shrink-0" style={{
+                  width: 8, height: 8,
+                  background: j % 2 === 0 ? 'rgba(251,191,36,0.5)' : 'rgba(239,68,68,0.5)',
+                }} />
+              ))}
+            </div>
+          </div>
+        ))}
 
-        {/* Recovery arm (above water) */}
-        <path d="M200 42 Q230 18 260 20 Q285 22 305 32" stroke="#0096c7" strokeWidth="10" fill="none" strokeLinecap="round" opacity="0.7" />
-        <path d="M200 40 Q230 16 260 18 Q285 20 305 30" stroke="#48cae4" strokeWidth="2" fill="none" strokeLinecap="round" opacity="0.25" />
-        {/* Hand (recovery) */}
-        <ellipse cx="308" cy="33" rx="6" ry="4" fill="#48cae4" opacity="0.65" transform="rotate(15 308 33)" />
+        {/* Pool end walls */}
+        <div className="absolute top-[11%] bottom-[4%] left-0 w-2" style={{ background: 'rgba(72,202,228,0.12)' }} />
+        <div className="absolute top-[11%] bottom-[4%] right-0 w-2" style={{ background: 'rgba(72,202,228,0.12)' }} />
 
-        {/* Legs */}
-        <path d="M370 58 Q400 70 430 62" stroke="#0077b6" strokeWidth="14" fill="none" strokeLinecap="round" />
-        <path d="M375 52 Q405 64 435 56" stroke="#0077b6" strokeWidth="10" fill="none" strokeLinecap="round" />
-        {/* Feet / kick */}
-        <ellipse cx="432" cy="61" rx="10" ry="5" fill="#0096c7" opacity="0.7" transform="rotate(-5 432 61)" />
-        <ellipse cx="437" cy="55" rx="8" ry="4" fill="#0096c7" opacity="0.55" transform="rotate(10 437 55)" />
+        {/* Swimmers */}
+        {swimmers.map(([laneIdx, cls, opacity]) => (
+          <div key={laneIdx} className="absolute" style={{ top: `${centers[laneIdx]}%`, transform: 'translateY(-50%)' }}>
+            <div className={cls}>
+              <SwimmerSVG opacity={opacity} />
+            </div>
+          </div>
+        ))}
 
-        {/* Water splash (entry point of lead arm) */}
-        <path d="M16 42 Q10 38 4 35 M16 42 Q8 46 2 48 M16 42 Q14 35 18 30" stroke="#48cae4" strokeWidth="1.5" fill="none" opacity="0.4" strokeLinecap="round" />
+        {/* Water surface — two scrolling wave layers */}
+        <div className="absolute top-0 left-0 right-0 overflow-hidden" style={{ height: `${SURFACE}%` }}>
+          <div className="absolute inset-0 aq-wa" style={{ width: '200%' }}>
+            <svg className="absolute bottom-0 w-full" viewBox="0 0 2800 88" preserveAspectRatio="none" style={{ height: '100%' }}>
+              <path d="M0,44 C140,18 280,68 420,44 C560,18 700,68 840,44 C980,18 1120,68 1260,44 C1400,18 1540,68 1680,44 C1820,18 1960,68 2100,44 C2240,18 2380,68 2520,44 C2660,18 2800,68 2940,44 V88 H0 Z"
+                fill="#0b3254" />
+              <path d="M0,44 C140,18 280,68 420,44 C560,18 700,68 840,44 C980,18 1120,68 1260,44 C1400,18 1540,68 1680,44 C1820,18 1960,68 2100,44 C2240,18 2380,68 2520,44 C2660,18 2800,68 2940,44"
+                stroke="rgba(144,224,239,0.45)" strokeWidth="2.5" fill="none" />
+            </svg>
+          </div>
+          <div className="absolute inset-0 aq-wb" style={{ width: '200%', opacity: 0.7 }}>
+            <svg className="absolute bottom-0 w-full" viewBox="0 0 2800 88" preserveAspectRatio="none" style={{ height: '100%' }}>
+              <path d="M0,56 C175,34 350,74 525,56 C700,34 875,74 1050,56 C1225,34 1400,74 1575,56 C1750,34 1925,74 2100,56 C2275,34 2450,74 2625,56 C2800,34 2975,74 3150,56 V88 H0 Z"
+                fill="#082032" />
+            </svg>
+          </div>
+          <div className="absolute bottom-0 left-0 right-0 h-px" style={{ background: 'rgba(144,224,239,0.18)' }} />
+        </div>
 
-        {/* Bubbles from kick */}
-        <circle cx="450" cy="65" r="3" fill="none" stroke="#48cae4" strokeWidth="1" opacity="0.5" />
-        <circle cx="460" cy="58" r="2" fill="none" stroke="#48cae4" strokeWidth="1" opacity="0.35" />
-        <circle cx="456" cy="70" r="1.5" fill="none" stroke="#48cae4" strokeWidth="1" opacity="0.3" />
-      </svg>
-
-      {/* Labels */}
-      <div className="absolute bottom-1 right-4 text-aqua-400/40 text-xs font-mono tracking-widest uppercase">
-        freestyle
+        {/* Bottom fade */}
+        <div className="absolute bottom-0 left-0 right-0 h-24" style={{
+          background: 'linear-gradient(0deg,#020b14,transparent)'
+        }} />
       </div>
-    </div>
+    </>
+  );
+}
+
+function SwimmerSVG({ opacity }: { opacity: number }) {
+  return (
+    <svg
+      width="160" height="52"
+      viewBox="-80 -26 160 52"
+      style={{ display: 'block', overflow: 'visible' }}
+    >
+      <g opacity={opacity} fill="#90e0ef" stroke="#90e0ef" strokeLinecap="round" strokeLinejoin="round">
+        {/* Body */}
+        <ellipse cx="6" cy="1" rx="44" ry="9" />
+        {/* Head */}
+        <circle cx="-55" cy="-2" r="11" />
+        {/* Cap highlight */}
+        <ellipse cx="-57" cy="-6" rx="8" ry="5" fill="#48cae4" opacity={opacity * 0.6} />
+        {/* Lead arm — reaching into the water ahead */}
+        <path d="M -57,-4 Q -78,-24 -95,-16" fill="none" strokeWidth="6" />
+        {/* Trailing arm — recovery arc */}
+        <path d="M 40,2 Q 58,14 66,7" fill="none" strokeWidth="5" />
+        {/* Flutter kick — upper foot */}
+        <path d="M 46,3 Q 64,18 76,10" fill="none" strokeWidth="6" />
+        {/* Flutter kick — lower foot */}
+        <path d="M 47,-4 Q 65,-17 74,-23" fill="none" strokeWidth="5" />
+        {/* Wake bubbles */}
+        <circle cx="80"  cy="5"  r="2.5" fill="none" strokeWidth="1.2" opacity={opacity * 0.6} />
+        <circle cx="88"  cy="0"  r="1.8" fill="none" strokeWidth="1"   opacity={opacity * 0.4} />
+        <circle cx="84"  cy="12" r="1.5" fill="none" strokeWidth="1"   opacity={opacity * 0.35} />
+      </g>
+    </svg>
   );
 }
 
@@ -480,16 +484,6 @@ function Bubbles() {
 }
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
-
-function WaveIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="20" cy="20" r="18" fill="currentColor" fillOpacity="0.15" />
-      <path d="M8 22c2-3 4-5 6-5s4 4 6 4 4-4 6-4 4 2 6 5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-      <path d="M8 17c2-3 4-5 6-5s4 4 6 4 4-4 6-4 4 2 6 5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" fill="none" opacity="0.5" />
-    </svg>
-  );
-}
 
 function ShieldIcon({ className }: { className?: string }) {
   return (

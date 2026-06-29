@@ -36,8 +36,13 @@ export class ResultsGateway implements OnGatewayInit, OnGatewayDisconnect {
     this.subClient = this.pubClient.duplicate();
     this.pubClient.on('error', (err) => this.logger.error('Redis pub error', err));
     this.subClient.on('error', (err) => this.logger.error('Redis sub error', err));
-    server.adapter(createAdapter(this.pubClient, this.subClient));
-    this.logger.log('ResultsGateway initialized with Redis adapter');
+    if (typeof (server as unknown as Record<string, unknown>).adapter === 'function') {
+      (server as unknown as { adapter: (a: ReturnType<typeof createAdapter>) => void })
+        .adapter(createAdapter(this.pubClient, this.subClient));
+      this.logger.log('ResultsGateway initialized with Redis adapter');
+    } else {
+      this.logger.warn('Redis adapter not applied (server.adapter not callable) — using in-memory adapter');
+    }
   }
 
   handleDisconnect(client: Socket) {

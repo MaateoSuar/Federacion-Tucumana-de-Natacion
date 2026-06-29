@@ -131,34 +131,60 @@ export class CommitProcessor {
         // ── Clubs ────────────────────────────────────────────────
         const clubIdMap: Record<string, string> = {};
         for (const club of normalizedMeet.clubs) {
-          const created = await tx.club.create({
-            data: {
-              name: club.name,
-              shortName: club.short_name || club.name.substring(0, 10),
-              locality: 'Tucumán',
-            },
+          const existing = await tx.club.findFirst({
+            where: { name: { equals: club.name, mode: 'insensitive' } },
+            select: { id: true },
           });
-          clubIdMap[club.external_team_id] = created.id;
-          rollback.newClubIds.push(created.id);
+          if (existing) {
+            clubIdMap[club.external_team_id] = existing.id;
+          } else {
+            const created = await tx.club.create({
+              data: {
+                name: club.name,
+                shortName: club.short_name || club.name.substring(0, 10),
+                locality: 'Tucumán',
+              },
+            });
+            clubIdMap[club.external_team_id] = created.id;
+            rollback.newClubIds.push(created.id);
+          }
         }
 
         // ── Swimmers ─────────────────────────────────────────────
         const swimmerIdMap: Record<string, string> = {};
         for (const sw of normalizedMeet.swimmers) {
           const gender: Gender = sw.gender === 'F' ? 'F' : 'M';
-          const created = await tx.swimmer.create({
-            data: {
-              firstName: sw.first_name,
-              lastName: sw.last_name,
+          const clubId = clubIdMap[sw.club_ref] ?? null;
+          // Find existing swimmer by name + gender (idempotent re-import)
+          const existing = await tx.swimmer.findFirst({
+            where: {
+              firstName: { equals: sw.first_name, mode: 'insensitive' },
+              lastName: { equals: sw.last_name, mode: 'insensitive' },
               gender,
-              birthDate: sw.birth_date ? new Date(sw.birth_date) : null,
-              documentId: sw.document ?? null,
-              currentClubId: clubIdMap[sw.club_ref] ?? null,
-              source: resultSource,
             },
+            select: { id: true, currentClubId: true },
           });
-          swimmerIdMap[sw.external_athlete_id] = created.id;
-          rollback.newSwimmerIds.push(created.id);
+          if (existing) {
+            // Update currentClub if not set yet
+            if (!existing.currentClubId && clubId) {
+              await tx.swimmer.update({ where: { id: existing.id }, data: { currentClubId: clubId } });
+            }
+            swimmerIdMap[sw.external_athlete_id] = existing.id;
+          } else {
+            const created = await tx.swimmer.create({
+              data: {
+                firstName: sw.first_name,
+                lastName: sw.last_name,
+                gender,
+                birthDate: sw.birth_date ? new Date(sw.birth_date) : null,
+                documentId: sw.document ?? null,
+                currentClubId: clubId,
+                source: resultSource,
+              },
+            });
+            swimmerIdMap[sw.external_athlete_id] = created.id;
+            rollback.newSwimmerIds.push(created.id);
+          }
         }
 
         // ── Tournament ───────────────────────────────────────────
@@ -195,17 +221,27 @@ export class CommitProcessor {
             });
           }
 
-          const createdEvent = await tx.event.create({
-            data: {
-              tournamentId: tournament.id,
-              eventDefinitionId: eventDef.id,
-              categoryId: fallbackCategory.id,
-              round: ROUND_MAP[event.round] ?? 'serie_unica',
-              orderNo: event.event_no,
-              status: 'finalizado',
-            },
+          // Deduplicate: if this eventDefinition already has an event in this tournament, reuse it
+          const existingDbEvent = await tx.event.findFirst({
+            where: { tournamentId: tournament.id, eventDefinitionId: eventDef.id },
+            select: { id: true },
           });
-          rollback.newEventIds.push(createdEvent.id);
+          let createdEvent: { id: string };
+          if (existingDbEvent) {
+            createdEvent = existingDbEvent;
+          } else {
+            createdEvent = await tx.event.create({
+              data: {
+                tournamentId: tournament.id,
+                eventDefinitionId: eventDef.id,
+                categoryId: fallbackCategory.id,
+                round: ROUND_MAP[event.round] ?? 'serie_unica',
+                orderNo: event.event_no,
+                status: 'finalizado',
+              },
+            });
+            rollback.newEventIds.push(createdEvent.id);
+          }
 
           const resultsForEvent = normalizedMeet.results.filter(
             (r) => r.event_ref === event.event_no,

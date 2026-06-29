@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { NavBar } from '@/components/NavBar';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -12,11 +12,24 @@ import type { EventResultsResponse } from '@/lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
+const POINTS = [9, 7, 6, 5, 4, 3, 2, 1];
+function getPoints(position: number): number | null {
+  return POINTS[position - 1] ?? null;
+}
+
+function matchesSearch(r: { swimmer: { lastName: string; firstName: string } }, q: string): boolean {
+  if (!q) return false;
+  return `${r.swimmer.lastName} ${r.swimmer.firstName}`.toLowerCase().includes(q.toLowerCase());
+}
+
 export default function PruebaPage({ params }: { params: { id: string; eventId: string } }) {
   const [data, setData] = useState<EventResultsResponse | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [error, setError] = useState(false);
   const [liveUpdate, setLiveUpdate] = useState(false);
+  const [swimmerSearch, setSwimmerSearch] = useState('');
+  const [matchIdx, setMatchIdx] = useState(0);
+  const rowRefs = useRef<Map<string, HTMLElement>>(new Map());
 
   const fetchResults = useCallback(() => {
     fetch(`${API_BASE}/tournaments/${params.id}/events/${params.eventId}/results`)
@@ -29,15 +42,15 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
       .catch(() => setError(true));
   }, [params.id, params.eventId]);
 
-  useEffect(() => {
-    fetchResults();
-  }, [fetchResults]);
+  useEffect(() => { fetchResults(); }, [fetchResults]);
 
   useResultsSocket({
     tournamentId: params.id,
     eventId: params.eventId,
     onResultsUpdated: fetchResults,
   });
+
+  useEffect(() => { setMatchIdx(0); }, [swimmerSearch]);
 
   const toggle = (id: string) =>
     setExpanded((prev) => {
@@ -64,7 +77,73 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
   const pool = event.tournament.poolLength === 'P25' ? '25 m' : '50 m';
 
   const okResults = results.filter((r) => r.status === 'OK');
-  const dnsResults = results.filter((r) => r.status !== 'OK');
+  const dqResults = results.filter((r) => r.status === 'DSQ');
+  const othersResults = results.filter((r) => r.status !== 'OK' && r.status !== 'DSQ');
+
+  type ResultItem = (typeof results)[0];
+  type CategoryGroup = {
+    categoryId: string;
+    categoryName: string;
+    orderNo: number;
+    results: ResultItem[];
+    dqResults: ResultItem[];
+  };
+
+  const categoryGroups: CategoryGroup[] = [];
+
+  const addToGroup = (r: ResultItem, isDq: boolean) => {
+    const catId = r.category?.id ?? 'unknown';
+    let group = categoryGroups.find((g) => g.categoryId === catId);
+    if (!group) {
+      group = {
+        categoryId: catId,
+        categoryName: r.category?.name ?? event.category.name,
+        orderNo: r.category?.orderNo ?? 0,
+        results: [],
+        dqResults: [],
+      };
+      categoryGroups.push(group);
+    }
+    if (isDq) group.dqResults.push(r);
+    else group.results.push(r);
+  };
+
+  for (const r of okResults) addToGroup(r, false);
+  for (const r of dqResults) addToGroup(r, true);
+  categoryGroups.sort((a, b) => a.orderNo - b.orderNo);
+  const isMultiCategory = categoryGroups.length > 1;
+
+  // Flatten all items for search navigation
+  const allItems = categoryGroups.flatMap((g) => [...g.results, ...g.dqResults]);
+  const q = swimmerSearch.trim();
+  const matches = q ? allItems.filter((r) => matchesSearch(r, q)) : [];
+  const safeIdx = matches.length > 0 ? Math.min(matchIdx, matches.length - 1) : 0;
+  const currentMatchId = matches[safeIdx]?.id ?? null;
+
+  // Ref helpers
+  const setRowRef = (id: string) => (el: HTMLElement | null) => {
+    if (el) rowRefs.current.set(id, el);
+    else rowRefs.current.delete(id);
+  };
+
+  const scrollToMatch = (idx: number) => {
+    const target = matches[idx];
+    if (target) rowRefs.current.get(target.id)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  const goNext = () => {
+    if (matches.length === 0) return;
+    const next = (safeIdx + 1) % matches.length;
+    setMatchIdx(next);
+    scrollToMatch(next);
+  };
+
+  const goPrev = () => {
+    if (matches.length === 0) return;
+    const prev = (safeIdx - 1 + matches.length) % matches.length;
+    setMatchIdx(prev);
+    scrollToMatch(prev);
+  };
 
   return (
     <div className="min-h-screen bg-pool-950 text-white">
@@ -83,13 +162,16 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
         </div>
 
         {/* Header */}
-        <div className="mb-8 flex items-start justify-between gap-4">
+        <div className="mb-6 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black text-white">
               {event.eventDefinition.distance} m {stroke}
             </h1>
             <p className="text-pool-300 text-sm mt-1">
-              {event.category.name} · {gender} · Piscina {pool}
+              {isMultiCategory
+                ? `${categoryGroups.length} categorías`
+                : categoryGroups[0]?.categoryName ?? event.category.name
+              } · {gender} · Piscina {pool}
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -103,87 +185,194 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
           </div>
         </div>
 
-        {/* Tabla de resultados */}
-        {okResults.length === 0 ? (
+        {/* Swimmer search */}
+        <div className="flex items-center gap-2 mb-6">
+          <div className="relative flex-1">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-pool-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Buscar nadador/a..."
+              value={swimmerSearch}
+              onChange={(e) => setSwimmerSearch(e.target.value)}
+              className="w-full bg-pool-800/60 border border-pool-700/50 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-pool-500 focus:outline-none focus:border-aqua-500 transition-colors"
+            />
+            {swimmerSearch && (
+              <button
+                onClick={() => setSwimmerSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-pool-500 hover:text-white transition-colors text-lg leading-none"
+              >
+                ×
+              </button>
+            )}
+          </div>
+          {/* Match counter + prev/next */}
+          {q && (
+            <div className="flex items-center gap-0.5 shrink-0">
+              <button
+                onClick={goPrev}
+                disabled={matches.length === 0}
+                className="p-1.5 rounded-lg text-pool-400 hover:text-white hover:bg-pool-700/50 disabled:opacity-30 transition-colors text-xs"
+              >
+                ◀
+              </button>
+              <span className="text-xs text-pool-300 min-w-[3.5rem] text-center font-mono px-1">
+                {matches.length === 0 ? 'Sin resultados' : `${safeIdx + 1}/${matches.length}`}
+              </span>
+              <button
+                onClick={goNext}
+                disabled={matches.length === 0}
+                className="p-1.5 rounded-lg text-pool-400 hover:text-white hover:bg-pool-700/50 disabled:opacity-30 transition-colors text-xs"
+              >
+                ▶
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Resultados por categoría */}
+        {okResults.length === 0 && dqResults.length === 0 ? (
           <p className="text-pool-400 text-center py-10">Sin resultados disponibles.</p>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-pool-700/40">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-pool-800/60 text-pool-400 text-xs uppercase tracking-wider">
-                  <th className="text-left px-4 py-3 w-10">#</th>
-                  <th className="text-left px-4 py-3">Nadador/a</th>
-                  <th className="text-left px-4 py-3 hidden sm:table-cell">Club</th>
-                  <th className="text-right px-4 py-3">Tiempo</th>
-                  <th className="text-center px-4 py-3">Flags</th>
-                  <th className="w-8 px-2" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-pool-700/20">
-                {okResults.map((r, idx) => {
-                  const pos = idx + 1;
-                  const isOpen = expanded.has(r.id);
-                  return (
-                    <>
-                      <tr
-                        key={r.id}
-                        className={`group hover:bg-pool-800/40 transition-colors cursor-pointer ${positionClass(pos)}`}
-                        onClick={() => r.splits.length > 0 && toggle(r.id)}
-                      >
-                        <td className="px-4 py-3">
-                          <MedalIcon position={pos} />
-                        </td>
-                        <td className="px-4 py-3 font-medium text-white">
-                          <Link
-                            href={`/nadadores/${r.swimmer.id}`}
-                            className="hover:text-aqua-300 transition-colors"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {r.swimmer.lastName}, {r.swimmer.firstName}
-                          </Link>
-                        </td>
-                        <td className="px-4 py-3 text-pool-300 hidden sm:table-cell">{r.club.shortName}</td>
-                        <td className="px-4 py-3 text-right font-mono font-bold text-white">
-                          {r.finalTime != null ? formatTime(r.finalTime) : '—'}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            {r.isPb && <span className="text-xs font-bold text-emerald-400 bg-emerald-400/10 px-1.5 py-0.5 rounded">PB</span>}
-                            {r.isRecord && <RecordBadge />}
-                          </div>
-                        </td>
-                        <td className="px-2 py-3 text-pool-500 text-xs">
-                          {r.splits.length > 0 && (isOpen ? '▲' : '▼')}
-                        </td>
-                      </tr>
-                      {isOpen && r.splits.length > 0 && (
-                        <tr key={`${r.id}-splits`} className="bg-pool-900/60">
-                          <td colSpan={6} className="px-6 py-3">
-                            <div className="flex flex-wrap gap-3">
-                              {r.splits.map((s) => (
-                                <div key={s.distance} className="text-xs">
-                                  <span className="text-pool-400">{s.distance} m</span>
-                                  <span className="ml-1.5 font-mono text-aqua-300">{formatTime(s.cumulativeTime)}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </td>
+          <div className="space-y-6">
+            {categoryGroups.map((group) => (
+              <div key={group.categoryId}>
+                {isMultiCategory && (
+                  <h2 className="text-xs font-bold text-aqua-400 uppercase tracking-widest mb-2 px-1">
+                    {group.categoryName}
+                  </h2>
+                )}
+
+                {/* OK results table */}
+                {group.results.length > 0 && (
+                  <div className="overflow-x-auto rounded-xl border border-pool-700/40">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-pool-800/60 text-pool-400 text-xs uppercase tracking-wider">
+                          <th className="text-left px-4 py-3 w-10">#</th>
+                          <th className="text-left px-4 py-3">Nadador/a</th>
+                          <th className="text-left px-4 py-3 hidden sm:table-cell">Club</th>
+                          <th className="text-right px-4 py-3">Tiempo</th>
+                          <th className="text-right px-4 py-3 w-14">Pts</th>
+                          <th className="w-8 px-2" />
                         </tr>
-                      )}
-                    </>
-                  );
-                })}
-              </tbody>
-            </table>
+                      </thead>
+                      <tbody className="divide-y divide-pool-700/20">
+                        {group.results.map((r, idx) => {
+                          const pos = idx + 1;
+                          const isOpen = expanded.has(r.id);
+                          const pts = getPoints(pos);
+                          const isMatch = matchesSearch(r, q);
+                          const isCurrent = r.id === currentMatchId;
+                          return (
+                            <>
+                              <tr
+                                key={r.id}
+                                ref={setRowRef(r.id) as React.Ref<HTMLTableRowElement>}
+                                className={`group transition-colors cursor-pointer ${positionClass(pos)} ${
+                                  isCurrent
+                                    ? 'bg-aqua-700/20 ring-1 ring-inset ring-aqua-500/40'
+                                    : isMatch
+                                    ? 'bg-aqua-900/20 hover:bg-aqua-900/30'
+                                    : 'hover:bg-pool-800/40'
+                                }`}
+                                onClick={() => r.splits.length > 0 && toggle(r.id)}
+                              >
+                                <td className="px-4 py-3">
+                                  <MedalIcon position={pos} />
+                                </td>
+                                <td className="px-4 py-3 font-medium text-white">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <Link
+                                      href={`/nadadores/${r.swimmer.id}`}
+                                      className="hover:text-aqua-300 transition-colors"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      {r.swimmer.lastName}, {r.swimmer.firstName}
+                                    </Link>
+                                    {r.isPb && <span className="text-xs font-bold text-emerald-400 bg-emerald-400/10 px-1.5 py-0.5 rounded">PB</span>}
+                                    {r.isRecord && <RecordBadge />}
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-pool-300 hidden sm:table-cell">{r.club.shortName}</td>
+                                <td className="px-4 py-3 text-right font-mono font-bold text-white">
+                                  {r.finalTime != null ? formatTime(r.finalTime) : '—'}
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  {pts != null ? (
+                                    <span className="font-bold text-aqua-300 tabular-nums">{pts}</span>
+                                  ) : (
+                                    <span className="text-pool-600 text-xs">—</span>
+                                  )}
+                                </td>
+                                <td className="px-2 py-3 text-pool-500 text-xs">
+                                  {r.splits.length > 0 && (isOpen ? '▲' : '▼')}
+                                </td>
+                              </tr>
+                              {isOpen && r.splits.length > 0 && (
+                                <tr key={`${r.id}-splits`} className="bg-pool-900/60">
+                                  <td colSpan={6} className="px-6 py-3">
+                                    <div className="flex flex-wrap gap-3">
+                                      {r.splits.map((s) => (
+                                        <div key={s.distance} className="text-xs">
+                                          <span className="text-pool-400">{s.distance} m</span>
+                                          <span className="ml-1.5 font-mono text-aqua-300">{formatTime(s.cumulativeTime)}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* DQ entries — dentro de su categoría */}
+                {group.dqResults.length > 0 && (
+                  <div className={`space-y-1 ${group.results.length > 0 ? 'mt-1' : ''}`}>
+                    {group.dqResults.map((r) => {
+                      const isMatch = matchesSearch(r, q);
+                      const isCurrent = r.id === currentMatchId;
+                      return (
+                        <div
+                          key={r.id}
+                          ref={setRowRef(r.id)}
+                          className={`flex items-center justify-between rounded-lg px-4 py-2.5 text-sm transition-colors ${
+                            isCurrent
+                              ? 'bg-aqua-700/20 ring-1 ring-aqua-500/40'
+                              : isMatch
+                              ? 'bg-aqua-900/15'
+                              : 'bg-pool-800/20'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <StatusBadge status="DSQ" dsqCode={r.dsqCode} />
+                            <span className="text-pool-300">
+                              {r.swimmer.lastName}, {r.swimmer.firstName}
+                            </span>
+                          </div>
+                          <span className="text-pool-500 text-xs">{r.club.shortName}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
 
-        {/* DNS/DSQ/DNF */}
-        {dnsResults.length > 0 && (
+        {/* DNS / DNF */}
+        {othersResults.length > 0 && (
           <div className="mt-6">
             <h3 className="text-xs font-semibold text-pool-500 uppercase tracking-wider mb-2">Otros</h3>
             <div className="space-y-1">
-              {dnsResults.map((r) => (
+              {othersResults.map((r) => (
                 <div key={r.id} className="flex items-center justify-between bg-pool-800/20 rounded-lg px-4 py-2.5 text-sm">
                   <div className="flex items-center gap-3">
                     <StatusBadge status={r.status} dsqCode={r.dsqCode} />

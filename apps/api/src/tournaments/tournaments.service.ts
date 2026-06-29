@@ -383,20 +383,53 @@ export class TournamentsService {
     });
     if (!event) throw new NotFoundException(`Prueba ${eventId} no encontrada en este torneo`);
 
+    // Fetch all sibling events with the same eventDefinition in this tournament
+    // so results from all age categories are merged into one view
+    const siblingIds = (
+      await this.prisma.event.findMany({
+        where: { tournamentId, eventDefinitionId: event.eventDefinitionId },
+        select: { id: true },
+      })
+    ).map((e) => e.id);
+
     const results = await this.prisma.result.findMany({
-      where: { eventId },
+      where: { eventId: { in: siblingIds } },
       orderBy: [
-        { status: 'asc' }, // OK primero
+        { status: 'asc' },
         { finalTime: { sort: 'asc', nulls: 'last' } },
       ],
       include: {
         swimmer: { select: { id: true, firstName: true, lastName: true, gender: true } },
         club: { select: { id: true, name: true, shortName: true } },
+        category: { select: { id: true, name: true, orderNo: true } },
         splits: { orderBy: { distance: 'asc' } },
       },
     });
 
-    return { event, results };
+    // Deduplicate: same swimmer in same category (from re-imports or sibling events)
+    // Keep the result with the best (lowest) finalTime per swimmer+category pair
+    const seen = new Map<string, (typeof results)[0]>();
+    for (const r of results) {
+      const key = `${r.swimmerId}-${(r.category as { id: string } | null)?.id ?? 'none'}`;
+      const existing = seen.get(key);
+      if (!existing) {
+        seen.set(key, r);
+      } else if (
+        r.finalTime != null &&
+        (existing.finalTime == null || r.finalTime < existing.finalTime)
+      ) {
+        seen.set(key, r);
+      }
+    }
+    const dedupedResults = [...seen.values()].sort((a, b) => {
+      if (a.status === 'OK' && b.status !== 'OK') return -1;
+      if (a.status !== 'OK' && b.status === 'OK') return 1;
+      if (a.finalTime == null) return 1;
+      if (b.finalTime == null) return -1;
+      return a.finalTime - b.finalTime;
+    });
+
+    return { event, results: dedupedResults };
   }
 
   // ─── Documentos ───────────────────────────────────────────────────────────

@@ -54,6 +54,16 @@ const COMPETITION_TYPE_MAP: Record<string, CompetitionType> = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/** Lowercase + strip diacritics + collapse whitespace. Used for swimmer key generation. */
+function normalizeForKey(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function parseDate(raw: string): string {
   const m = raw.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (!m) return raw;
@@ -69,7 +79,9 @@ function parseGender(token: string): NormalizedGender {
 }
 
 function parseCourse(token: string): PoolLength {
-  return token.toLowerCase().startsWith('l') ? 50 : 25;
+  const t = token.toLowerCase();
+  // LC/LM/CL = long course (50m), CC/SC = short course (25m)
+  return t === 'lc' || t === 'lm' || t === 'cl' ? 50 : 25;
 }
 
 function parseStroke(raw: string): NormalizedStroke | null {
@@ -87,19 +99,15 @@ function normalizeClubId(name: string): string {
 // ─── Data-line parser ─────────────────────────────────────────────────────────
 
 // Matches the time/status suffix at the end of a result data line.
-// Groups: (1) finalTime  (2) points digit or ''  (3) seedTime
-// Handles both concatenated (no space) and spaced (space between) variants.
-// Examples:
-//   "3:02,9593:00,00"  → "3:02,95", "9", "3:00,00"
-//   "3:13,27 3:03,90"  → "3:13,27", "",  "3:03,90"
-//   "DQ NT"            → "DQ",      "",  "NT"
-//   "DQ 3:10,76"       → "DQ",      "",  "3:10,76"
-//   "3:10,281NT"        → "3:10,28", "1", "NT"
+// Groups: (1) finalTime  (2) points digit or ''  (3) seedTime (optional — some PDFs put it on a separate line)
+// Handles comma AND period as decimal separator (different Meet Manager exports).
+// Examples (comma):  "3:02,9593:00,00"  "3:13,27 3:03,90"
+// Examples (period): "1:09.06 NT"       "17.95 NT"        "1:09.06" (no seed)
 const SUFFIX_RE =
-  /(\d{1,2}(?::\d{2})?,\d{2}|DQ|NT|NS|NF)(\d?) ?(\d{1,2}(?::\d{2})?,\d{2}|NT|NS|NF)$/;
+  /(\d{1,2}(?::\d{2})?[,.]\d{2}|DQ|NT|NS|NF)(\d?)(?:\s+(\d{1,2}(?::\d{2})?[,.]\d{2}|NT|NS|NF))?$/;
 
 interface ParsedRow {
-  age: number;
+  age: number | null; // null for Pre Inf format (heat+lane prefix, not age+place)
   place: number | undefined;
   isDQ: boolean;
   name: string;
@@ -107,20 +115,39 @@ interface ParsedRow {
   seedTimeRaw: string;
 }
 
+/** Extracts the minimum numeric age from an age_group string ("5-8" → 5, "9" → 9, "12-13" → 12). */
+function parseMinAgeFromGroup(ageGroup: string): number {
+  const m = ageGroup.match(/^(\d+)/);
+  return m ? parseInt(m[1] ?? '0', 10) : 0;
+}
+
 function parseDataLine(line: string): ParsedRow | null {
   const trimmed = line.trimStart();
 
-  // Age is always exactly 2 leading digits (competitive swimmers are 10-99+)
-  // Then place as digits or "---" for DQ
-  const headerMatch = trimmed.match(/^(\d{2})(---|\d+)(.+)$/s);
+  // Two formats:
+  //   Standard:  age(2d) + optional* + place(1+d or ---) + name + times
+  //   Pre Inf:   heat(1d) + lane(1d) + name (no place digits)
+  // We allow place to be empty (\d*) to capture both.
+  const headerMatch = trimmed.match(/^(\d{2})\*?(---|\d*)(.+)$/s);
   if (!headerMatch) return null;
 
-  const age = parseInt(headerMatch[1] ?? '0', 10);
+  const firstTwo = headerMatch[1] ?? '00';
   const placeRaw = headerMatch[2] ?? '';
   const rest = headerMatch[3] ?? '';
 
+  // Pre Inf format: place is empty and rest begins with a letter (name follows immediately)
+  const isPreInf = placeRaw === '' && /^[A-Za-záéíóúñÁÉÍÓÚÑ]/.test(rest);
+
   const isDQ = placeRaw === '---';
-  const place = isDQ ? undefined : parseInt(placeRaw, 10);
+  // For Pre Inf, use the second digit as lane/place; for standard use parsed place
+  const place = isDQ
+    ? undefined
+    : isPreInf
+      ? parseInt(firstTwo[1] ?? '0', 10)
+      : parseInt(placeRaw, 10);
+
+  // For Pre Inf, age comes from the event age_group (caller's responsibility); mark as null
+  const age = isPreInf ? null : parseInt(firstTwo, 10);
 
   const suffixMatch = rest.match(SUFFIX_RE);
   if (!suffixMatch) return null;
@@ -149,9 +176,11 @@ export function parseLines(lines: string[], _fileName: string): LineParserResult
   let headerParsed = false;
   let currentEvent: NormalizedEvent | null = null;
   let pendingClub: string | null = null; // club comes 1 line before result data
+  let lastResult: NormalizedResult | null = null; // for attaching seed times from separate lines
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i] ?? '';
+    // Fix PDF ligature artifact: "ñ e" → "ñe" (e.g. "Ni ñ eas" → "Niñeas", "Di seño e" → "Diseñoe")
+    const line = (lines[i] ?? '').replace(/ñ e/g, 'ñe').replace(/Ñ E/g, 'ÑE');
     const lineNo = i + 1;
     const trimmed = line.trim();
 
@@ -189,21 +218,25 @@ export function parseLines(lines: string[], _fileName: string): LineParserResult
     if (
       trimmed.startsWith('EdadNombre') ||
       trimmed === 'Resultados' ||
+      trimmed.startsWith('EquipoRelevo') || // relay result column header
       (meetHeader && trimmed.startsWith(meetHeader.name) && /\d{1,2}\/\d{1,2}\/\d{4}/.test(trimmed))
     ) {
       continue;
     }
 
     // ── Event header: "Evento N  Gender AgeGroup Distance CC|LC Metro Stroke Type [Relevo]" ──
+    // AgeGroup can be "13-14", "18 & Mayores", "8 Años de Edad", "9 Años de Edad", "5-8", etc.
+    // Course codes: CC/LC/LM (Catamarca format) or CL (this format — Curso Largo)
     const eventMatch = trimmed.match(
-      /^Evento\s+(\d+)\s+(Ni[ñn]as?|Mujeres|Ni[ñn]os?|Hombres|Mixto)\s+([\d-]+(?:\s*&\s*Mayores)?)\s+(\d+)\s+(CC|LC|LM)\s+Metro\s+(.+)/i,
+      /^Evento\s+(\d+)\s+(Ni[ñn]as?|Mujeres|Ni[ñn]os?|Hombres|Mixto)\s+([\d-]+(?:\s+A[ñn]os\s+de\s+Edad)?(?:\s*&\s*Mayores)?)\s+(\d+)\s+(CC|LC|LM|CL)\s+Metro\s+(.+)/i,
     );
     if (eventMatch) {
       pendingClub = null;
 
       const evNoRaw = eventMatch[1] ?? '0';
       const genderRaw = eventMatch[2] ?? '';
-      const ageGroup = eventMatch[3] ?? '';
+      // Normalize "9 Años de Edad" → "9", keep "13-14" and "18 & Mayores" as-is
+      const ageGroup = (eventMatch[3] ?? '').replace(/\s+A[ñn]os\s+de\s+Edad/i, '').trim();
       const distRaw = eventMatch[4] ?? '0';
       const courseCode = eventMatch[5] ?? 'CC';
       const rest = eventMatch[6] ?? '';
@@ -230,6 +263,9 @@ export function parseLines(lines: string[], _fileName: string): LineParserResult
         }
       }
 
+      // Strip category suffixes: "PRE A", "PRE B", "Pre Inf A", "Pre Inf B"
+      strokeRaw = strokeRaw.replace(/\s*\bPRE(?:\s+INF)?\s+[A-Z]\b\s*/gi, '').trim();
+
       const stroke = parseStroke(strokeRaw);
       if (!stroke) {
         issues.push({
@@ -241,14 +277,24 @@ export function parseLines(lines: string[], _fileName: string): LineParserResult
         });
       }
 
+      const evNo = parseInt(evNoRaw, 10);
+
+      // Deduplicate: Meet Manager repeats the event header on each PDF page.
+      // If we already have this event_no, just resume it — don't create a duplicate.
+      const existingEvent = events.find((e) => e.event_no === evNo);
+      if (existingEvent) {
+        currentEvent = existingEvent;
+        continue;
+      }
+
       const event: NormalizedEvent = {
-        event_no: parseInt(evNoRaw, 10),
+        event_no: evNo,
         stroke: stroke ?? 'libre',
         distance: parseInt(distRaw, 10),
         gender: parseGender(genderRaw),
         round: 'F' as NormalizedRound,
         course: parseCourse(courseCode),
-        age_group: ageGroup.trim(),
+        age_group: ageGroup,
         competition_type: parseCompetitionType(compTypeKey),
         is_relay: isRelay,
         source_line: lineNo,
@@ -280,8 +326,24 @@ export function parseLines(lines: string[], _fileName: string): LineParserResult
     // Skip if current event is a relay
     if (currentEvent?.is_relay) continue;
 
-    // ── Result data line: starts with spaces then age(2 digits) + place/--- ──
-    if (/^ +\d{2}(?:\d+|---)/.test(line)) {
+    // ── Standalone seed time: indented line with only a time or status code ──
+    // Some Meet Manager PDFs (e.g. CL format) put the seed time on the line after
+    // the result — e.g. "  1:09.06" following "  1211RODRIGUEZ, MATEO 1:09.06".
+    if (
+      line.startsWith(' ') &&
+      /^(\d{1,2}:\d{2}[,.]\d{2}|\d{1,2}[,.]\d{2}|NT|NS|NF|DQ)$/.test(trimmed)
+    ) {
+      if (lastResult !== null && lastResult.seed_time_ms === undefined) {
+        const ms = parseTimeToMs(trimmed);
+        if (ms !== null) lastResult.seed_time_ms = ms;
+      }
+      continue;
+    }
+
+    // ── Result data line ──────────────────────────────────────────────────────
+    // Standard:  spaces? + age(2d) + *? + place(1+d or ---) → "  1411NOMBRE..."
+    // Pre Inf:   heat(1d) + lane(1d) + letter (name starts immediately) → "81Gonzalez..."
+    if (/^\s*\d{2}\*?(?:\d+|---|[A-Za-záéíóúñÁÉÍÓÚÑ])/.test(line)) {
       if (!currentEvent) {
         issues.push({
           severity: 'WARNING',
@@ -342,14 +404,20 @@ export function parseLines(lines: string[], _fileName: string): LineParserResult
       // Resolve swimmer
       const gender: NormalizedGender =
         currentEvent.gender === 'X' ? 'M' : currentEvent.gender;
-      const swimmerKey = `${lastName.toLowerCase()}|${firstName.toLowerCase()}|${clubId}|${gender}`;
+      // Normalize names to handle accent variants (Rodríguez = Rodriguez)
+      const swimmerKey = `${normalizeForKey(lastName)}|${normalizeForKey(firstName)}|${clubId}|${gender}`;
       if (!swimmerIndex.has(swimmerKey)) {
+        // Pre Inf lines use heat+lane prefix instead of age+place.
+        // Fall back to the event's minimum age so category resolves correctly.
+        const swimmerAge = row.age !== null
+          ? row.age
+          : parseMinAgeFromGroup(currentEvent.age_group);
         swimmerIndex.set(swimmerKey, {
           external_athlete_id: swimmerKey,
           first_name: firstName,
           last_name: lastName,
           gender,
-          age: row.age,
+          age: swimmerAge,
           club_ref: clubId,
           source_line: lineNo,
         });
@@ -383,6 +451,8 @@ export function parseLines(lines: string[], _fileName: string): LineParserResult
         splits: [],
         source_line: lineNo,
       });
+
+      lastResult = results[results.length - 1] ?? null;
 
       // Silence INFO spam — swimmers are implicit from results
       void club; // referenced, satisfies lint

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
+import type { Category } from '@/lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -22,11 +23,26 @@ interface SwimmerCard {
   birthDate?: string;
 }
 
+function sportAge(birthDate: string, year = new Date().getFullYear()): number {
+  return year - new Date(birthDate).getFullYear();
+}
+
+function resolveCategory(categories: Category[], birthDate: string): string {
+  const age = sportAge(birthDate);
+  const cat = categories.find((c) => {
+    const minOk = c.minAge == null || age >= c.minAge;
+    const maxOk = c.maxAge == null || age <= c.maxAge;
+    return minOk && maxOk;
+  });
+  return cat?.name ?? '–';
+}
+
 export default function EntrenadorPage() {
   const { user, logout, isLoading, accessToken } = useAuth();
   const router = useRouter();
   const [club, setClub] = useState<ClubInfo | null>(null);
   const [swimmers, setSwimmers] = useState<SwimmerCard[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
@@ -40,18 +56,23 @@ export default function EntrenadorPage() {
     if (!user?.clubId || !accessToken) return;
     void (async () => {
       try {
-        const [clubRes, swimmersRes] = await Promise.all([
+        const [clubRes, swimmersRes, catsRes] = await Promise.all([
           fetch(`${API_BASE}/clubs/${user.clubId}`, {
             headers: { Authorization: `Bearer ${accessToken}` },
           }),
           fetch(`${API_BASE}/swimmers?clubId=${user.clubId}&limit=50`, {
             headers: { Authorization: `Bearer ${accessToken}` },
           }),
+          fetch(`${API_BASE}/tournaments/categories`),
         ]);
         if (clubRes.ok) setClub(await clubRes.json() as ClubInfo);
         if (swimmersRes.ok) {
           const data = await swimmersRes.json() as { items?: SwimmerCard[] } | SwimmerCard[];
           setSwimmers(Array.isArray(data) ? data : (data.items ?? []));
+        }
+        if (catsRes.ok) {
+          const cats = await catsRes.json() as Category[];
+          setCategories(cats.filter((c) => c.scope === 'provincial').sort((a, b) => (a.orderNo ?? 0) - (b.orderNo ?? 0)));
         }
       } finally {
         setDataLoading(false);
@@ -73,11 +94,10 @@ export default function EntrenadorPage() {
       {/* NAV */}
       <nav className="border-b border-pool-800 px-6 md:px-10 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <WaveIcon className="w-8 h-8 text-aqua-400" />
-          <div>
-            <span className="text-white font-black text-base">FTN</span>
-            <span className="text-pool-500 text-xs ml-2">Entrenador</span>
+          <div className="bg-white rounded-md px-1.5 py-0.5">
+            <img src="/LogoPNGSinLetras.png" alt="FTN" className="h-7 w-auto" />
           </div>
+          <span className="text-pool-500 text-xs">Entrenador</span>
         </div>
         <div className="flex items-center gap-4">
           <div className="hidden sm:flex items-center gap-2 bg-emerald-950/60 border border-emerald-500/30 rounded-full px-3 py-1.5">
@@ -130,7 +150,7 @@ export default function EntrenadorPage() {
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'Nadadores activos', value: dataLoading ? '–' : String(swimmers.length), icon: '🏊', color: 'text-aqua-400' },
+            { label: 'Nadadores', value: dataLoading ? '–' : String(swimmers.length), icon: '🏊', color: 'text-aqua-400' },
             { label: 'Temporada activa', value: '2026', icon: '📅', color: 'text-pool-300' },
             { label: 'Próximos torneos', value: '–', icon: '🏆', color: 'text-yellow-400' },
             { label: 'Resultados pendientes', value: '–', icon: '⏱', color: 'text-orange-400' },
@@ -151,7 +171,7 @@ export default function EntrenadorPage() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-black text-white">Nadadores del club</h2>
             <Link
-              href="/admin/nadadores/nuevo"
+              href="/entrenador/nadadores/nuevo"
               className="text-xs text-aqua-400 hover:text-aqua-300 font-semibold"
             >
               + Agregar nadador
@@ -168,7 +188,7 @@ export default function EntrenadorPage() {
             <div className="bg-pool-800/30 border border-pool-700/30 rounded-2xl p-10 text-center">
               <p className="text-pool-400 text-sm">No hay nadadores cargados para este club.</p>
               <Link
-                href="/admin/nadadores/nuevo"
+                href="/entrenador/nadadores/nuevo"
                 className="inline-block mt-4 bg-aqua-500 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-aqua-400 transition-colors"
               >
                 Cargar primer nadador
@@ -193,7 +213,7 @@ export default function EntrenadorPage() {
                       </span>
                       {sw.birthDate && (
                         <span className="ml-2 text-pool-500 text-xs">
-                          · {new Date(sw.birthDate).getFullYear()}
+                          · {resolveCategory(categories, sw.birthDate)} · {sportAge(sw.birthDate)} años
                         </span>
                       )}
                     </div>
@@ -253,19 +273,9 @@ function LoadingScreen() {
   return (
     <div className="min-h-screen bg-pool-950 flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
-        <WaveIcon className="w-12 h-12 text-aqua-400 animate-pulse" />
+        <div className="w-10 h-10 border-2 border-aqua-400 border-t-transparent rounded-full animate-spin" />
         <p className="text-pool-400 text-sm">Cargando...</p>
       </div>
     </div>
-  );
-}
-
-function WaveIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 40 40" fill="none">
-      <circle cx="20" cy="20" r="18" fill="currentColor" fillOpacity="0.15" />
-      <path d="M8 22c2-3 4-5 6-5s4 4 6 4 4-4 6-4 4 2 6 5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-      <path d="M8 17c2-3 4-5 6-5s4 4 6 4 4-4 6-4 4 2 6 5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" fill="none" opacity="0.5" />
-    </svg>
   );
 }

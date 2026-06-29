@@ -574,6 +574,7 @@ model Event {
   categoryId        String      @map("category_id")
   round             EventRound  @default(serie_unica)
   orderNo           Int         @map("order_no")
+  dayNumber         Int         @default(1) @map("day_number")
   status            EventStatus @default(pendiente)
 
   tournament      Tournament      @relation(fields: [tournamentId], references: [id])

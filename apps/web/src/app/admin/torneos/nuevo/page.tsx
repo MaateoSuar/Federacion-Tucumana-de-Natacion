@@ -31,6 +31,7 @@ export default function NuevoTorneoPage() {
     poolLength: 'P50',
     startDate: '',
     endDate: '',
+    numberOfDays: '1',
     type: 'provincial',
     scope: 'provincial',
     seasonId: '',
@@ -51,7 +52,21 @@ export default function NuevoTorneoPage() {
     }
   }, [seasons]);
 
-  const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const set = (k: keyof typeof form, v: string) =>
+    setForm((f) => {
+      const next = { ...f, [k]: v };
+      // Cuando cambia startDate o numberOfDays, recalcular endDate
+      if (k === 'startDate' || k === 'numberOfDays') {
+        const base = k === 'startDate' ? v : next.startDate;
+        const days = parseInt(k === 'numberOfDays' ? v : next.numberOfDays, 10);
+        if (base && days >= 1) {
+          const d = new Date(base);
+          d.setDate(d.getDate() + days - 1);
+          next.endDate = d.toISOString().split('T')[0] ?? '';
+        }
+      }
+      return next;
+    });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -177,8 +192,8 @@ export default function NuevoTorneoPage() {
           </div>
         </div>
 
-        {/* Fechas */}
-        <div className="grid grid-cols-2 gap-4">
+        {/* Fechas + Jornadas */}
+        <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Fecha inicio <span className="text-red-500">*</span>
@@ -193,14 +208,30 @@ export default function NuevoTorneoPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Fecha fin <span className="text-red-500">*</span>
+              Jornadas <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={form.numberOfDays}
+              onChange={(e) => set('numberOfDays', e.target.value)}
+              className="input"
+            >
+              {[1, 2, 3, 4, 5].map((n) => (
+                <option key={n} value={String(n)}>
+                  {n} {n === 1 ? 'jornada' : 'jornadas'}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Fecha fin
+              <span className="ml-1 text-gray-400 font-normal text-xs">(calculada)</span>
             </label>
             <input
               type="date"
-              required
               value={form.endDate}
               onChange={(e) => set('endDate', e.target.value)}
-              className="input"
+              className="input bg-gray-50 text-gray-500"
             />
           </div>
         </div>
