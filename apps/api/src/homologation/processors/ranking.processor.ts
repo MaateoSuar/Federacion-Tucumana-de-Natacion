@@ -1,8 +1,22 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PoolLength } from '@prisma/client';
+import { Gender, PoolLength, Scope } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
 import type { PostProcessJobData } from '../homologation.queue';
+
+interface UpsertRankingInput {
+  swimmerId: string;
+  eventDefinitionId: string;
+  poolLength: PoolLength;
+  gender: Gender;
+  scope: Scope;
+  seasonId: string | null;
+  categoryId: string;
+  clubId: string;
+  position: number;
+  finalTime: number;
+  sourceResultId: string;
+}
 
 @Injectable()
 export class RankingProcessor {
@@ -63,63 +77,40 @@ export class RankingProcessor {
       const finalTime = r.finalTime!;
       const rSeasonId = eventSeasonMap.get(r.eventId) ?? null;
 
-      // Ranking global histórico (seasonId = null)
-      await this.prisma.ranking.upsert({
-        where: {
-          swimmerId_eventDefinitionId_poolLength_scope_seasonId_categoryId: {
-            swimmerId: r.swimmerId,
-            eventDefinitionId,
-            poolLength: prismaPool,
-            scope: 'provincial',
-            seasonId: null as unknown as string,
-            categoryId,
-          },
-        },
-        create: {
+      // Ranking global histórico (seasonId = null).
+      // No se usa upsert con la clave compuesta: Prisma rechaza `null` en un
+      // campo de un where de unique compuesto en runtime, aunque la columna
+      // (seasonId) sea nullable — el cast `as unknown as string` solo
+      // engañaba al compilador y esta query fallaba con
+      // "Argument seasonId must not be null" en cuanto se ejecutaba de verdad.
+      await this.upsertRanking({
+        swimmerId: r.swimmerId,
+        eventDefinitionId,
+        poolLength: prismaPool,
+        gender,
+        scope: 'provincial',
+        seasonId: null,
+        categoryId,
+        clubId: r.clubId,
+        position,
+        finalTime,
+        sourceResultId: r.id,
+      });
+
+      // Ranking por temporada (solo si el resultado pertenece a esta temporada)
+      if (rSeasonId === seasonId) {
+        await this.upsertRanking({
           swimmerId: r.swimmerId,
           eventDefinitionId,
           poolLength: prismaPool,
           gender,
           scope: 'provincial',
-          seasonId: null,
+          seasonId,
           categoryId,
           clubId: r.clubId,
           position,
           finalTime,
           sourceResultId: r.id,
-          computedAt: new Date(),
-        },
-        update: { position, finalTime, sourceResultId: r.id, computedAt: new Date() },
-      });
-
-      // Ranking por temporada (solo si el resultado pertenece a esta temporada)
-      if (rSeasonId === seasonId) {
-        await this.prisma.ranking.upsert({
-          where: {
-            swimmerId_eventDefinitionId_poolLength_scope_seasonId_categoryId: {
-              swimmerId: r.swimmerId,
-              eventDefinitionId,
-              poolLength: prismaPool,
-              scope: 'provincial',
-              seasonId,
-              categoryId,
-            },
-          },
-          create: {
-            swimmerId: r.swimmerId,
-            eventDefinitionId,
-            poolLength: prismaPool,
-            gender,
-            scope: 'provincial',
-            seasonId,
-            categoryId,
-            clubId: r.clubId,
-            position,
-            finalTime,
-            sourceResultId: r.id,
-            computedAt: new Date(),
-          },
-          update: { position, finalTime, sourceResultId: r.id, computedAt: new Date() },
         });
       }
     }
@@ -136,5 +127,45 @@ export class RankingProcessor {
     if (seasonId) await this.redis.del(`ranking:club:provincial:${seasonId}`);
 
     this.logger.log(`Ranking recalculated for event ${eventDefinitionId}/${poolLength}/${gender} — ${ranked.length} entries`);
+  }
+
+  // find-then-create/update en vez de upsert: Prisma no acepta `null` como
+  // valor de un campo dentro del where de un unique compuesto en runtime,
+  // aunque la columna (seasonId) sea nullable.
+  private async upsertRanking(input: UpsertRankingInput): Promise<void> {
+    const { swimmerId, eventDefinitionId, poolLength, scope, seasonId, categoryId } = input;
+    const existing = await this.prisma.ranking.findFirst({
+      where: { swimmerId, eventDefinitionId, poolLength, scope, seasonId, categoryId },
+    });
+
+    const computedAt = new Date();
+    if (existing) {
+      await this.prisma.ranking.update({
+        where: { id: existing.id },
+        data: {
+          position: input.position,
+          finalTime: input.finalTime,
+          sourceResultId: input.sourceResultId,
+          computedAt,
+        },
+      });
+    } else {
+      await this.prisma.ranking.create({
+        data: {
+          swimmerId,
+          eventDefinitionId,
+          poolLength,
+          gender: input.gender,
+          scope,
+          seasonId,
+          categoryId,
+          clubId: input.clubId,
+          position: input.position,
+          finalTime: input.finalTime,
+          sourceResultId: input.sourceResultId,
+          computedAt,
+        },
+      });
+    }
   }
 }

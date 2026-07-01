@@ -72,7 +72,9 @@ export class HomologationService {
           eventDefinitionId: result.event.eventDefinitionId,
           poolLength: tournament.poolLength === 'P25' ? 25 : 50,
           categoryId: result.categoryId,
-          gender: result.event.eventDefinition.gender,
+          // Esta cola solo procesa resultados individuales — su EventDefinition
+          // nunca es MIX (eso solo existe para relevos, que no pasan por acá).
+          gender: result.event.eventDefinition.gender as 'M' | 'F',
           seasonId: tournament.seasonId,
           finalTimeMs: result.finalTime!,
           tournamentId,
@@ -137,7 +139,9 @@ export class HomologationService {
       eventDefinitionId: result.event.eventDefinitionId,
       poolLength: tournament.poolLength === 'P25' ? 25 : 50,
       categoryId: result.categoryId,
-      gender: result.event.eventDefinition.gender,
+      // Esta cola solo procesa resultados individuales — su EventDefinition
+      // nunca es MIX (eso solo existe para relevos, que no pasan por acá).
+      gender: result.event.eventDefinition.gender as 'M' | 'F',
       seasonId: tournament.seasonId,
       finalTimeMs: result.finalTime,
       tournamentId: tournament.id,

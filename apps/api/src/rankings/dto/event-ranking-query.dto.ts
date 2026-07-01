@@ -12,8 +12,8 @@ export class EventRankingQueryDto {
   @IsEnum(['P25', 'P50'])
   poolLength!: 'P25' | 'P50';
 
-  @IsEnum(['M', 'F'])
-  gender!: 'M' | 'F';
+  @IsEnum(['M', 'F', 'MIX'])
+  gender!: 'M' | 'F' | 'MIX';
 
   @IsOptional()
   @IsEnum(['provincial', 'nacional'])

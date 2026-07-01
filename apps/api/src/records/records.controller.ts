@@ -1,10 +1,11 @@
-import { Controller, Get, Patch, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Patch, Param, Query, Body, UseGuards, Request } from '@nestjs/common';
 import { SystemRole } from '@ftn/shared';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RecordsService } from './records.service';
 import { RecordQueryDto } from './dto/record-query.dto';
+import { UpdateRecordDto } from './dto/update-record.dto';
 
 @Controller('records')
 export class RecordsController {
@@ -39,5 +40,17 @@ export class RecordsController {
     @Request() req: { user: { id: string } },
   ) {
     return this.service.homologateRecord(id, req.user.id);
+  }
+
+  /** Editar manualmente el récord vigente (nuevo holder/tiempo/club/fecha/torneo) — solo Admin */
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(SystemRole.SUPER_ADMIN, SystemRole.ADMIN)
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateRecordDto,
+    @Request() req: { user: { id: string } },
+  ) {
+    return this.service.updateManualRecord(id, dto, req.user.id);
   }
 }

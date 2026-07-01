@@ -48,6 +48,15 @@ const navLinks = [
       </svg>
     ),
   },
+  {
+    href: '/admin/records',
+    label: 'Récords',
+    icon: (
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 21l4-13 4 13M9 17h6M3 7l3-4 3 4M3 3v4h6" />
+      </svg>
+    ),
+  },
 ];
 
 function AdminSidebar() {

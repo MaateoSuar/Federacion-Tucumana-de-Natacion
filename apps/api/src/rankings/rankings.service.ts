@@ -11,7 +11,7 @@ export interface RankingEntry {
   clubId: string;
   clubName: string;
   finalTime: number;
-  sourceResultId: string;
+  sourceResultId: string | null;
   computedAt?: Date;
 }
 

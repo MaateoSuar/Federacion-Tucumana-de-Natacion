@@ -31,6 +31,12 @@ const CATEGORIES: Array<{
   { code: 'MAY',   name: 'Mayores',    minAge: 19,   maxAge: null, scope: 'provincial', orderNo: 11 },
   // Categoría nacional — solo para uso como referencia en récords nacionales
   { code: 'JUN',   name: 'Junior',     minAge: 19,   maxAge: 21,   scope: 'nacional',   orderNo: 12 },
+  // Categorías agrupadas — solo para la Tabla Oficial de Récords Tucumanos (agrupan INF_1+INF_2, etc.)
+  { code: 'INF',   name: 'Infantiles', minAge: 10,   maxAge: 11,   scope: 'provincial', orderNo: 13 },
+  { code: 'MEN',   name: 'Menores',    minAge: 12,   maxAge: 13,   scope: 'provincial', orderNo: 14 },
+  { code: 'CAD',   name: 'Cadetes',    minAge: 14,   maxAge: 15,   scope: 'provincial', orderNo: 15 },
+  { code: 'JUV',   name: 'Juveniles',  minAge: 16,   maxAge: 18,   scope: 'provincial', orderNo: 16 },
+  { code: 'ABS',   name: 'Absoluto',   minAge: null, maxAge: null, scope: 'provincial', orderNo: 17 },
 ];
 
 // Stroke codes usados en los codes de EventDefinition
@@ -45,9 +51,20 @@ const STROKES: StrokeDef[] = [
 ];
 
 const RELAY_DEFS: Array<{ stroke: string; eventCode: string; distance: number; label: string }> = [
+  { stroke: 'relevo_libre',      eventCode: '4x50RL',  distance: 200,  label: '4x50 Libre' },
   { stroke: 'relevo_libre',      eventCode: '4x100RL', distance: 400,  label: '4x100 Libre' },
   { stroke: 'relevo_libre',      eventCode: '4x200RL', distance: 800,  label: '4x200 Libre' },
+  { stroke: 'relevo_combinado',  eventCode: '4x50RC',  distance: 200,  label: '4x50 Combinado' },
   { stroke: 'relevo_combinado',  eventCode: '4x100RC', distance: 400,  label: '4x100 Combinado' },
+];
+
+// Relevos mixtos (2 varones + 2 mujeres por equipo) — gender = MIX, una sola EventDefinition por prueba
+const RELAY_MIX_DEFS: Array<{ stroke: string; eventCode: string; distance: number; label: string }> = [
+  { stroke: 'relevo_libre',      eventCode: '4x50RL_MIX',  distance: 200,  label: '4x50 Libre Mixto' },
+  { stroke: 'relevo_libre',      eventCode: '4x100RL_MIX', distance: 400,  label: '4x100 Libre Mixto' },
+  { stroke: 'relevo_libre',      eventCode: '4x200RL_MIX', distance: 800,  label: '4x200 Libre Mixto' },
+  { stroke: 'relevo_combinado',  eventCode: '4x50RC_MIX',  distance: 200,  label: '4x50 Combinado Mixto' },
+  { stroke: 'relevo_combinado',  eventCode: '4x100RC_MIX', distance: 400,  label: '4x100 Combinado Mixto' },
 ];
 
 const GENDERS: Gender[] = ['M', 'F'];
@@ -90,6 +107,18 @@ function buildEventDefinitions(): Array<{
         description: `${relay.label} — ${gender === 'M' ? 'Masculino' : 'Femenino'}`,
       });
     }
+  }
+
+  // Relevos mixtos (2 varones + 2 mujeres) — una sola EventDefinition, gender = MIX
+  for (const relay of RELAY_MIX_DEFS) {
+    defs.push({
+      code: relay.eventCode,
+      stroke: relay.stroke,
+      distance: relay.distance,
+      gender: 'MIX' as Gender,
+      isRelay: true,
+      description: `${relay.label}`,
+    });
   }
 
   return defs;
