@@ -24,7 +24,7 @@ export function NavBar() {
       <div className="max-w-6xl mx-auto px-4 md:px-8 flex items-center justify-between h-14">
         <Link href="/" className="flex items-center hover:opacity-80 transition-opacity">
           <div className="bg-white rounded-md px-2 py-0.5">
-            <img src="/LogoPNGSinLetras.png" alt="FTN" className="h-7 w-auto" />
+            <img src="/LogoPNGSinLetras.png" alt="FTN" className="h-9 w-auto" />
           </div>
         </Link>
 

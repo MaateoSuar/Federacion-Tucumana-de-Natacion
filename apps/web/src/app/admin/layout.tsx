@@ -70,7 +70,7 @@ function AdminSidebar() {
   };
 
   return (
-    <aside className="w-60 flex flex-col bg-pool-900 shadow-xl">
+    <aside className="w-60 flex flex-col bg-pool-900 shadow-xl sticky top-0 h-screen overflow-y-auto">
       {/* Logo */}
       <div className="px-5 py-5 border-b border-pool-700/60">
         <Link href="/" className="flex flex-col items-center gap-2 group hover:opacity-90 transition-opacity">

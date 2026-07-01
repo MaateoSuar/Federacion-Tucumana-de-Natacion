@@ -198,8 +198,10 @@ export interface RankingEntry {
   swimmerName: string;
   clubId: string;
   clubName: string;
+  categoryId: string;
+  categoryName: string;
   finalTime: number;
-  sourceResultId: string;
+  sourceResultId: string | null;
 }
 
 export interface ClubRankingEntry {

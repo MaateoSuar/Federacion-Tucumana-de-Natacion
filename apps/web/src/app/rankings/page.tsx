@@ -24,14 +24,12 @@ async function fetchJson<T>(url: string): Promise<T> {
 }
 
 type Tab = 'prueba' | 'club';
-type Mode = 'best_per_swimmer' | 'all_performances';
 
 // Key to identify a "base event" (distance + stroke), without gender
 function baseKey(e: EventDefinition) { return `${e.distance}-${e.stroke}`; }
 
 export default function RankingsPage() {
   const [tab, setTab] = useState<Tab>('prueba');
-  const [mode, setMode] = useState<Mode>('all_performances');
 
   // Catálogos
   const [eventDefs, setEventDefs] = useState<EventDefinition[]>([]);
@@ -99,7 +97,6 @@ export default function RankingsPage() {
         poolLength,
         gender,
         categoryId,
-        mode,
         ...(seasonId ? { seasonId } : {}),
       });
       const data = await fetchJson<RankingEntry[]>(`${API_BASE}/rankings/event?${params}`);
@@ -109,7 +106,7 @@ export default function RankingsPage() {
     } finally {
       setLoading(false);
     }
-  }, [eventDefId, poolLength, gender, categoryId, mode, seasonId]); // categoryId puede ser ''
+  }, [eventDefId, poolLength, gender, categoryId, seasonId]); // categoryId puede ser ''
 
   const loadClubRankings = useCallback(async () => {
     setLoading(true);
@@ -127,7 +124,7 @@ export default function RankingsPage() {
 
   useEffect(() => {
     if (tab === 'prueba' && eventDefId) void loadEventRankings();
-  }, [tab, eventDefId, categoryId, poolLength, gender, mode, seasonId, loadEventRankings]);
+  }, [tab, eventDefId, categoryId, poolLength, gender, seasonId, loadEventRankings]);
 
   useEffect(() => {
     if (tab === 'club') loadClubRankings();
@@ -186,17 +183,6 @@ export default function RankingsPage() {
                 <option key={s.id} value={s.id}>{s.year}</option>
               ))}
             </select>
-            <div className="flex items-center gap-1 bg-pool-800/40 border border-pool-600/40 rounded-lg p-0.5">
-              {(['best_per_swimmer', 'all_performances'] as Mode[]).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setMode(m)}
-                  className={`flex-1 px-2 py-1.5 rounded text-xs font-semibold transition-all ${mode === m ? 'bg-pool-600 text-white' : 'text-pool-400 hover:text-white'}`}
-                >
-                  {m === 'best_per_swimmer' ? 'Mejor marca' : 'Todas'}
-                </button>
-              ))}
-            </div>
           </div>
         )}
 
@@ -228,12 +214,13 @@ export default function RankingsPage() {
                       <th className="text-left px-4 py-3 w-10">#</th>
                       <th className="text-left px-4 py-3">Nadador/a</th>
                       <th className="text-left px-4 py-3 hidden sm:table-cell">Club</th>
+                      <th className="text-left px-4 py-3">Categoría</th>
                       <th className="text-right px-4 py-3">Tiempo</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-pool-700/20">
                     {eventRankings.map((r) => (
-                      <tr key={`${r.swimmerId}-${r.sourceResultId}`} className="hover:bg-pool-800/30 transition-colors">
+                      <tr key={`${r.swimmerId}-${r.categoryId}-${r.sourceResultId}`} className="hover:bg-pool-800/30 transition-colors">
                         <td className="px-4 py-3"><MedalIcon position={r.position} /></td>
                         <td className="px-4 py-3 font-medium text-white">
                           <Link href={`/nadadores/${r.swimmerId}`} className="hover:text-aqua-300 transition-colors">
@@ -241,6 +228,7 @@ export default function RankingsPage() {
                           </Link>
                         </td>
                         <td className="px-4 py-3 text-pool-300 hidden sm:table-cell">{r.clubName}</td>
+                        <td className="px-4 py-3 text-pool-300 text-xs sm:text-sm">{r.categoryName}</td>
                         <td className="px-4 py-3 text-right font-mono font-bold text-white">{formatTime(r.finalTime)}</td>
                       </tr>
                     ))}

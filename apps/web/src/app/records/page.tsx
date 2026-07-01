@@ -18,6 +18,21 @@ const GENDER_LABEL: Record<string, string> = { M: 'Hombres', F: 'Mujeres', MIX: 
 // Orden de categorías tal como aparece en la Tabla Oficial de Récords Tucumanos
 const CATEGORY_ORDER = ['INF', 'MEN', 'CAD', 'JUV', 'MAY', 'ABS'];
 
+// Orden de estilos: agrupa todas las distancias de un estilo (50, 100, 200...) antes de pasar al siguiente
+const STROKE_ORDER = ['libre', 'espalda', 'pecho', 'mariposa', 'combinado', 'relevo_libre', 'relevo_combinado'];
+
+function strokeOrderIndex(stroke: string): number {
+  const idx = STROKE_ORDER.indexOf(stroke);
+  return idx === -1 ? STROKE_ORDER.length : idx;
+}
+
+// Compara pruebas agrupando por estilo primero y por distancia ascendente dentro del estilo
+function compareEvents(a: { distance: number; stroke: string }, b: { distance: number; stroke: string }): number {
+  const strokeDiff = strokeOrderIndex(a.stroke) - strokeOrderIndex(b.stroke);
+  if (strokeDiff !== 0) return strokeDiff;
+  return a.distance - b.distance;
+}
+
 // Clave de "prueba" independiente de género — así "50 m Libre" agrupa M/F/Mixto
 function eventBaseKey(e: { distance: number; stroke: string }): string {
   return `${e.distance}-${e.stroke}`;
@@ -57,7 +72,9 @@ function RecordRow({ record, national }: { record: RecordEntry; national?: Recor
 }
 
 function RecordsTable({ records, nationals, gender }: { records: RecordEntry[]; nationals: RecordEntry[]; gender: 'M' | 'F' | 'MIX' }) {
-  const filtered = records.filter((r) => r.gender === gender);
+  const filtered = records
+    .filter((r) => r.gender === gender)
+    .sort((a, b) => compareEvents(a.eventDefinition, b.eventDefinition));
   if (filtered.length === 0) return null;
 
   const getNational = (r: RecordEntry) =>
@@ -143,7 +160,7 @@ export default function RecordsPage() {
   }, [records]);
 
   const eventOptions = useMemo(() => {
-    const seen = new Map<string, { key: string; label: string; distance: number; isRelay: boolean }>();
+    const seen = new Map<string, { key: string; label: string; distance: number; stroke: string }>();
     for (const r of records) {
       const key = eventBaseKey(r.eventDefinition);
       if (!seen.has(key)) {
@@ -151,11 +168,11 @@ export default function RecordsPage() {
           key,
           label: eventLabel(r.eventDefinition),
           distance: r.eventDefinition.distance,
-          isRelay: r.eventDefinition.stroke.startsWith('relevo'),
+          stroke: r.eventDefinition.stroke,
         });
       }
     }
-    return [...seen.values()].sort((a, b) => Number(a.isRelay) - Number(b.isRelay) || a.distance - b.distance || a.label.localeCompare(b.label));
+    return [...seen.values()].sort((a, b) => compareEvents(a, b));
   }, [records]);
 
   const filteredRecords = useMemo(() => {

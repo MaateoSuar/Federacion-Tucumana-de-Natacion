@@ -115,13 +115,11 @@ export class RankingProcessor {
       }
     }
 
-    // Invalida cache de ambos modos y ambos cortes (global + por temporada)
+    // Invalida cache global y por temporada
     const cacheBase = `ranking:event:${eventDefinitionId}:${prismaPool}:${gender}:provincial`;
     await this.redis.del(`${cacheBase}:all:${categoryId}`);
-    await this.redis.del(`${cacheBase}:all:${categoryId}:all`);
     if (seasonId) {
       await this.redis.del(`${cacheBase}:${seasonId}:${categoryId}`);
-      await this.redis.del(`${cacheBase}:${seasonId}:${categoryId}:all`);
     }
     await this.redis.del(`ranking:club:provincial:all`);
     if (seasonId) await this.redis.del(`ranking:club:provincial:${seasonId}`);

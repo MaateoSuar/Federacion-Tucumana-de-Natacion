@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
-import { EventRankingQueryDto, RankingMode } from './dto/event-ranking-query.dto';
+import { EventRankingQueryDto } from './dto/event-ranking-query.dto';
 import { ClubRankingQueryDto } from './dto/club-ranking-query.dto';
 
 export interface RankingEntry {
@@ -10,6 +10,8 @@ export interface RankingEntry {
   swimmerName: string;
   clubId: string;
   clubName: string;
+  categoryId: string;
+  categoryName: string;
   finalTime: number;
   sourceResultId: string | null;
   computedAt?: Date;
@@ -35,7 +37,6 @@ interface ScoringConfig {
 
 const CACHE_TTL = {
   EVENT_BEST: 60,
-  EVENT_ALL: 30,
   CLUB: 120,
 };
 
@@ -49,19 +50,23 @@ export class RankingsService {
   ) {}
 
   // ─── Event Rankings ────────────────────────────────────────────────────────
+  //
+  // Una sola vista: mejor marca por nadador, tomada de la tabla Ranking. Esa
+  // tabla ya combina resultados homologados de torneos (poblados por
+  // RankingProcessor tras cada homologación) y récords oficiales/históricos
+  // cargados manualmente (seed-records.ts, records.service.updateManualRecord)
+  // — si un nadador hizo récord en algún momento, aparece acá aunque no tenga
+  // un Result asociado. El detalle del récord vigente vive en /records.
+  //
+  // El campo `position` guardado en la tabla es por categoría (1er puesto de
+  // Cadetes, 1er puesto de Absoluto, etc.) — NUNCA se usa para ordenar acá.
+  // Un ranking es SIEMPRE por tiempo, de mejor a peor, con posiciones 1,2,3...
+  // estrictamente correlativas (sin empates de categorías distintas
+  // compartiendo el 1er puesto). Cuando se filtra por una sola categoría da
+  // el mismo resultado; cuando es "Todos" (varias categorías mezcladas), el
+  // orden real por tiempo es el único que tiene sentido.
 
   async queryEventRanking(dto: EventRankingQueryDto): Promise<RankingEntry[]> {
-    if (dto.mode === RankingMode.ALL_PERFORMANCES) {
-      return this.queryAllPerformances(dto);
-    }
-    return this.queryBestPerSwimmer(dto);
-  }
-
-  private cacheKeyEvent(dto: EventRankingQueryDto): string {
-    return `ranking:event:${dto.eventDefinitionId}:${dto.poolLength}:${dto.gender}:${dto.scope ?? 'provincial'}:${dto.seasonId ?? 'all'}:${dto.categoryId ?? 'all'}`;
-  }
-
-  private async queryBestPerSwimmer(dto: EventRankingQueryDto): Promise<RankingEntry[]> {
     const key = this.cacheKeyEvent(dto);
     const cached = await this.redis.get<RankingEntry[]>(key);
     if (cached) return cached;
@@ -75,11 +80,10 @@ export class RankingsService {
         seasonId: dto.seasonId ?? null,
         ...(dto.categoryId ? { categoryId: dto.categoryId } : {}),
       },
-      orderBy: { position: 'asc' },
+      orderBy: { finalTime: 'asc' },
       include: {
         swimmer: { select: { id: true, firstName: true, lastName: true } },
-        eventDefinition: false,
-        category: false,
+        category: { select: { id: true, name: true } },
       },
     });
 
@@ -90,12 +94,14 @@ export class RankingsService {
     });
     const clubMap = new Map(clubs.map((c) => [c.id, c.name]));
 
-    const result: RankingEntry[] = rows.map((r) => ({
-      position: r.position,
+    const result: RankingEntry[] = rows.map((r, idx) => ({
+      position: idx + 1,
       swimmerId: r.swimmerId,
       swimmerName: `${r.swimmer.firstName} ${r.swimmer.lastName}`,
       clubId: r.clubId,
       clubName: clubMap.get(r.clubId) ?? '',
+      categoryId: r.categoryId,
+      categoryName: r.category.name,
       finalTime: r.finalTime,
       sourceResultId: r.sourceResultId,
       computedAt: r.computedAt,
@@ -105,63 +111,8 @@ export class RankingsService {
     return result;
   }
 
-  private async queryAllPerformances(dto: EventRankingQueryDto): Promise<RankingEntry[]> {
-    const key = `${this.cacheKeyEvent(dto)}:all`;
-    const cached = await this.redis.get<RankingEntry[]>(key);
-    if (cached) return cached;
-
-    const results = await this.prisma.result.findMany({
-      where: {
-        status: 'OK',
-        finalTime: { not: null },
-        ...(dto.categoryId ? { categoryId: dto.categoryId } : {}),
-        event: {
-          eventDefinitionId: dto.eventDefinitionId,
-          tournament: {
-            poolLength: dto.poolLength,
-            scope: dto.scope ?? 'provincial',
-            ...(dto.seasonId ? { seasonId: dto.seasonId } : {}),
-          },
-        },
-        swimmer: { gender: dto.gender },
-      },
-      orderBy: { finalTime: 'asc' },
-      include: {
-        swimmer: { select: { id: true, firstName: true, lastName: true } },
-      },
-    });
-
-    const clubIds = [...new Set(results.map((r) => r.clubId))];
-    const clubs = await this.prisma.club.findMany({
-      where: { id: { in: clubIds } },
-      select: { id: true, name: true },
-    });
-    const clubMap = new Map(clubs.map((c) => [c.id, c.name]));
-
-    // Deduplicate: keep best time per swimmer
-    const bestBySwimmer = new Map<string, (typeof results)[0]>();
-    for (const r of results) {
-      const existing = bestBySwimmer.get(r.swimmerId);
-      if (!existing || r.finalTime! < existing.finalTime!) {
-        bestBySwimmer.set(r.swimmerId, r);
-      }
-    }
-    const dedupedResults = [...bestBySwimmer.values()].sort(
-      (a, b) => a.finalTime! - b.finalTime!,
-    );
-
-    const entries: RankingEntry[] = dedupedResults.map((r, idx) => ({
-      position: idx + 1,
-      swimmerId: r.swimmerId,
-      swimmerName: `${r.swimmer.firstName} ${r.swimmer.lastName}`,
-      clubId: r.clubId,
-      clubName: clubMap.get(r.clubId) ?? '',
-      finalTime: r.finalTime!,
-      sourceResultId: r.id,
-    }));
-
-    await this.redis.set(key, entries, CACHE_TTL.EVENT_ALL);
-    return entries;
+  private cacheKeyEvent(dto: EventRankingQueryDto): string {
+    return `ranking:event:${dto.eventDefinitionId}:${dto.poolLength}:${dto.gender}:${dto.scope ?? 'provincial'}:${dto.seasonId ?? 'all'}:${dto.categoryId ?? 'all'}`;
   }
 
   // ─── Club Ranking ──────────────────────────────────────────────────────────
@@ -289,7 +240,6 @@ export class RankingsService {
   ): Promise<void> {
     const baseKey = `ranking:event:${eventDefinitionId}:${poolLength}:${gender}:${scope}:${seasonId ?? 'all'}:${categoryId}`;
     await this.redis.del(baseKey);
-    await this.redis.del(`${baseKey}:all`);
   }
 
   async invalidateClubCache(scope: string, seasonId: string | null): Promise<void> {

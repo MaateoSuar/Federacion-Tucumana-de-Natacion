@@ -292,8 +292,9 @@ Objetivo de esta sesión (SOLO esto): el sistema de récords.
 Incluí: RecordEvaluator que, sobre resultados homologados, compara contra el récord vigente de la
 clave (scope, event_definition, category, gender, pool_length) y genera candidato (pending) si lo supera;
 flujo de homologación humana del récord por Admin (al homologar: anterior is_current=false +
-previous_record_id, nuevo is_current=true); récords 25 y 50 totalmente independientes;
-trazabilidad (source_result_id, torneo, fecha, nadador, club, homologador).
+previous_record_id, nuevo is_current=true); récords 25 y 50 totalmente independientes; récords nacionales
+solo de referencia (scope=nacional, solo-lectura) mostrados como benchmark con las marcas de Tucumán
+debajo; trazabilidad (source_result_id, torneo, fecha, nadador, club, homologador).
 
 Antes de codear, mostrame el PLAN. Esperá aprobación.
 
@@ -438,7 +439,7 @@ priorizada para que yo decida).
 ## Recordatorios finales
 
 - **Adjuntá los fixtures reales** (HY3, y después CSV/Excel/PDF) en los milestones M6, M7 y M17. Es lo que hace que el parser funcione con datos de verdad.
-- **Resolvé los pendientes menores** de `ESPECIFICACION-FUNCIONAL-v3.md` §10 antes de M9/M10 (categoría del ranking, récords nacionales, licencia, relevos).
+- **Pendientes de v3 §10: TODOS resueltos** (categoría congelada, récords nacionales solo-referencia, licencia bloqueante, relevos doble). Nada que definir antes de M9/M10.
 - **Después de cada prompt:** revisás diff → verificás → commit. Nunca encadenes milestones sin revisar.
 - Si un milestone resulta demasiado grande para revisar en una pasada, pedile a Sonnet que lo **parta en sub-pasos** y aprobás de a uno.
 
