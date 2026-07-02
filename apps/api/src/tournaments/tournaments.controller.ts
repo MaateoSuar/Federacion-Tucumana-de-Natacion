@@ -123,8 +123,12 @@ export class TournamentsController {
   @Roles(SystemRole.ADMIN, SystemRole.SUPER_ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Transicionar estado del torneo' })
-  transition(@Param('id') id: string, @Body() dto: TransitionStatusDto) {
-    return this.service.transition(id, dto.status);
+  transition(
+    @Param('id') id: string,
+    @Body() dto: TransitionStatusDto,
+    @CurrentUser() user: { sub: string },
+  ) {
+    return this.service.transition(id, dto.status, user.sub);
   }
 
   // ─── Pruebas (Events) ──────────────────────────────────────────────────────

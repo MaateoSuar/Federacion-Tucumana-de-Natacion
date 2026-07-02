@@ -277,6 +277,8 @@ export interface RecordEntry {
   recordDate: string;
   status: string;
   isCurrent: boolean;
+  homologatedAt: string | null;
+  createdAt: string;
   swimmer: { id: string; firstName: string; lastName: string };
   eventDefinition: { id: string; code: string; stroke: string; distance: number };
   category: { id: string; code: string; name: string };

@@ -66,11 +66,16 @@ export class SwimmersService {
     if (isActive !== undefined) where.isActive = isActive;
     if (clubId) where.currentClubId = clubId;
     if (search) {
-      where.OR = [
-        { firstName: { contains: search, mode: 'insensitive' } },
-        { lastName: { contains: search, mode: 'insensitive' } },
-        { documentId: { contains: search, mode: 'insensitive' } },
-      ];
+      // Cada palabra escrita debe aparecer en algún campo — así "Juan Perez"
+      // encuentra a alguien con firstName "Juan" y lastName "Pérez".
+      const tokens = search.trim().split(/\s+/).filter(Boolean);
+      where.AND = tokens.map((token) => ({
+        OR: [
+          { firstName: { contains: token, mode: 'insensitive' } },
+          { lastName: { contains: token, mode: 'insensitive' } },
+          { documentId: { contains: token, mode: 'insensitive' } },
+        ],
+      }));
     }
 
     const [items, total] = await Promise.all([

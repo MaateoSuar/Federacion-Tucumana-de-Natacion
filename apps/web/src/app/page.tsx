@@ -4,7 +4,7 @@ import { fetchTournaments } from '@/lib/api';
 export const revalidate = 60;
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
-  homologado:             { label: 'Homologado',    color: 'bg-purple-500/20 text-purple-300 border-purple-500/30' },
+  homologado:             { label: 'Finalizado',    color: 'bg-slate-500/20 text-slate-300 border-slate-500/30'   },
   finalizado:             { label: 'Finalizado',    color: 'bg-slate-500/20 text-slate-300 border-slate-500/30'   },
   en_curso:               { label: 'En curso',      color: 'bg-green-500/20 text-green-300 border-green-500/30'   },
   inscripciones_abiertas: { label: 'Inscripciones abiertas', color: 'bg-aqua-500/20 text-aqua-300 border-aqua-500/30' },

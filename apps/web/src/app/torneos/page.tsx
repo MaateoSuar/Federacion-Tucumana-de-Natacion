@@ -10,7 +10,7 @@ const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   cerrado:                { label: 'Cerrado',     className: 'bg-amber-500/20 text-amber-300' },
   en_curso:               { label: 'En curso',    className: 'bg-emerald-500/20 text-emerald-300 animate-pulse' },
   finalizado:             { label: 'Finalizado',  className: 'bg-pool-600/40 text-pool-300' },
-  homologado:             { label: 'Homologado',  className: 'bg-aqua-500/20 text-aqua-300' },
+  homologado:             { label: 'Finalizado',  className: 'bg-pool-600/40 text-pool-300' },
 };
 
 export default async function TorneosPage() {

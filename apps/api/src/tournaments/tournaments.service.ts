@@ -5,6 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { HomologationService } from '../homologation/homologation.service';
 import {
   TournamentStatus,
   TournamentType,
@@ -19,13 +20,15 @@ import { AddEventDto } from './dto/add-event.dto';
 import { GenerateHeatsDto } from './dto/generate-heats.dto';
 import { UploadDocumentDto } from './dto/upload-document.dto';
 
-// Máquina de estados: estado actual → único estado destino válido
+// Máquina de estados: estado actual → único estado destino válido.
+// "finalizado" no tiene transición manual siguiente: al alcanzarlo se
+// homologa automáticamente (ver transition()) y el torneo queda en
+// "homologado" sin intervención humana adicional.
 const VALID_TRANSITIONS: Partial<Record<TournamentStatus, TournamentStatus>> = {
   [TournamentStatus.programado]: TournamentStatus.inscripciones_abiertas,
   [TournamentStatus.inscripciones_abiertas]: TournamentStatus.cerrado,
   [TournamentStatus.cerrado]: TournamentStatus.en_curso,
   [TournamentStatus.en_curso]: TournamentStatus.finalizado,
-  [TournamentStatus.finalizado]: TournamentStatus.homologado,
 };
 
 export interface TournamentFilters {
@@ -40,7 +43,10 @@ export interface TournamentFilters {
 
 @Injectable()
 export class TournamentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly homologationService: HomologationService,
+  ) {}
 
   // ─── Catálogos (para selectores de UI) ────────────────────────────────────
 
@@ -91,15 +97,26 @@ export class TournamentsService {
     const skip = (page - 1) * limit;
 
     const where: Prisma.TournamentWhereInput = {};
-    if (status) where.status = status;
+    // "Finalizado" agrupa también a los ya homologados — la homologación es
+    // automática al finalizar, no un estado que el usuario deba filtrar aparte.
+    if (status === TournamentStatus.finalizado) {
+      where.status = { in: [TournamentStatus.finalizado, TournamentStatus.homologado] };
+    } else if (status) {
+      where.status = status;
+    }
     if (type) where.type = type;
     if (scope) where.scope = scope;
     if (seasonId) where.seasonId = seasonId;
     if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { venue: { contains: search, mode: 'insensitive' } },
-      ];
+      // Cada palabra escrita debe aparecer en algún campo, sin importar el
+      // orden — evita que "Abierto Catamarca" falle por buscar la frase entera.
+      const tokens = search.trim().split(/\s+/).filter(Boolean);
+      where.AND = tokens.map((token) => ({
+        OR: [
+          { name: { contains: token, mode: 'insensitive' } },
+          { venue: { contains: token, mode: 'insensitive' } },
+        ],
+      }));
     }
 
     const [items, total] = await Promise.all([
@@ -166,7 +183,7 @@ export class TournamentsService {
 
   // ─── Máquina de estados ───────────────────────────────────────────────────
 
-  async transition(id: string, targetStatus: TournamentStatus) {
+  async transition(id: string, targetStatus: TournamentStatus, userId: string) {
     const tournament = await this.assertTournamentExists(id);
     const validNext = VALID_TRANSITIONS[tournament.status];
 
@@ -203,10 +220,19 @@ export class TournamentsService {
       }
     }
 
-    return this.prisma.tournament.update({
+    await this.prisma.tournament.update({
       where: { id },
       data: { status: targetStatus },
     });
+
+    // Al finalizar, se homologa automáticamente — no existe un paso manual
+    // separado: todo torneo finalizado se da por homologado, y esto dispara
+    // el pipeline de ranking/récords/mejores marcas para sus resultados.
+    if (targetStatus === TournamentStatus.finalizado) {
+      await this.homologationService.homologateTournament(id, userId);
+    }
+
+    return this.assertTournamentExists(id);
   }
 
   // ─── Pruebas (Events) ─────────────────────────────────────────────────────

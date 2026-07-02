@@ -116,26 +116,21 @@ describe('RankingsService', () => {
   });
 
   describe('queryClubRanking', () => {
-    it('calcula puntos FINA correctamente por posición', async () => {
+    it('calcula puntos por puesto real de cada resultado homologado (no por mejor marca histórica)', async () => {
       const dto: ClubRankingQueryDto = { scope: 'provincial' };
 
       mockPrisma.scoringScheme.findFirst.mockResolvedValue({
-        config: { points: [9, 7, 6, 5, 4, 3, 2, 1] },
+        config: { points: [9, 7, 6, 5, 4, 3, 2, 1], relay_multiplier: 2 },
       });
-      mockPrisma.ranking.findMany.mockResolvedValue([
-        { clubId: 'c1', position: 1 }, // 9 pts, oro
-        { clubId: 'c2', position: 2 }, // 7 pts, plata
-        { clubId: 'c1', position: 3 }, // 6 pts, bronce
-        { clubId: 'c2', position: 1 }, // 9 pts, oro
-      ]);
       mockPrisma.record.findMany.mockResolvedValue([
         { clubId: 'c1' },
         { clubId: 'c1' },
       ]);
       mockPrisma.result.findMany.mockResolvedValue([
-        { clubId: 'c1', swimmerId: 's1' },
-        { clubId: 'c1', swimmerId: 's2' },
-        { clubId: 'c2', swimmerId: 's3' },
+        { clubId: 'c1', swimmerId: 's1', place: 1, event: { eventDefinition: { isRelay: false } } }, // 9 pts, oro
+        { clubId: 'c2', swimmerId: 's3', place: 2, event: { eventDefinition: { isRelay: false } } }, // 7 pts, plata
+        { clubId: 'c1', swimmerId: 's2', place: 3, event: { eventDefinition: { isRelay: false } } }, // 6 pts, bronce
+        { clubId: 'c2', swimmerId: 's3', place: 1, event: { eventDefinition: { isRelay: false } } }, // 9 pts, oro
       ]);
       mockPrisma.club.findMany.mockResolvedValue([
         { id: 'c1', name: 'Club A' },
@@ -151,10 +146,28 @@ describe('RankingsService', () => {
       expect(c1.points).toBe(15);
       expect(c2.position).toBe(1);
       expect(c1.position).toBe(2);
-      // Récords y nadadores activos
+      // Récords y nadadores activos (por swimmerId distinto dentro del filtro)
       expect(c1.currentRecords).toBe(2);
       expect(c1.activeSwimmers).toBe(2);
       expect(c2.activeSwimmers).toBe(1);
+    });
+
+    it('duplica los puntos en pruebas de relevo según el scoring scheme', async () => {
+      const dto: ClubRankingQueryDto = { scope: 'provincial' };
+
+      mockPrisma.scoringScheme.findFirst.mockResolvedValue({
+        config: { points: [9, 7, 6, 5, 4, 3, 2, 1], relay_multiplier: 2 },
+      });
+      mockPrisma.record.findMany.mockResolvedValue([]);
+      mockPrisma.result.findMany.mockResolvedValue([
+        { clubId: 'c1', swimmerId: 's1', place: 1, event: { eventDefinition: { isRelay: true } } }, // 9*2 = 18 pts
+      ]);
+      mockPrisma.club.findMany.mockResolvedValue([{ id: 'c1', name: 'Club A' }]);
+
+      const result = await service.queryClubRanking(dto);
+
+      expect(result[0]!.points).toBe(18);
+      expect(result[0]!.gold).toBe(1);
     });
 
     it('ordena por medallas cuando hay empate en puntos', async () => {
@@ -164,12 +177,11 @@ describe('RankingsService', () => {
         config: { points: [9, 7, 6, 5, 4, 3, 2, 1] },
       });
       // c1 y c2 empatan en puntos (9 cada uno), c1 tiene 1 oro, c2 tiene 1 oro → desempate plata
-      mockPrisma.ranking.findMany.mockResolvedValue([
-        { clubId: 'c1', position: 1 }, // 9 pts, 1 oro
-        { clubId: 'c2', position: 1 }, // 9 pts, 1 oro
-      ]);
       mockPrisma.record.findMany.mockResolvedValue([]);
-      mockPrisma.result.findMany.mockResolvedValue([]);
+      mockPrisma.result.findMany.mockResolvedValue([
+        { clubId: 'c1', swimmerId: 's1', place: 1, event: { eventDefinition: { isRelay: false } } },
+        { clubId: 'c2', swimmerId: 's2', place: 1, event: { eventDefinition: { isRelay: false } } },
+      ]);
       mockPrisma.club.findMany.mockResolvedValue([
         { id: 'c1', name: 'Club A' },
         { id: 'c2', name: 'Club B' },
@@ -183,6 +195,29 @@ describe('RankingsService', () => {
       expect(positions).toEqual([1, 2]);
     });
 
+    it('filtra por torneo puntual cuando se indica tournamentId', async () => {
+      const dto: ClubRankingQueryDto = { scope: 'provincial', tournamentId: 't1' };
+
+      mockPrisma.scoringScheme.findFirst.mockResolvedValue({
+        config: { points: [9, 7, 6, 5, 4, 3, 2, 1] },
+      });
+      mockPrisma.record.findMany.mockResolvedValue([]);
+      mockPrisma.result.findMany.mockResolvedValue([
+        { clubId: 'c1', swimmerId: 's1', place: 1, event: { eventDefinition: { isRelay: false } } },
+      ]);
+      mockPrisma.club.findMany.mockResolvedValue([{ id: 'c1', name: 'Club A' }]);
+
+      await service.queryClubRanking(dto);
+
+      expect(mockPrisma.result.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            event: { tournament: { scope: 'provincial', id: 't1' } },
+          }),
+        }),
+      );
+    });
+
     it('sirve desde cache en la segunda llamada', async () => {
       const dto: ClubRankingQueryDto = {};
       const cached: ClubRankingEntry[] = [{ position: 1, clubId: 'c1', clubName: 'Club A', points: 15, gold: 1, silver: 0, bronze: 1, activeSwimmers: 2, currentRecords: 0 }];
@@ -191,7 +226,7 @@ describe('RankingsService', () => {
       const result = await service.queryClubRanking(dto);
 
       expect(result).toEqual(cached);
-      expect(mockPrisma.ranking.findMany).not.toHaveBeenCalled();
+      expect(mockPrisma.result.findMany).not.toHaveBeenCalled();
     });
   });
 

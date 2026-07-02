@@ -8,6 +8,7 @@ import { MedalIcon, positionClass } from '@/components/ui/MedalIcon';
 import { RecordBadge } from '@/components/ui/RecordBadge';
 import { formatTime } from '@/lib/formatTime';
 import { useResultsSocket } from '@/hooks/useResultsSocket';
+import { matchesFuzzySearch } from '@/lib/search';
 import type { EventResultsResponse } from '@/lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -19,7 +20,7 @@ function getPoints(position: number): number | null {
 
 function matchesSearch(r: { swimmer: { lastName: string; firstName: string } }, q: string): boolean {
   if (!q) return false;
-  return `${r.swimmer.lastName} ${r.swimmer.firstName}`.toLowerCase().includes(q.toLowerCase());
+  return matchesFuzzySearch(`${r.swimmer.lastName} ${r.swimmer.firstName}`, q);
 }
 
 export default function PruebaPage({ params }: { params: { id: string; eventId: string } }) {
@@ -185,8 +186,8 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
           </div>
         </div>
 
-        {/* Swimmer search */}
-        <div className="flex items-center gap-2 mb-6">
+        {/* Swimmer search — sticky para que la navegación 1/X acompañe el scroll */}
+        <div className="sticky top-14 z-30 -mx-4 md:-mx-8 px-4 md:px-8 py-3 mb-6 bg-pool-950/95 backdrop-blur border-b border-pool-800/60 flex items-center gap-2">
           <div className="relative flex-1">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-pool-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -272,7 +273,7 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
                                 ref={setRowRef(r.id) as React.Ref<HTMLTableRowElement>}
                                 className={`group transition-colors cursor-pointer ${positionClass(pos)} ${
                                   isCurrent
-                                    ? 'bg-aqua-700/20 ring-1 ring-inset ring-aqua-500/40'
+                                    ? 'bg-yellow-400/20 ring-2 ring-inset ring-yellow-400 shadow-[inset_0_0_16px_rgba(250,204,21,0.25)]'
                                     : isMatch
                                     ? 'bg-aqua-900/20 hover:bg-aqua-900/30'
                                     : 'hover:bg-pool-800/40'
@@ -344,7 +345,7 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
                           ref={setRowRef(r.id)}
                           className={`flex items-center justify-between rounded-lg px-4 py-2.5 text-sm transition-colors ${
                             isCurrent
-                              ? 'bg-aqua-700/20 ring-1 ring-aqua-500/40'
+                              ? 'bg-yellow-400/20 ring-2 ring-yellow-400 shadow-[0_0_16px_rgba(250,204,21,0.25)]'
                               : isMatch
                               ? 'bg-aqua-900/15'
                               : 'bg-pool-800/20'

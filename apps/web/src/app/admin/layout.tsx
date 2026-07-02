@@ -30,11 +30,8 @@ const navLinks = [
     label: 'Nadadores',
     icon: (
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <circle cx="19" cy="6" r="2" strokeWidth={2} />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10l-2-2" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 8c-3 1-7 1-11 3L4 9" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11l-2 5M12 10l0 5" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2 18c2-2 4 2 6 0s4-2 6 0 4 2 6 0" />
+        <circle cx="12" cy="7" r="4" strokeWidth={2} />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 21a7 7 0 0114 0" />
       </svg>
     ),
   },
@@ -53,7 +50,7 @@ const navLinks = [
     label: 'Récords',
     icon: (
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 21l4-13 4 13M9 17h6M3 7l3-4 3 4M3 3v4h6" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M5 21v-6h4v6M10 21v-9h4v9M15 21v-4h4v4" />
       </svg>
     ),
   },
@@ -156,25 +153,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         <div className="flex-1 flex flex-col min-h-screen">
           {/* Top bar */}
-          <header className="bg-white border-b border-gray-100 px-8 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm text-gray-400">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-              </svg>
-              <span>Admin</span>
-              {breadcrumbs.map((crumb, i) => (
-                <span key={i} className="flex items-center gap-2">
-                  <span className="text-gray-200">/</span>
-                  <span className={i === breadcrumbs.length - 1 ? 'text-gray-600 font-medium capitalize' : 'capitalize'}>
-                    {crumb}
+          <header className="bg-gradient-to-r from-white via-white to-aqua-100/60 border-b border-aqua-100/60 px-8 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm text-gray-400">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+                <span>Admin</span>
+                {breadcrumbs.map((crumb, i) => (
+                  <span key={i} className="flex items-center gap-2">
+                    <span className="text-gray-200">/</span>
+                    <span className={i === breadcrumbs.length - 1 ? 'text-gray-600 font-medium capitalize' : 'capitalize'}>
+                      {crumb}
+                    </span>
                   </span>
-                </span>
-              ))}
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-xs text-gray-400">Sistema activo</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-xs text-gray-400">Sistema activo</span>
-            </div>
+            <div className="lane-divider h-0.5 w-full rounded-full mt-3" />
           </header>
 
           <main className="flex-1 p-8">{children}</main>

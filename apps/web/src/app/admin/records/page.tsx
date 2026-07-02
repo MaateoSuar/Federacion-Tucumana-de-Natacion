@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '@/lib/api';
 import type { RecordEntry } from '@/lib/api';
 import { formatTime, parseTimeToMs } from '@/lib/formatTime';
+import { DatePicker } from '@/components/DatePicker';
 
 interface Club {
   id: string;
@@ -29,6 +30,13 @@ interface EditFormState {
   recordDate: string;
   tournamentName: string;
   notes: string;
+}
+
+// Fecha del récord homologado más reciente entre los cargados — "última actualización" de la tabla
+function lastUpdatedDate(records: RecordEntry[]): Date | null {
+  if (records.length === 0) return null;
+  const timestamps = records.map((r) => new Date(r.homologatedAt ?? r.createdAt).getTime());
+  return new Date(Math.max(...timestamps));
 }
 
 function toFormState(clubs: Club[]): EditFormState {
@@ -71,6 +79,8 @@ export default function AdminRecordsPage() {
   };
 
   useEffect(() => { void load(); }, []);
+
+  const lastUpdated = useMemo(() => lastUpdatedDate(records), [records]);
 
   const grouped = useMemo(() => {
     const pools: Array<{ key: 'P25' | 'P50' }> = [{ key: 'P25' }, { key: 'P50' }];
@@ -148,6 +158,11 @@ export default function AdminRecordsPage() {
           Editá el récord vigente cuando sea superado por una marca no cargada al sistema.
           El récord anterior no se borra: queda en el historial y su lugar en el ranking se conserva.
         </p>
+        {lastUpdated && (
+          <p className="text-xs text-gray-400 mt-1">
+            Última actualización: {lastUpdated.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}
+          </p>
+        )}
       </div>
 
       {loading && <p className="text-gray-400 text-sm">Cargando...</p>}
@@ -275,11 +290,9 @@ export default function AdminRecordsPage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 mb-1">Fecha</label>
-                <input
-                  type="date"
-                  className="input"
+                <DatePicker
                   value={form.recordDate}
-                  onChange={(e) => setForm({ ...form, recordDate: e.target.value })}
+                  onChange={(v) => setForm({ ...form, recordDate: v })}
                 />
               </div>
             </div>

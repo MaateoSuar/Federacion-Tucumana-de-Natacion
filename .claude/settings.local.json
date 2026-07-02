@@ -99,7 +99,25 @@
       "Bash(pnpm --filter @ftn/api test -- rankings.service.spec.ts)",
       "Bash(grep -n \":all\\\\`\" apps/api/src/rankings/rankings.service.ts)",
       "Bash(git status *)",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "Bash(pnpm exec *)",
+      "Bash(grep -E \"\\\\.ts$\")",
+      "Bash(find . -iname \"records-parsed.json\")",
+      "Bash(find . -iname \"parse-records.ts\")",
+      "Bash(cd \"/c/Users/Maateosuar/OneDrive/Desktop/Federacion Tucuman de Natacion\" && grep -rn \"scoringScheme\\\\|ScoringScheme\\\\|relay_multiplier\\\\|min_competitors\" prisma/seed.ts 2>/dev/null | head -50)",
+      "Bash(cd \"/c/Users/Maateosuar/OneDrive/Desktop/Federacion Tucuman de Natacion/apps/api\" && cat package.json | grep -A3 '\"test\"')",
+      "Bash(cd \"/c/Users/Maateosuar/OneDrive/Desktop/Federacion Tucuman de Natacion/apps/web\" && cat package.json | grep -A2 '\"typecheck\"')",
+      "Bash(cd \"/c/Users/Maateosuar/OneDrive/Desktop/Federacion Tucuman de Natacion\" && cat package.json | grep -A10 '\"scripts\"' | head -15)",
+      "Bash(npx turbo *)",
+      "Bash(curl -s \"http://localhost:3001/rankings/club?scope=provincial\")",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\('GLOBAL total pts sum:', j.reduce\\(\\(a,c\\)=>a+c.points,0\\)\\); console.log\\(j.slice\\(0,3\\)\\);}\\)\")",
+      "Bash(curl -s \"http://localhost:3001/tournaments?limit=10\")",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(j.items.map\\(t=>\\({id:t.id,name:t.name,season:t.season}\\)\\)\\);}\\)\")",
+      "Bash(curl -s \"http://localhost:3001/rankings/club?scope=provincial&seasonId=cmqy2kae4001jqasdrykzc89v&tournamentId=cmqy2s6id001rgvxmt73suwep\")",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\('total pts sum:', j.reduce\\(\\(a,c\\)=>a+c.points,0\\)\\); console.log\\(j.slice\\(0,5\\)\\);}\\)\")",
+      "Bash(curl -s \"http://localhost:3001/rankings/club?scope=provincial&seasonId=cmqy2kae4001jqasdrykzc89v&tournamentId=cmqy31czd00ed9e0k45aenumw\")",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\('total pts sum:', j.reduce\\(\\(a,c\\)=>a+c.points,0\\)\\); console.log\\(j.slice\\(0,3\\)\\);}\\)\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3001/tournaments/seasons)"
     ]
   }
 }

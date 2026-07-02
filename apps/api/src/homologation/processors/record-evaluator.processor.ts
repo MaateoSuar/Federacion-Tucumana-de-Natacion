@@ -10,7 +10,10 @@ export class RecordEvaluatorProcessor {
   constructor(private readonly prisma: PrismaService) {}
 
   async process(data: PostProcessJobData): Promise<void> {
-    const { resultId, swimmerId, clubId, eventDefinitionId, poolLength, categoryId, gender, finalTimeMs, resultDate } = data;
+    const {
+      resultId, swimmerId, clubId, eventDefinitionId, poolLength, categoryId,
+      gender, finalTimeMs, resultDate, homologatedBy, tournamentName,
+    } = data;
     const prismaPool: PoolLength = poolLength === 25 ? 'P25' : 'P50';
 
     // Récords nacionales son solo-referencia — solo evaluamos scope=provincial
@@ -29,31 +32,44 @@ export class RecordEvaluatorProcessor {
       return; // No supera el récord vigente
     }
 
-    // Supera o es el primer récord — crear candidato pending
-    await this.prisma.record.create({
-      data: {
-        scope: 'provincial',
-        eventDefinitionId,
-        categoryId,
-        gender,
-        poolLength: prismaPool,
-        timeMs: finalTimeMs,
-        swimmerId,
-        clubId,
-        recordDate: new Date(resultDate),
-        sourceResultId: resultId,
-        status: 'pending_homologation',
-        isCurrent: false,
-        previousRecordId: current?.id ?? null,
-      },
+    // Supera o es el primer récord — se homologa automáticamente: el resultado
+    // ya pasó por homologación de torneo, no requiere aprobación aparte.
+    const now = new Date();
+    await this.prisma.$transaction(async (tx) => {
+      if (current) {
+        await tx.record.update({
+          where: { id: current.id },
+          data: { isCurrent: false, status: 'superseded' },
+        });
+      }
+
+      await tx.record.create({
+        data: {
+          scope: 'provincial',
+          eventDefinitionId,
+          categoryId,
+          gender,
+          poolLength: prismaPool,
+          timeMs: finalTimeMs,
+          swimmerId,
+          clubId,
+          recordDate: new Date(resultDate),
+          tournamentName: tournamentName ?? null,
+          sourceResultId: resultId,
+          status: 'homologated',
+          isCurrent: true,
+          previousRecordId: current?.id ?? null,
+          homologatedBy: homologatedBy ?? null,
+          homologatedAt: now,
+        },
+      });
+
+      await tx.result.update({
+        where: { id: resultId },
+        data: { isRecord: true },
+      });
     });
 
-    // Marcar el resultado como candidato a récord
-    await this.prisma.result.update({
-      where: { id: resultId },
-      data: { isRecord: true },
-    });
-
-    this.logger.log(`Record candidate created for event ${eventDefinitionId}/${prismaPool}/${gender} — ${finalTimeMs}ms`);
+    this.logger.log(`Record auto-homologated for event ${eventDefinitionId}/${prismaPool}/${gender} — ${finalTimeMs}ms`);
   }
 }

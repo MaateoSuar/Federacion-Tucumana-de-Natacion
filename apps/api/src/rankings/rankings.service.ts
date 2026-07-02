@@ -116,10 +116,17 @@ export class RankingsService {
   }
 
   // ─── Club Ranking ──────────────────────────────────────────────────────────
+  //
+  // Puntos y medallero se calculan sobre el PUESTO REAL que sacó cada resultado
+  // homologado (Result.place, congelado por resultado) en el torneo/temporada
+  // filtrados — no sobre la tabla Ranking (que es "mejor marca histórica", un
+  // concepto distinto usado para /rankings?tab=prueba). Así un club suma
+  // puntos por cómo le fue en cada carrera puntual, igual que ya se hace a
+  // nivel nadador individual en achievement.processor.ts.
 
   async queryClubRanking(dto: ClubRankingQueryDto): Promise<ClubRankingEntry[]> {
     const scope = dto.scope ?? 'provincial';
-    const key = `ranking:club:${scope}:${dto.seasonId ?? 'all'}`;
+    const key = `ranking:club:${scope}:${dto.tournamentId ?? 'all'}:${dto.seasonId ?? 'all'}`;
     const cached = await this.redis.get<ClubRankingEntry[]>(key);
     if (cached) return cached;
 
@@ -128,45 +135,47 @@ export class RankingsService {
       where: { isActive: true, type: 'placement' },
       orderBy: { createdAt: 'desc' },
     });
-    const pointsTable: number[] = scheme
-      ? ((scheme.config as unknown as ScoringConfig).points ?? [])
-      : [9, 7, 6, 5, 4, 3, 2, 1];
+    const config: ScoringConfig = scheme
+      ? (scheme.config as unknown as ScoringConfig)
+      : { points: [9, 7, 6, 5, 4, 3, 2, 1], relay_multiplier: 2 };
+    const pointsTable = config.points ?? [];
+    const relayMultiplier = config.relay_multiplier ?? 1;
 
-    // Rankings best_per_swimmer (que ya tienen posiciones correctas)
-    const rankings = await this.prisma.ranking.findMany({
+    // Resultados homologados con puesto real — fuente de puntos, medallero y nadadores activos
+    // (torneo puntual acota más que la temporada entera; si viene tournamentId se ignora seasonId)
+    const results = await this.prisma.result.findMany({
       where: {
-        scope,
-        seasonId: dto.seasonId ?? null,
+        homologated: true,
+        status: 'OK',
+        place: { not: null },
+        event: {
+          tournament: {
+            scope,
+            ...(dto.tournamentId
+              ? { id: dto.tournamentId }
+              : dto.seasonId
+                ? { seasonId: dto.seasonId }
+                : {}),
+          },
+        },
       },
-      select: { clubId: true, position: true },
+      select: {
+        clubId: true,
+        swimmerId: true,
+        place: true,
+        event: { select: { eventDefinition: { select: { isRelay: true } } } },
+      },
     });
 
-    // Récords vigentes por club
+    // Récords vigentes por club (estado actual, no depende del filtro de torneo/temporada)
     const records = await this.prisma.record.findMany({
       where: { scope, isCurrent: true, status: 'homologated' },
       select: { clubId: true },
     });
 
-    // Nadadores activos con resultados en la temporada
-    const activeSwimmersQuery = await this.prisma.result.findMany({
-      where: {
-        homologated: true,
-        status: 'OK',
-        event: {
-          tournament: {
-            scope,
-            ...(dto.seasonId ? { seasonId: dto.seasonId } : {}),
-          },
-        },
-      },
-      select: { clubId: true, swimmerId: true },
-      distinct: ['clubId', 'swimmerId'],
-    });
-
     const clubIds = new Set([
-      ...rankings.map((r) => r.clubId),
+      ...results.map((r) => r.clubId),
       ...records.map((r) => r.clubId),
-      ...activeSwimmersQuery.map((r) => r.clubId),
     ]);
 
     const clubs = await this.prisma.club.findMany({
@@ -175,21 +184,27 @@ export class RankingsService {
     });
     const clubMap = new Map(clubs.map((c) => [c.id, c.name]));
 
-    // Acumular estadísticas por club
-    const stats = new Map<string, { points: number; gold: number; silver: number; bronze: number }>();
+    // Acumular puntos, medallero y nadadores activos por club
+    const stats = new Map<
+      string,
+      { points: number; gold: number; silver: number; bronze: number; swimmers: Set<string> }
+    >();
     const ensureClub = (id: string) => {
-      if (!stats.has(id)) stats.set(id, { points: 0, gold: 0, silver: 0, bronze: 0 });
+      if (!stats.has(id)) stats.set(id, { points: 0, gold: 0, silver: 0, bronze: 0, swimmers: new Set() });
       return stats.get(id)!;
     };
 
-    for (const r of rankings) {
+    for (const r of results) {
+      const place = r.place!;
       const s = ensureClub(r.clubId);
-      if (r.position <= pointsTable.length) {
-        s.points += pointsTable[r.position - 1] ?? 0;
+      s.swimmers.add(r.swimmerId);
+      if (place <= pointsTable.length) {
+        const base = pointsTable[place - 1] ?? 0;
+        s.points += r.event.eventDefinition.isRelay ? base * relayMultiplier : base;
       }
-      if (r.position === 1) s.gold++;
-      else if (r.position === 2) s.silver++;
-      else if (r.position === 3) s.bronze++;
+      if (place === 1) s.gold++;
+      else if (place === 2) s.silver++;
+      else if (place === 3) s.bronze++;
     }
 
     // Contar récords por club
@@ -198,16 +213,9 @@ export class RankingsService {
       recordsByClub.set(r.clubId, (recordsByClub.get(r.clubId) ?? 0) + 1);
     }
 
-    // Contar nadadores activos por club
-    const activeByClub = new Map<string, number>();
-    for (const r of activeSwimmersQuery) {
-      if (!activeByClub.has(r.clubId)) activeByClub.set(r.clubId, 0);
-      activeByClub.set(r.clubId, activeByClub.get(r.clubId)! + 1);
-    }
-
     const entries: ClubRankingEntry[] = [...clubIds]
       .map((clubId) => {
-        const s = stats.get(clubId) ?? { points: 0, gold: 0, silver: 0, bronze: 0 };
+        const s = stats.get(clubId) ?? { points: 0, gold: 0, silver: 0, bronze: 0, swimmers: new Set<string>() };
         return {
           position: 0,
           clubId,
@@ -216,7 +224,7 @@ export class RankingsService {
           gold: s.gold,
           silver: s.silver,
           bronze: s.bronze,
-          activeSwimmers: activeByClub.get(clubId) ?? 0,
+          activeSwimmers: s.swimmers.size,
           currentRecords: recordsByClub.get(clubId) ?? 0,
         };
       })
@@ -243,8 +251,8 @@ export class RankingsService {
   }
 
   async invalidateClubCache(scope: string, seasonId: string | null): Promise<void> {
-    await this.redis.del(`ranking:club:${scope}:${seasonId ?? 'all'}`);
+    await this.redis.del(`ranking:club:${scope}:all:${seasonId ?? 'all'}`);
     // También invalida el global
-    await this.redis.del(`ranking:club:${scope}:all`);
+    await this.redis.del(`ranking:club:${scope}:all:all`);
   }
 }

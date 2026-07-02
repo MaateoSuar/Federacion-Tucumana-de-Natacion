@@ -42,6 +42,13 @@ function eventLabel(e: { distance: number; stroke: string }): string {
   return `${e.distance} m ${STROKE_ES[e.stroke] ?? e.stroke}`;
 }
 
+// Fecha del récord homologado más reciente entre los cargados — "última actualización" de la tabla
+function lastUpdatedDate(records: RecordEntry[]): Date | null {
+  if (records.length === 0) return null;
+  const timestamps = records.map((r) => new Date(r.homologatedAt ?? r.createdAt).getTime());
+  return new Date(Math.max(...timestamps));
+}
+
 function RecordRow({ record, national }: { record: RecordEntry; national?: RecordEntry }) {
   const date = new Date(record.recordDate).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
   const isTeam = !record.swimmer.lastName || record.swimmer.lastName === 'Equipo de Relevo';
@@ -191,6 +198,7 @@ export default function RecordsPage() {
 
   const categoryNames = new Map(records.map((r) => [r.category.code, r.category.name]));
   const hasAnyMatch = filteredRecords.length > 0;
+  const lastUpdated = useMemo(() => lastUpdatedDate(records), [records]);
 
   return (
     <div className="min-h-screen bg-pool-950 text-white">
@@ -201,6 +209,11 @@ export default function RecordsPage() {
           <h1 className="text-3xl font-black text-white">Tabla Oficial de Récords Tucumanos</h1>
           {nationals.length > 0 && (
             <p className="text-pool-400 text-sm mt-1">Los récords nacionales se muestran como referencia.</p>
+          )}
+          {lastUpdated && (
+            <p className="text-pool-500 text-xs mt-1">
+              Última actualización: {lastUpdated.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}
+            </p>
           )}
         </header>
 

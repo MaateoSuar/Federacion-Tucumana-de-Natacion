@@ -42,8 +42,8 @@ const STATUS_MAP: Record<string, { label: string; cls: string; next: string | nu
   inscripciones_abiertas: { label: 'Inscripciones abiertas', cls: 'badge-green',  next: 'cerrado',                nextLabel: 'Cerrar inscripciones' },
   cerrado:                { label: 'Cerrado',                cls: 'badge-yellow', next: 'en_curso',               nextLabel: 'Iniciar torneo' },
   en_curso:               { label: 'En curso',               cls: 'bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md text-xs font-medium', next: 'finalizado', nextLabel: 'Finalizar torneo' },
-  finalizado:             { label: 'Finalizado',             cls: 'badge-red',    next: 'homologado',             nextLabel: 'Homologar' },
-  homologado:             { label: 'Homologado',             cls: 'bg-purple-100 text-purple-700 px-2 py-0.5 rounded-md text-xs font-medium', next: null, nextLabel: null },
+  finalizado:             { label: 'Finalizado',             cls: 'badge-red',    next: null, nextLabel: null },
+  homologado:             { label: 'Finalizado',             cls: 'badge-red',    next: null, nextLabel: null },
 };
 const POOL_LABEL: Record<string, string> = { P25: '25 m', P50: '50 m' };
 const GENDER_LABEL: Record<string, string> = { M: 'Masculino', F: 'Femenino' };
@@ -210,11 +210,6 @@ export default function TorneoDetailPage() {
   const [transLoading, setTransLoading] = useState(false);
   const [transError, setTransError] = useState<string | null>(null);
 
-  // Homologación
-  const [homologLoading, setHomologLoading] = useState(false);
-  const [homologResult, setHomologResult] = useState<{ homologated: number; skipped: number } | null>(null);
-  const [homologError, setHomologError] = useState<string | null>(null);
-
   const loadTournament = useCallback(async () => {
     setLoading(true); setError(null);
     try { setTournament(await apiFetch<Tournament>(`/tournaments/${id}`)); }
@@ -228,6 +223,10 @@ export default function TorneoDetailPage() {
     if (!tournament) return;
     const st = STATUS_MAP[tournament.status];
     if (!st?.next) return;
+    if (
+      st.next === 'finalizado' &&
+      !confirm('¿Finalizar el torneo? Los resultados se homologarán automáticamente y se actualizarán rankings y récords.')
+    ) return;
     setTransLoading(true); setTransError(null);
     try {
       await apiFetch(`/tournaments/${id}/status`, {
@@ -267,20 +266,6 @@ export default function TorneoDetailPage() {
       await loadTournament();
     } catch (e) { setDocError((e as Error).message); }
     finally { setDocLoading(false); }
-  };
-
-  const handleHomologate = async () => {
-    if (!confirm('¿Homologar todos los resultados de este torneo? Esta acción los marcará como oficiales y actualizará rankings.')) return;
-    setHomologLoading(true); setHomologError(null); setHomologResult(null);
-    try {
-      const result = await apiFetch<{ homologated: number; skipped: number }>(`/tournaments/${id}/homologate`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
-      setHomologResult(result);
-      await loadTournament();
-    } catch (e) { setHomologError((e as Error).message); }
-    finally { setHomologLoading(false); }
   };
 
   const handleRemoveDoc = async (docId: string) => {
@@ -354,21 +339,6 @@ export default function TorneoDetailPage() {
               {transError && <p className="text-xs text-red-600">{transError}</p>}
             </div>
           )}
-          <div className="flex flex-col items-end gap-1">
-            <button
-              onClick={() => void handleHomologate()}
-              disabled={homologLoading}
-              className="btn-secondary text-xs py-1.5 px-3"
-            >
-              {homologLoading ? 'Homologando...' : 'Homologar resultados'}
-            </button>
-            {homologResult && (
-              <p className="text-xs text-emerald-600">
-                ✓ {homologResult.homologated} homologados, {homologResult.skipped} ya homologados
-              </p>
-            )}
-            {homologError && <p className="text-xs text-red-600">{homologError}</p>}
-          </div>
         </div>
       </div>
 
@@ -592,7 +562,7 @@ export default function TorneoDetailPage() {
               tournamentId={id}
               importType="resultados"
               title="Importar Resultados"
-              description="Tiempos finales de competencia — homologación pendiente"
+              description="Tiempos finales de competencia — se homologan al finalizar el torneo"
               icon={
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />

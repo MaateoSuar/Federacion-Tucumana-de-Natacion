@@ -7,7 +7,7 @@ import { MedalIcon } from '@/components/ui/MedalIcon';
 import { formatTime } from '@/lib/formatTime';
 import type {
   RankingEntry, ClubRankingEntry,
-  EventDefinition, Category, Season,
+  EventDefinition, Category, Season, Tournament,
 } from '@/lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -44,6 +44,8 @@ export default function RankingsPage() {
   const [categoryId, setCategoryId] = useState('');
   const [seasonId, setSeasonId] = useState('');
   const [clubScope, setClubScope] = useState('');
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [tournamentId, setTournamentId] = useState('');
 
   // Unique base events (distance+stroke), excluding relays and <50m races, sorted
   const uniqueBaseEvents = useMemo<EventDefinition[]>(() => {
@@ -112,7 +114,11 @@ export default function RankingsPage() {
     setLoading(true);
     setError('');
     try {
-      const params = new URLSearchParams({ scope: 'provincial', ...(clubScope ? { seasonId: clubScope } : {}) });
+      const params = new URLSearchParams({
+        scope: 'provincial',
+        ...(clubScope ? { seasonId: clubScope } : {}),
+        ...(tournamentId ? { tournamentId } : {}),
+      });
       const data = await fetchJson<ClubRankingEntry[]>(`${API_BASE}/rankings/club?${params}`);
       setClubRankings(data);
     } catch {
@@ -120,7 +126,7 @@ export default function RankingsPage() {
     } finally {
       setLoading(false);
     }
-  }, [clubScope]);
+  }, [clubScope, tournamentId]);
 
   useEffect(() => {
     if (tab === 'prueba' && eventDefId) void loadEventRankings();
@@ -128,7 +134,16 @@ export default function RankingsPage() {
 
   useEffect(() => {
     if (tab === 'club') loadClubRankings();
-  }, [tab, clubScope, loadClubRankings]);
+  }, [tab, clubScope, tournamentId, loadClubRankings]);
+
+  // Al elegir un año, cargar sus torneos para poder acotar el ranking a uno puntual
+  useEffect(() => {
+    setTournamentId('');
+    if (!clubScope) { setTournaments([]); return; }
+    fetchJson<{ items: Tournament[] }>(`${API_BASE}/tournaments?seasonId=${clubScope}&limit=200`)
+      .then((d) => setTournaments(d.items))
+      .catch(() => setTournaments([]));
+  }, [clubScope]);
 
   return (
     <div className="min-h-screen bg-pool-950 text-white">
@@ -188,13 +203,21 @@ export default function RankingsPage() {
 
         {/* Filtros — club */}
         {tab === 'club' && (
-          <div className="mb-6">
+          <div className="flex flex-wrap gap-3 mb-6">
             <select value={clubScope} onChange={(e) => setClubScope(e.target.value)} className="bg-pool-800 border border-pool-600 rounded-lg px-3 py-2 text-sm text-white">
               <option value="">Histórico global</option>
               {seasons.map((s) => (
                 <option key={s.id} value={s.id}>{s.year}</option>
               ))}
             </select>
+            {clubScope && (
+              <select value={tournamentId} onChange={(e) => setTournamentId(e.target.value)} className="bg-pool-800 border border-pool-600 rounded-lg px-3 py-2 text-sm text-white">
+                <option value="">Acumulado del año</option>
+                {tournaments.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            )}
           </div>
         )}
 

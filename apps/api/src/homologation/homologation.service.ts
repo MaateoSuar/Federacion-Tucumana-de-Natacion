@@ -78,9 +78,11 @@ export class HomologationService {
           seasonId: tournament.seasonId,
           finalTimeMs: result.finalTime!,
           tournamentId,
+          tournamentName: tournament.name,
           eventId: event.id,
           place: result.place,
           resultDate: tournament.startDate.toISOString(),
+          homologatedBy,
         };
 
         await this.queue.add(POST_PROCESS_JOB, jobData);
@@ -145,9 +147,11 @@ export class HomologationService {
       seasonId: tournament.seasonId,
       finalTimeMs: result.finalTime,
       tournamentId: tournament.id,
+      tournamentName: tournament.name,
       eventId: result.eventId,
       place: result.place,
       resultDate: tournament.startDate.toISOString(),
+      homologatedBy,
     };
 
     await this.queue.add(POST_PROCESS_JOB, jobData);

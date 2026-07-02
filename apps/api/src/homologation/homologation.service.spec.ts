@@ -16,6 +16,7 @@ const makeResult = (overrides = {}) => ({
     eventDefinition: { gender: 'M' },
     tournament: {
       id: 'tourn-1',
+      name: 'Torneo Test',
       poolLength: 'P25',
       seasonId: 'season-1',
       startDate: new Date('2026-05-01'),
@@ -27,6 +28,7 @@ const makeResult = (overrides = {}) => ({
 
 const makeTournament = (results = [makeResult()]) => ({
   id: 'tourn-1',
+  name: 'Torneo Test',
   status: 'finalizado',
   poolLength: 'P25',
   seasonId: 'season-1',
