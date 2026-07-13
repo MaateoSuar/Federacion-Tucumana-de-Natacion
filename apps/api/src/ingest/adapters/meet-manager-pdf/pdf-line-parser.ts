@@ -70,7 +70,7 @@ function parseDate(raw: string): string {
   return `${m[3] ?? ''}-${(m[2] ?? '').padStart(2, '0')}-${(m[1] ?? '').padStart(2, '0')}`;
 }
 
-function parseGender(token: string): NormalizedGender {
+export function parseGender(token: string): NormalizedGender {
   const t = token.toLowerCase();
   if (t === 'niñas' || t === 'mujeres') return 'F';
   if (t === 'niños' || t === 'hombres') return 'M';
@@ -84,7 +84,7 @@ function parseCourse(token: string): PoolLength {
   return t === 'lc' || t === 'lm' || t === 'cl' ? 50 : 25;
 }
 
-function parseStroke(raw: string): NormalizedStroke | null {
+export function parseStroke(raw: string): NormalizedStroke | null {
   return STROKE_MAP[raw.trim().toLowerCase()] ?? null;
 }
 
@@ -106,7 +106,7 @@ function normalizeClubId(name: string): string {
 const SUFFIX_RE =
   /(\d{1,2}(?::\d{2})?[,.]\d{2}|DQ|NT|NS|NF)(\d?)(?:\s+(\d{1,2}(?::\d{2})?[,.]\d{2}|NT|NS|NF))?$/;
 
-interface ParsedRow {
+export interface ParsedRow {
   age: number | null; // null for Pre Inf format (heat+lane prefix, not age+place)
   place: number | undefined;
   isDQ: boolean;
@@ -121,7 +121,7 @@ function parseMinAgeFromGroup(ageGroup: string): number {
   return m ? parseInt(m[1] ?? '0', 10) : 0;
 }
 
-function parseDataLine(line: string): ParsedRow | null {
+export function parseDataLine(line: string): ParsedRow | null {
   const trimmed = line.trimStart();
 
   // Two formats:

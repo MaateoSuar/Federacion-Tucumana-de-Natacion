@@ -11,6 +11,7 @@ import { UpdateRecordDto } from './dto/update-record.dto';
 
 const RECORD_INCLUDE = {
   swimmer: { select: { id: true, firstName: true, lastName: true } },
+  club: { select: { id: true, name: true, shortName: true } },
   eventDefinition: { select: { id: true, code: true, stroke: true, distance: true } },
   category: { select: { id: true, code: true, name: true } },
   sourceResult: {

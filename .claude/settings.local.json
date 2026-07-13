@@ -117,7 +117,13 @@
       "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\('total pts sum:', j.reduce\\(\\(a,c\\)=>a+c.points,0\\)\\); console.log\\(j.slice\\(0,5\\)\\);}\\)\")",
       "Bash(curl -s \"http://localhost:3001/rankings/club?scope=provincial&seasonId=cmqy2kae4001jqasdrykzc89v&tournamentId=cmqy31czd00ed9e0k45aenumw\")",
       "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\('total pts sum:', j.reduce\\(\\(a,c\\)=>a+c.points,0\\)\\); console.log\\(j.slice\\(0,3\\)\\);}\\)\")",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3001/tournaments/seasons)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3001/tournaments/seasons)",
+      "Bash(node scratch-extract.js)",
+      "Bash(node scratch-test-parser.js)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill //PID 9000 //F)",
+      "Bash(node scratch-upload-test.js)",
+      "Bash(node scratch-doc-test.js)"
     ]
   }
 }

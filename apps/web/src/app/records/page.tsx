@@ -49,14 +49,19 @@ function lastUpdatedDate(records: RecordEntry[]): Date | null {
   return new Date(Math.max(...timestamps));
 }
 
-function RecordRow({ record, national }: { record: RecordEntry; national?: RecordEntry }) {
+// Orden de categorías dentro de la tabla de una prueba — misma referencia que CATEGORY_ORDER
+function categoryOrderIndex(code: string): number {
+  const idx = CATEGORY_ORDER.indexOf(code);
+  return idx === -1 ? CATEGORY_ORDER.length : idx;
+}
+
+function EventRecordRow({ record, national }: { record: RecordEntry; national?: RecordEntry }) {
   const date = new Date(record.recordDate).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
   const isTeam = !record.swimmer.lastName || record.swimmer.lastName === 'Equipo de Relevo';
   return (
     <tr className="border-b border-pool-700/20 hover:bg-pool-800/30 transition-colors">
-      <td className="px-4 py-3 text-white font-semibold text-sm">{eventLabel(record.eventDefinition)}</td>
-      <td className="px-4 py-3 font-mono font-bold text-aqua-300">{formatTime(record.timeMs)}</td>
-      <td className="px-4 py-3 text-pool-200 text-sm">
+      <td className="px-4 py-3 text-aqua-300 text-xs font-bold uppercase tracking-wide">{record.category.name}</td>
+      <td className="px-4 py-3 text-white font-medium text-sm">
         {isTeam ? (
           record.swimmer.firstName
         ) : (
@@ -65,7 +70,9 @@ function RecordRow({ record, national }: { record: RecordEntry; national?: Recor
           </Link>
         )}
       </td>
-      <td className="px-4 py-3 text-pool-400 text-xs">{date}</td>
+      <td className="px-4 py-3 text-pool-300 text-sm hidden sm:table-cell">{record.club?.shortName ?? record.club?.name ?? '—'}</td>
+      <td className="px-4 py-3 text-pool-400 text-xs hidden md:table-cell">{date}</td>
+      <td className="px-4 py-3 text-right font-mono font-bold text-aqua-300">{formatTime(record.timeMs)}</td>
       {national && (
         <td className="px-4 py-3 text-right">
           <span className="font-mono text-xs text-pool-400">{formatTime(national.timeMs)}</span>
@@ -78,10 +85,11 @@ function RecordRow({ record, national }: { record: RecordEntry; national?: Recor
   );
 }
 
-function RecordsTable({ records, nationals, gender }: { records: RecordEntry[]; nationals: RecordEntry[]; gender: 'M' | 'F' | 'MIX' }) {
+/** Todas las categorías de una prueba+género juntas, una tabla por prueba — como el ranking. */
+function EventRecordsTable({ records, nationals, gender }: { records: RecordEntry[]; nationals: RecordEntry[]; gender: 'M' | 'F' | 'MIX' }) {
   const filtered = records
     .filter((r) => r.gender === gender)
-    .sort((a, b) => compareEvents(a.eventDefinition, b.eventDefinition));
+    .sort((a, b) => categoryOrderIndex(a.category.code) - categoryOrderIndex(b.category.code));
   if (filtered.length === 0) return null;
 
   const getNational = (r: RecordEntry) =>
@@ -92,16 +100,17 @@ function RecordsTable({ records, nationals, gender }: { records: RecordEntry[]; 
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-pool-800/60 text-pool-400 text-xs uppercase tracking-wider">
-            <th className="text-left px-4 py-3">Prueba</th>
-            <th className="text-left px-4 py-3">Tiempo</th>
-            <th className="text-left px-4 py-3">Atleta</th>
-            <th className="text-left px-4 py-3">Fecha</th>
+            <th className="text-left px-4 py-3">Categoría</th>
+            <th className="text-left px-4 py-3">Nadador/a</th>
+            <th className="text-left px-4 py-3 hidden sm:table-cell">Club</th>
+            <th className="text-left px-4 py-3 hidden md:table-cell">Fecha</th>
+            <th className="text-right px-4 py-3">Tiempo</th>
             {nationals.length > 0 && <th className="text-right px-4 py-3">Rec. Nacional</th>}
           </tr>
         </thead>
         <tbody>
           {filtered.map((r) => (
-            <RecordRow key={r.id} record={r} national={nationals.length > 0 ? getNational(r) : undefined} />
+            <EventRecordRow key={r.id} record={r} national={nationals.length > 0 ? getNational(r) : undefined} />
           ))}
         </tbody>
       </table>
@@ -109,12 +118,12 @@ function RecordsTable({ records, nationals, gender }: { records: RecordEntry[]; 
   );
 }
 
-function CategorySection({
-  categoryName,
+function EventSection({
+  eventName,
   records,
   nationals,
 }: {
-  categoryName: string;
+  eventName: string;
   records: RecordEntry[];
   nationals: RecordEntry[];
 }) {
@@ -123,7 +132,7 @@ function CategorySection({
 
   return (
     <div className="rounded-2xl border border-pool-700/30 bg-pool-900/40 p-5">
-      <h3 className="text-lg font-bold text-white mb-4">{categoryName}</h3>
+      <h3 className="text-lg font-bold text-white mb-4">{eventName}</h3>
       <div className="space-y-6">
         {genders.map((g) => {
           const gRecords = records.filter((r) => r.gender === g);
@@ -131,7 +140,7 @@ function CategorySection({
           return (
             <div key={g}>
               <p className="text-sm font-semibold text-pool-300 mb-2">{GENDER_LABEL[g]}</p>
-              <RecordsTable records={gRecords} nationals={nationals} gender={g} />
+              <EventRecordsTable records={gRecords} nationals={nationals} gender={g} />
             </div>
           );
         })}
@@ -196,7 +205,6 @@ export default function RecordsPage() {
     { key: 'P50', label: 'Piscina 50 m' },
   ];
 
-  const categoryNames = new Map(records.map((r) => [r.category.code, r.category.name]));
   const hasAnyMatch = filteredRecords.length > 0;
   const lastUpdated = useMemo(() => lastUpdatedDate(records), [records]);
 
@@ -270,14 +278,14 @@ export default function RecordsPage() {
                 <section key={key}>
                   <h2 className="text-xl font-bold text-white mb-4 pb-2 border-b border-pool-700/40">{label}</h2>
                   <div className="space-y-6">
-                    {CATEGORY_ORDER.map((code) => {
-                      const catRecords = poolRecords.filter((r) => r.category.code === code);
-                      if (catRecords.length === 0) return null;
+                    {eventOptions.map((ev) => {
+                      const evRecords = poolRecords.filter((r) => eventBaseKey(r.eventDefinition) === ev.key);
+                      if (evRecords.length === 0) return null;
                       return (
-                        <CategorySection
-                          key={code}
-                          categoryName={categoryNames.get(code) ?? code}
-                          records={catRecords}
+                        <EventSection
+                          key={ev.key}
+                          eventName={ev.label}
+                          records={evRecords}
                           nationals={poolNationals}
                         />
                       );

@@ -56,6 +56,10 @@ export function fetchEventResults(tournamentId: string, eventId: string) {
   return serverFetch<EventResultsResponse>(`/tournaments/${tournamentId}/events/${eventId}/results`, 20);
 }
 
+export function fetchTournamentDayFiles(tournamentId: string, day: number) {
+  return serverFetch<DayFile[]>(`/tournaments/${tournamentId}/days/${day}/files`, 20);
+}
+
 // ─── Rankings ────────────────────────────────────────────────────────────────
 
 export function fetchEventRanking(params: Record<string, string>) {
@@ -192,6 +196,41 @@ export interface EventResultsResponse {
   results: ResultEntry[];
 }
 
+export interface SembradoRow {
+  eventNo: number;
+  eventLabel: string;
+  heatNo: number;
+  lane: number;
+  swimmerName: string;
+  age: number | null;
+  club: string;
+  seedTimeMs: number | null;
+}
+
+export interface ResultadoRow {
+  eventNo: number;
+  eventLabel: string;
+  place: number | null;
+  swimmerName: string;
+  age: number | null;
+  club: string;
+  seedTimeMs: number | null;
+  finalTimeMs: number | null;
+  status: 'OK' | 'DSQ' | 'DNS' | 'DNF';
+}
+
+export interface DayFile {
+  id: string;
+  dayNumber: number;
+  type: 'sembrados' | 'resultados';
+  title: string;
+  fileUrl: string;
+  mimeType: string;
+  createdAt: string;
+  parsedRows: SembradoRow[] | ResultadoRow[] | null;
+  parseWarning: string | null;
+}
+
 export interface RankingEntry {
   position: number;
   swimmerId: string;
@@ -280,6 +319,7 @@ export interface RecordEntry {
   homologatedAt: string | null;
   createdAt: string;
   swimmer: { id: string; firstName: string; lastName: string };
+  club: { id: string; name: string; shortName: string };
   eventDefinition: { id: string; code: string; stroke: string; distance: number };
   category: { id: string; code: string; name: string };
   sourceResult?: { id: string; event: { tournament: { id: string; name: string; startDate: string } } };

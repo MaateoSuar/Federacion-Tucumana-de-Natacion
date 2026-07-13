@@ -173,6 +173,11 @@ enum TournamentDocType {
   otros
 }
 
+enum TournamentDayFileType {
+  sembrados
+  resultados
+}
+
 enum AchievementType {
   medal
   record
@@ -305,6 +310,7 @@ model User {
   homologatedResults   Result[]             @relation("ResultHomologator")
   homologatedRecords   Record[]             @relation("RecordHomologator")
   uploadedDocuments    TournamentDocument[]
+  uploadedDayFiles     TournamentDayFile[]
   generatedExports     MeetManagerExport[]
   uploadedMedia        Media[]
 
@@ -338,6 +344,7 @@ model Club {
   frozenResults       Result[]             @relation("ResultFrozenClub")
   frozenRegistrations Registration[]       @relation("RegistrationFrozenClub")
   externalIdMaps      ExternalIdMap[]
+  records             Record[]
 
   @@map("clubs")
 }
@@ -563,6 +570,7 @@ model Tournament {
   season       Season               @relation(fields: [seasonId], references: [id])
   events       Event[]
   documents    TournamentDocument[]
+  dayFiles     TournamentDayFile[]
   importJobs   ImportJob[]
   exports      MeetManagerExport[]
   achievements AthleteAchievement[]
@@ -748,6 +756,7 @@ model Record {
   eventDefinition EventDefinition      @relation(fields: [eventDefinitionId], references: [id])
   category        Category             @relation(fields: [categoryId], references: [id])
   swimmer         Swimmer              @relation(fields: [swimmerId], references: [id])
+  club            Club                 @relation(fields: [clubId], references: [id])
   sourceResult    Result?              @relation("RecordSourceResult", fields: [sourceResultId], references: [id])
   homologator     User?                @relation("RecordHomologator", fields: [homologatedBy], references: [id])
   previousRecord  Record?              @relation("RecordChain", fields: [previousRecordId], references: [id])
@@ -897,6 +906,29 @@ model TournamentDocument {
   uploader   User       @relation(fields: [uploadedBy], references: [id])
 
   @@map("tournament_documents")
+}
+
+// Archivos de sembrados/resultados subidos por jornada — capa de referencia, no
+// alimenta Registration/Heat/Result oficiales. parsedRows guarda la tabla extraída
+// del PDF (evento/serie/carril/nombre/tiempo) cuando el parser la pudo reconocer.
+model TournamentDayFile {
+  id           String                @id @default(cuid())
+  tournamentId String                @map("tournament_id")
+  dayNumber    Int                   @map("day_number")
+  type         TournamentDayFileType
+  title        String
+  fileUrl      String                @map("file_url")
+  mimeType     String                @map("mime_type")
+  parsedRows   Json?                 @map("parsed_rows")
+  parseWarning String?               @map("parse_warning")
+  uploadedBy   String                @map("uploaded_by")
+  createdAt    DateTime              @default(now()) @map("created_at")
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id])
+  uploader   User       @relation(fields: [uploadedBy], references: [id])
+
+  @@index([tournamentId, dayNumber])
+  @@map("tournament_day_files")
 }
 
 // Orquestación de importaciones asíncronas (BullMQ).

@@ -37,6 +37,8 @@ const CATEGORIES: Array<{
   { code: 'CAD',   name: 'Cadetes',    minAge: 14,   maxAge: 15,   scope: 'provincial', orderNo: 15 },
   { code: 'JUV',   name: 'Juveniles',  minAge: 16,   maxAge: 18,   scope: 'provincial', orderNo: 16 },
   { code: 'ABS',   name: 'Absoluto',   minAge: null, maxAge: null, scope: 'provincial', orderNo: 17 },
+  // Nivel de competencia propio (no es una franja etaria) — carreras introductorias de escuela de natación
+  { code: 'ESC',   name: 'Escuela',    minAge: null, maxAge: null, scope: 'provincial', orderNo: 18 },
 ];
 
 // Stroke codes usados en los codes de EventDefinition

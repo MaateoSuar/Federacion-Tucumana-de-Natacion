@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
-import { useRouter } from 'next/navigation';
 
 /* ─── Tipos ─── */
 
@@ -12,19 +11,28 @@ interface EventDefinition {
   id: string; code: string; stroke: string; distance: number; gender: string; isRelay: boolean;
 }
 interface Category { id: string; code: string; name: string; orderNo: number; }
-interface LaneAssignment {
-  id: string; lane: number;
-  registration: { swimmer: { firstName: string; lastName: string }; club: { shortName: string }; entryTime: number | null } | null;
-}
-interface Heat { id: string; heatNumber: number; scheduledAt: string | null; laneAssignments: LaneAssignment[]; }
 interface TournamentEvent {
   id: string; orderNo: number; round: string; status: string; dayNumber: number;
   eventDefinition: EventDefinition; category: Category;
-  heats: Heat[];
   _count: { registrations: number; results: number };
 }
 interface TournamentDocument {
   id: string; type: string; title: string; fileUrl: string; mimeType: string; createdAt: string;
+}
+interface SembradoRow {
+  eventNo: number; eventLabel: string; heatNo: number; lane: number;
+  swimmerName: string; age: number | null; club: string; seedTimeMs: number | null;
+}
+interface ResultadoRow {
+  eventNo: number; eventLabel: string; place: number | null;
+  swimmerName: string; age: number | null; club: string;
+  seedTimeMs: number | null; finalTimeMs: number | null;
+  status: 'OK' | 'DSQ' | 'DNS' | 'DNF';
+}
+interface DayFile {
+  id: string; dayNumber: number; type: 'sembrados' | 'resultados';
+  title: string; fileUrl: string; mimeType: string; createdAt: string;
+  parsedRows: SembradoRow[] | ResultadoRow[] | null; parseWarning: string | null;
 }
 interface Tournament {
   id: string; name: string; venue: string | null; poolLength: string; startDate: string; endDate: string;
@@ -70,24 +78,27 @@ function countDays(startDate: string, endDate: string): number {
   return Math.max(1, Math.round((end - start) / 86_400_000) + 1);
 }
 
-type Tab = 'pruebas' | 'series' | 'importar' | 'documentos';
+type Tab = 'pruebas' | 'importar' | 'documentos';
 
-/* ─── Componente de upload por tipo ─── */
+/* ─── Uploader de sembrados/resultados por jornada ─── */
 
-function ImportUploader({
+function DayFileUploader({
   tournamentId,
-  importType,
+  day,
+  fileType,
   title,
   description,
   icon,
+  onUploaded,
 }: {
   tournamentId: string;
-  importType: 'sembrados' | 'resultados';
+  day: number;
+  fileType: 'sembrados' | 'resultados';
   title: string;
   description: string;
   icon: React.ReactNode;
+  onUploaded: () => void;
 }) {
-  const router = useRouter();
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,10 +110,10 @@ function ImportUploader({
     try {
       const fd = new FormData();
       fd.append('file', file);
-      fd.append('tournamentId', tournamentId);
-      fd.append('importType', importType);
+      fd.append('type', fileType);
+      fd.append('title', `${title} — ${file.name}`);
 
-      const res = await fetch(`${API}/import/upload`, {
+      const res = await fetch(`${API}/tournaments/${tournamentId}/days/${day}/files`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${getToken()}` },
         body: fd,
@@ -113,14 +124,13 @@ function ImportUploader({
         throw new Error(body.message ?? `Error ${res.status}`);
       }
 
-      const { jobId } = (await res.json()) as { jobId: string };
-      router.push(`/admin/import/${jobId}/preview`);
+      onUploaded();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error inesperado al subir el archivo.');
     } finally {
       setUploading(false);
     }
-  }, [tournamentId, importType, router]);
+  }, [tournamentId, day, fileType, title, onUploaded]);
 
   return (
     <div className="card p-5 space-y-4">
@@ -153,7 +163,7 @@ function ImportUploader({
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            <span className="text-sm text-gray-500">Procesando...</span>
+            <span className="text-sm text-gray-500">Subiendo...</span>
           </>
         ) : (
           <>
@@ -187,6 +197,143 @@ function ImportUploader({
   );
 }
 
+/** Tabla de sembrados agrupada por Evento → Serie */
+function SembradosTable({ rows }: { rows: SembradoRow[] }) {
+  const events = Array.from(new Set(rows.map((r) => r.eventNo))).sort((a, b) => a - b);
+  return (
+    <div className="space-y-4">
+      {events.map((eventNo) => {
+        const eventRows = rows.filter((r) => r.eventNo === eventNo);
+        const eventLabel = eventRows[0]?.eventLabel ?? '';
+        const heats = Array.from(new Set(eventRows.map((r) => r.heatNo))).sort((a, b) => a - b);
+        return (
+          <div key={eventNo} className="card overflow-hidden">
+            <div className="px-5 py-2.5 bg-gray-50/80 border-b border-gray-100">
+              <span className="font-semibold text-gray-800 text-sm">Prueba {eventNo}</span>
+              <span className="text-xs text-gray-500 ml-2">{eventLabel}</span>
+            </div>
+            {heats.map((heatNo) => (
+              <div key={heatNo} className="border-b border-gray-50 last:border-0">
+                <div className="px-5 py-2 bg-pool-50/30 text-xs font-semibold text-pool-700">
+                  Serie {heatNo}
+                </div>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-gray-400">
+                      <th className="text-left px-5 py-2 font-medium">Carril</th>
+                      <th className="text-left px-5 py-2 font-medium">Nadador/a</th>
+                      <th className="text-left px-5 py-2 font-medium">Edad</th>
+                      <th className="text-left px-5 py-2 font-medium">Club</th>
+                      <th className="text-left px-5 py-2 font-medium">Tiempo sembrado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {eventRows.filter((r) => r.heatNo === heatNo).sort((a, b) => a.lane - b.lane).map((r, i) => (
+                      <tr key={i} className="border-t border-gray-50">
+                        <td className="px-5 py-2 font-bold text-pool-700">{r.lane}</td>
+                        <td className="px-5 py-2 text-gray-800">{r.swimmerName}</td>
+                        <td className="px-5 py-2 text-gray-500">{r.age ?? '—'}</td>
+                        <td className="px-5 py-2 text-gray-500">{r.club}</td>
+                        <td className="px-5 py-2 font-mono text-gray-600">{formatTime(r.seedTimeMs)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+const PLACE_LABEL: Record<string, string> = { DSQ: 'DSC', DNS: 'NP', DNF: 'NF' };
+
+/** Tabla de resultados agrupada por Evento, ordenada por puesto */
+function ResultadosTable({ rows }: { rows: ResultadoRow[] }) {
+  const events = Array.from(new Set(rows.map((r) => r.eventNo))).sort((a, b) => a - b);
+  return (
+    <div className="space-y-4">
+      {events.map((eventNo) => {
+        const eventRows = rows
+          .filter((r) => r.eventNo === eventNo)
+          .sort((a, b) => (a.place ?? 999) - (b.place ?? 999));
+        const eventLabel = eventRows[0]?.eventLabel ?? '';
+        return (
+          <div key={eventNo} className="card overflow-hidden">
+            <div className="px-5 py-2.5 bg-gray-50/80 border-b border-gray-100">
+              <span className="font-semibold text-gray-800 text-sm">Prueba {eventNo}</span>
+              <span className="text-xs text-gray-500 ml-2">{eventLabel}</span>
+            </div>
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-gray-400">
+                  <th className="text-left px-5 py-2 font-medium">Puesto</th>
+                  <th className="text-left px-5 py-2 font-medium">Nadador/a</th>
+                  <th className="text-left px-5 py-2 font-medium">Edad</th>
+                  <th className="text-left px-5 py-2 font-medium">Club</th>
+                  <th className="text-left px-5 py-2 font-medium">Tiempo sembrado</th>
+                  <th className="text-left px-5 py-2 font-medium">Tiempo final</th>
+                </tr>
+              </thead>
+              <tbody>
+                {eventRows.map((r, i) => (
+                  <tr key={i} className="border-t border-gray-50">
+                    <td className="px-5 py-2 font-bold text-pool-700">{r.place ?? PLACE_LABEL[r.status] ?? '—'}</td>
+                    <td className="px-5 py-2 text-gray-800">{r.swimmerName}</td>
+                    <td className="px-5 py-2 text-gray-500">{r.age ?? '—'}</td>
+                    <td className="px-5 py-2 text-gray-500">{r.club}</td>
+                    <td className="px-5 py-2 font-mono text-gray-600">{formatTime(r.seedTimeMs)}</td>
+                    <td className="px-5 py-2 font-mono text-gray-700">
+                      {r.finalTimeMs === null ? (PLACE_LABEL[r.status] ?? '—') : formatTime(r.finalTimeMs)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Lista de archivos subidos para una jornada + tipo — tabla si hay parsedRows, si no, link de descarga */
+function DayFileList({ files, onRemove }: { files: DayFile[]; onRemove: (id: string) => void }) {
+  if (files.length === 0) {
+    return <p className="text-sm text-gray-400 text-center py-6">Sin archivos subidos para esta jornada todavía.</p>;
+  }
+  return (
+    <div className="space-y-4">
+      {files.map((f) => (
+        <div key={f.id} className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <a href={`${API}${f.fileUrl}`} target="_blank" rel="noopener noreferrer"
+                className="font-medium text-pool-600 hover:text-pool-800 transition-colors flex items-center gap-1 text-sm">
+                {f.title} <ExternalLinkIcon />
+              </a>
+              <p className="text-xs text-gray-400">{new Date(f.createdAt).toLocaleDateString('es-AR')}</p>
+              {f.parseWarning && (
+                <p className="text-xs text-amber-600 mt-0.5">{f.parseWarning}</p>
+              )}
+            </div>
+            <button onClick={() => onRemove(f.id)} className="text-xs text-red-500 hover:text-red-700 transition-all">
+              Eliminar
+            </button>
+          </div>
+          {f.parsedRows && f.parsedRows.length > 0 && (
+            f.type === 'sembrados'
+              ? <SembradosTable rows={f.parsedRows as SembradoRow[]} />
+              : <ResultadosTable rows={f.parsedRows as ResultadoRow[]} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ─── Página principal ─── */
 
 export default function TorneoDetailPage() {
@@ -210,6 +357,17 @@ export default function TorneoDetailPage() {
   const [transLoading, setTransLoading] = useState(false);
   const [transError, setTransError] = useState<string | null>(null);
 
+  // Sembrados/Resultados por jornada
+  const [importDay, setImportDay] = useState(1);
+  const [dayFiles, setDayFiles] = useState<DayFile[]>([]);
+  const [dayFilesLoading, setDayFilesLoading] = useState(false);
+  const [dayFilesError, setDayFilesError] = useState<string | null>(null);
+
+  // Confirmación de corte de jornada
+  const [splitConfirm, setSplitConfirm] = useState<TournamentEvent | null>(null);
+  const [splitLoading, setSplitLoading] = useState(false);
+  const [splitError, setSplitError] = useState<string | null>(null);
+
   const loadTournament = useCallback(async () => {
     setLoading(true); setError(null);
     try { setTournament(await apiFetch<Tournament>(`/tournaments/${id}`)); }
@@ -218,6 +376,25 @@ export default function TorneoDetailPage() {
   }, [id]);
 
   useEffect(() => { void loadTournament(); }, [loadTournament]);
+
+  const loadDayFiles = useCallback(async () => {
+    setDayFilesLoading(true); setDayFilesError(null);
+    try { setDayFiles(await apiFetch<DayFile[]>(`/tournaments/${id}/days/${importDay}/files`)); }
+    catch (e) { setDayFilesError((e as Error).message); }
+    finally { setDayFilesLoading(false); }
+  }, [id, importDay]);
+
+  useEffect(() => { if (tab === 'importar') void loadDayFiles(); }, [tab, loadDayFiles]);
+
+  const handleRemoveDayFile = async (fileId: string) => {
+    if (!confirm('¿Eliminar este archivo?')) return;
+    try {
+      await apiFetch(`/tournaments/${id}/days/${importDay}/files/${fileId}`, {
+        method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      await loadDayFiles();
+    } catch (e) { alert((e as Error).message); }
+  };
 
   const handleTransition = async () => {
     if (!tournament) return;
@@ -239,15 +416,18 @@ export default function TorneoDetailPage() {
     finally { setTransLoading(false); }
   };
 
-  const handleGenerateHeats = async (eventId: string) => {
+  const confirmSplitDay = async () => {
+    if (!splitConfirm) return;
+    setSplitLoading(true); setSplitError(null);
     try {
-      await apiFetch(`/tournaments/${id}/events/${eventId}/heats`, {
-        method: 'POST',
+      await apiFetch(`/tournaments/${id}/events/${splitConfirm.id}/split-day`, {
+        method: 'PATCH',
         headers: { Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ lanesPerHeat: 8 }),
       });
+      setSplitConfirm(null);
       await loadTournament();
-    } catch (e) { alert((e as Error).message); }
+    } catch (e) { setSplitError((e as Error).message); }
+    finally { setSplitLoading(false); }
   };
 
   const handleUploadDoc = async (e: React.FormEvent) => {
@@ -303,7 +483,6 @@ export default function TorneoDetailPage() {
 
   const TABS: { key: Tab; label: string }[] = [
     { key: 'pruebas',    label: `Pruebas (${tournament.events.length})` },
-    { key: 'series',     label: 'Series' },
     { key: 'importar',   label: 'Importar' },
     { key: 'documentos', label: `Documentos (${tournament.documents.length})` },
   ];
@@ -364,8 +543,8 @@ export default function TorneoDetailPage() {
         ))}
       </div>
 
-      {/* ─── Filtro Jornadas (pruebas + series) ─── */}
-      {(tab === 'pruebas' || tab === 'series') && totalDays > 1 && (
+      {/* ─── Filtro Jornadas (pruebas) ─── */}
+      {tab === 'pruebas' && totalDays > 1 && (
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-400 font-medium mr-1">Jornada:</span>
           <button
@@ -419,6 +598,9 @@ export default function TorneoDetailPage() {
                 <thead>
                   <tr className="bg-gray-50/80">
                     <th className="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">#</th>
+                    {totalDays > 1 && jornadaFilter === null && (
+                      <th className="px-2 py-3" />
+                    )}
                     {totalDays > 1 && (
                       <th className="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Jornada</th>
                     )}
@@ -430,8 +612,21 @@ export default function TorneoDetailPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {visibleEvents.map((ev) => (
-                    <tr key={ev.id} className="hover:bg-slate-50/80 transition-colors">
+                    <tr key={ev.id} className="hover:bg-slate-50/80 transition-colors group">
                       <td className="px-5 py-3.5 text-gray-400 font-mono text-xs">{ev.orderNo}</td>
+                      {totalDays > 1 && jornadaFilter === null && (
+                        <td className="px-2 py-3.5">
+                          {ev.dayNumber < totalDays && (
+                            <button
+                              onClick={() => setSplitConfirm(ev)}
+                              title={`Mover esta prueba y las siguientes a Jornada ${ev.dayNumber + 1}`}
+                              className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-7 h-7 rounded-lg bg-aqua-50 text-aqua-600 hover:bg-aqua-100 hover:text-aqua-800 transition-all"
+                            >
+                              <SplitDayIcon />
+                            </button>
+                          )}
+                        </td>
+                      )}
                       {totalDays > 1 && (
                         <td className="px-5 py-3.5">
                           <span className="text-xs bg-aqua-50 text-aqua-700 font-semibold px-2 py-0.5 rounded-full">
@@ -461,108 +656,71 @@ export default function TorneoDetailPage() {
         </div>
       )}
 
-      {/* ─── Tab: Series ─── */}
-      {tab === 'series' && (
-        <div className="space-y-5">
-          {visibleEvents.length === 0 ? (
-            <div className="card p-10 text-center text-gray-400 text-sm">
-              {tournament.events.length === 0
-                ? 'No hay pruebas cargadas — importá resultados primero'
-                : 'Sin pruebas para esta jornada.'}
-            </div>
-          ) : (
-            visibleEvents.map((ev) => (
-              <div key={ev.id} className="card overflow-hidden">
-                <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {totalDays > 1 && (
-                      <span className="text-xs bg-aqua-50 text-aqua-700 font-semibold px-2 py-0.5 rounded-full">
-                        J{ev.dayNumber}
-                      </span>
-                    )}
-                    <span className="font-semibold text-gray-800">
-                      {ev.eventDefinition.distance}m {ev.eventDefinition.stroke} — {ev.category.name} · {GENDER_LABEL[ev.eventDefinition.gender] ?? ev.eventDefinition.gender}
-                    </span>
-                    <span className="text-xs text-gray-400">{ROUND_LABEL[ev.round]}</span>
-                  </div>
-                  <button onClick={() => void handleGenerateHeats(ev.id)} className="btn-secondary text-xs py-1.5 px-3">
-                    {ev.heats.length > 0 ? 'Regenerar series' : 'Generar series'}
-                  </button>
-                </div>
-
-                {ev.heats.length === 0 ? (
-                  <div className="px-5 py-6 text-center text-gray-400 text-sm">
-                    Sin series — hacé clic en &quot;Generar series&quot;
-                  </div>
-                ) : (
-                  ev.heats.map((heat) => (
-                    <div key={heat.id} className="border-b border-gray-50 last:border-0">
-                      <div className="px-5 py-2 bg-pool-50/30 text-xs font-semibold text-pool-700">
-                        Serie {heat.heatNumber}
-                      </div>
-                      {heat.laneAssignments.length === 0 ? (
-                        <div className="px-5 py-4 text-xs text-gray-400">Serie vacía</div>
-                      ) : (
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr className="text-gray-400">
-                              <th className="text-left px-5 py-2 font-medium">Carril</th>
-                              <th className="text-left px-5 py-2 font-medium">Nadador/a</th>
-                              <th className="text-left px-5 py-2 font-medium">Club</th>
-                              <th className="text-left px-5 py-2 font-medium">Marca inscripción</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {heat.laneAssignments.map((la) => (
-                              <tr key={la.id} className="border-t border-gray-50">
-                                <td className="px-5 py-2 font-bold text-pool-700">{la.lane}</td>
-                                <td className="px-5 py-2 text-gray-800">
-                                  {la.registration ? `${la.registration.swimmer.lastName}, ${la.registration.swimmer.firstName}` : '—'}
-                                </td>
-                                <td className="px-5 py-2 text-gray-500">{la.registration?.club.shortName ?? '—'}</td>
-                                <td className="px-5 py-2 font-mono text-gray-600">
-                                  {la.registration ? formatTime(la.registration.entryTime) : '—'}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            ))
-          )}
-        </div>
-      )}
-
-      {/* ─── Tab: Importar ─── */}
+      {/* ─── Tab: Importar (sembrados/resultados por jornada) ─── */}
       {tab === 'importar' && (
         <div className="space-y-5">
           <div className="bg-blue-50 border border-blue-100 rounded-xl px-5 py-4 text-sm text-blue-700">
-            <p className="font-semibold">Importar archivos Meet Manager</p>
+            <p className="font-semibold">Sembrados y resultados por jornada</p>
             <p className="text-xs text-blue-500 mt-0.5">
-              Los archivos se procesan y quedan asociados a este torneo. Formatos soportados: PDF, HY3, CSV, Excel.
+              Subí acá el sembrado y los resultados de cada jornada a medida que los recibís. Quedan guardados en este torneo — no se crea un torneo nuevo.
             </p>
           </div>
+
+          {totalDays > 1 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400 font-medium mr-1">Jornada:</span>
+              <button
+                onClick={() => setImportDay(0)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
+                  importDay === 0
+                    ? 'bg-pool-700 text-white border-pool-700'
+                    : 'border-gray-200 text-gray-500 hover:border-pool-300 hover:text-pool-700'
+                }`}
+              >
+                General
+              </button>
+              {days.map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setImportDay(d)}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
+                    importDay === d
+                      ? 'bg-aqua-500 text-white border-aqua-500'
+                      : 'border-gray-200 text-gray-500 hover:border-aqua-300 hover:text-aqua-600'
+                  }`}
+                >
+                  Jornada {d}
+                </button>
+              ))}
+            </div>
+          )}
+          {totalDays > 1 && importDay === 0 && (
+            <p className="text-xs text-gray-400 -mt-3">
+              Archivo general del torneo completo — se sube al finalizar, con todas las jornadas juntas.
+            </p>
+          )}
+
           <div className="grid md:grid-cols-2 gap-5">
-            <ImportUploader
+            <DayFileUploader
               tournamentId={id}
-              importType="sembrados"
-              title="Importar Sembrados"
-              description="Planilla de carreras y series — quiénes nadan en cada carril"
+              day={importDay}
+              fileType="sembrados"
+              title="Sembrados"
+              description="Programa de series antes de nadar — quiénes nadan en cada carril"
+              onUploaded={() => void loadDayFiles()}
               icon={
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                 </svg>
               }
             />
-            <ImportUploader
+            <DayFileUploader
               tournamentId={id}
-              importType="resultados"
-              title="Importar Resultados"
-              description="Tiempos finales de competencia — se homologan al finalizar el torneo"
+              day={importDay}
+              fileType="resultados"
+              title="Resultados"
+              description="Tiempos finales de esa jornada"
+              onUploaded={() => void loadDayFiles()}
               icon={
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -570,6 +728,12 @@ export default function TorneoDetailPage() {
               }
             />
           </div>
+
+          {dayFilesLoading && <p className="text-sm text-gray-400">Cargando...</p>}
+          {dayFilesError && <p className="text-sm text-red-600">{dayFilesError}</p>}
+          {!dayFilesLoading && !dayFilesError && (
+            <DayFileList files={dayFiles} onRemove={(fileId) => void handleRemoveDayFile(fileId)} />
+          )}
         </div>
       )}
 
@@ -651,6 +815,47 @@ export default function TorneoDetailPage() {
           )}
         </div>
       )}
+
+      {/* ─── Modal: confirmar corte de jornada ─── */}
+      {splitConfirm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-aqua-50 flex items-center justify-center text-aqua-600 shrink-0">
+                <SplitDayIcon />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Cortar jornada acá</h3>
+                <p className="text-sm text-gray-400 mt-0.5">
+                  Prueba #{splitConfirm.orderNo} — {splitConfirm.eventDefinition.distance}m {splitConfirm.eventDefinition.stroke}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-sm text-gray-600">
+              Esta prueba y todas las que siguen (en orden, dentro de la Jornada {splitConfirm.dayNumber}) van a pasar a la{' '}
+              <span className="font-semibold text-gray-900">Jornada {splitConfirm.dayNumber + 1}</span>.
+            </p>
+
+            {splitError && (
+              <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{splitError}</p>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+              <button
+                onClick={() => { setSplitConfirm(null); setSplitError(null); }}
+                disabled={splitLoading}
+                className="btn-secondary"
+              >
+                Cancelar
+              </button>
+              <button onClick={() => void confirmSplitDay()} disabled={splitLoading} className="btn-primary">
+                {splitLoading ? 'Moviendo...' : `Mover a Jornada ${splitConfirm.dayNumber + 1}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -663,5 +868,10 @@ const BackIcon = () => (
 const ExternalLinkIcon = () => (
   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+  </svg>
+);
+const SplitDayIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h10m-4 6l4-4-4-4" />
   </svg>
 );

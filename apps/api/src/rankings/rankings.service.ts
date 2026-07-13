@@ -83,29 +83,64 @@ export class RankingsService {
       orderBy: { finalTime: 'asc' },
       include: {
         swimmer: { select: { id: true, firstName: true, lastName: true } },
-        category: { select: { id: true, name: true } },
+        category: { select: { id: true, name: true, code: true } },
       },
     });
 
-    const clubIds = [...new Set(rows.map((r) => r.clubId))];
+    // Cuando se ven todas las categorías juntas ("Todos"), un mismo nadador
+    // puede tener marca en su categoría real (ej. Mayores) y en Absoluto
+    // (categoría abierta que se solapa con todas las franjas etarias) para
+    // la misma prueba — sin este merge aparecería duplicado. Nos quedamos con
+    // su mejor tiempo; si hay empate real (misma marca en dos categorías),
+    // se combinan los nombres ("Mayores y Absoluto") en vez de descartar una
+    // — el nadador realmente tiene esa marca homologada en ambas.
+    let effectiveRows = rows;
+    const tiedCategoryNames = new Map<string, Set<string>>();
+    if (!dto.categoryId) {
+      const bestBySwimmer = new Map<string, (typeof rows)[number]>();
+      for (const r of rows) {
+        const current = bestBySwimmer.get(r.swimmerId);
+        if (!current || r.finalTime < current.finalTime) {
+          bestBySwimmer.set(r.swimmerId, r);
+          tiedCategoryNames.set(r.swimmerId, new Set([r.category.name]));
+        } else if (r.finalTime === current.finalTime) {
+          tiedCategoryNames.get(r.swimmerId)!.add(r.category.name);
+          // La fila "representativa" (de donde salen categoryId/club, etc.) preferimos
+          // que sea la categoría específica, no Absoluto — es solo el agregado.
+          if (current.category.code === 'ABS' && r.category.code !== 'ABS') {
+            bestBySwimmer.set(r.swimmerId, r);
+          }
+        }
+      }
+      effectiveRows = Array.from(bestBySwimmer.values()).sort((a, b) => a.finalTime - b.finalTime);
+    }
+
+    const clubIds = [...new Set(effectiveRows.map((r) => r.clubId))];
     const clubs = await this.prisma.club.findMany({
       where: { id: { in: clubIds } },
       select: { id: true, name: true },
     });
     const clubMap = new Map(clubs.map((c) => [c.id, c.name]));
 
-    const result: RankingEntry[] = rows.map((r, idx) => ({
-      position: idx + 1,
-      swimmerId: r.swimmerId,
-      swimmerName: `${r.swimmer.firstName} ${r.swimmer.lastName}`,
-      clubId: r.clubId,
-      clubName: clubMap.get(r.clubId) ?? '',
-      categoryId: r.categoryId,
-      categoryName: r.category.name,
-      finalTime: r.finalTime,
-      sourceResultId: r.sourceResultId,
-      computedAt: r.computedAt,
-    }));
+    const result: RankingEntry[] = effectiveRows.map((r, idx) => {
+      const tied = tiedCategoryNames.get(r.swimmerId);
+      const categoryName =
+        tied && tied.size > 1
+          ? `${r.category.name} y ${[...tied].filter((n) => n !== r.category.name).join(', ')}`
+          : r.category.name;
+      return {
+        position: idx + 1,
+        swimmerId: r.swimmerId,
+        swimmerName: `${r.swimmer.firstName} ${r.swimmer.lastName}`,
+        clubId: r.clubId,
+        clubName: clubMap.get(r.clubId) ?? '',
+        categoryId: r.categoryId,
+        categoryName,
+        finalTime: r.finalTime,
+        sourceResultId: r.sourceResultId,
+        computedAt: r.computedAt,
+      };
+    });
 
     await this.redis.set(key, result, CACHE_TTL.EVENT_BEST);
     return result;
