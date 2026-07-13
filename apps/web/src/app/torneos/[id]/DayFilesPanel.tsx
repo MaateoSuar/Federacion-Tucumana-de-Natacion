@@ -4,6 +4,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DayFile, SembradoRow, ResultadoRow } from '@/lib/api';
 import { formatTime } from '@/lib/formatTime';
 import { matchesFuzzySearch } from '@/lib/search';
+import { MedalIcon, positionClass } from '@/components/ui/MedalIcon';
+
+// Mismo esquema de puntos que la página oficial de resultados por prueba — puesto 1º a 8º.
+const POINTS = [9, 7, 6, 5, 4, 3, 2, 1];
+function getPoints(position: number): number | null {
+  return POINTS[position - 1] ?? null;
+}
 
 /** Navegación "encontrar nadador/a": cuenta coincidencias de nombre y permite saltar entre ellas con flechas. */
 function SwimmerMatchNav({
@@ -51,7 +58,7 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 // Grid fijo (mismas columnas para el header y cada fila) — así las series de una misma
 // prueba quedan alineadas entre sí, sin depender del ancho de contenido de cada una.
 const SEMBRADO_GRID = 'grid grid-cols-[2.5rem_1.6fr_2.5rem_1fr_5.5rem]';
-const RESULTADO_GRID = 'grid grid-cols-[3.25rem_1.6fr_0.9fr_5rem_5.5rem]';
+const RESULTADO_GRID = 'grid grid-cols-[3.25rem_1.6fr_0.9fr_5rem_5.5rem_3rem]';
 
 type FileType = 'sembrados' | 'resultados';
 
@@ -551,6 +558,7 @@ function ResultadosListPublic({ rows }: { rows: ResultadoRow[] }) {
                       <span className="min-w-0 truncate">Club</span>
                       <span className="min-w-0 truncate text-right">Sembrado</span>
                       <span className="min-w-0 truncate text-right">Final</span>
+                      <span className="min-w-0 truncate text-right">Pts</span>
                     </div>
                     {categories.map(({ category, rows: catRows }, catIdx) => (
                       <div key={catIdx} className="border-b border-pool-700/20 last:border-0">
@@ -563,6 +571,7 @@ function ResultadosListPublic({ rows }: { rows: ResultadoRow[] }) {
                           {catRows.map(({ row: r, displayPlace }, i) => {
                             const key = `${groupKey}::${catIdx}::${i}`;
                             const isCurrent = key === currentMatchKey;
+                            const pts = displayPlace != null ? getPoints(displayPlace) : null;
                             return (
                               <div
                                 key={i}
@@ -570,9 +579,19 @@ function ResultadosListPublic({ rows }: { rows: ResultadoRow[] }) {
                                   if (el) rowRefs.current.set(key, el);
                                   else rowRefs.current.delete(key);
                                 }}
-                                className={`${RESULTADO_GRID} gap-2 px-4 py-2 text-xs items-center transition-colors ${isCurrent ? 'bg-aqua-500/20' : ''}`}
+                                className={`${RESULTADO_GRID} gap-2 px-4 py-2 text-xs items-center transition-colors ${
+                                  isCurrent
+                                    ? 'bg-aqua-500/20'
+                                    : displayPlace != null
+                                    ? positionClass(displayPlace)
+                                    : ''
+                                }`}
                               >
-                                <span className="min-w-0 truncate font-bold text-aqua-300">{displayPlace ?? PLACE_LABEL[r.status] ?? '—'}</span>
+                                <span className="min-w-0">
+                                  {displayPlace != null ? <MedalIcon position={displayPlace} /> : (
+                                    <span className="font-bold text-aqua-300">{PLACE_LABEL[r.status] ?? '—'}</span>
+                                  )}
+                                </span>
                                 <span className="min-w-0 truncate text-pool-100">{r.swimmerName}</span>
                                 <span className="min-w-0 truncate text-pool-400">{r.club}</span>
                                 <span className="min-w-0 truncate font-mono text-pool-400 text-right">
@@ -581,6 +600,13 @@ function ResultadosListPublic({ rows }: { rows: ResultadoRow[] }) {
                                 <span className="min-w-0 truncate font-mono font-bold text-aqua-200 text-right flex items-center justify-end gap-1.5">
                                   <TimeDelta seedMs={r.seedTimeMs} finalMs={r.finalTimeMs} />
                                   {r.finalTimeMs === null ? (PLACE_LABEL[r.status] ?? '—') : formatTime(r.finalTimeMs)}
+                                </span>
+                                <span className="min-w-0 truncate text-right">
+                                  {pts != null ? (
+                                    <span className="font-bold text-aqua-300 tabular-nums">{pts}</span>
+                                  ) : (
+                                    <span className="text-pool-600 text-xs">—</span>
+                                  )}
                                 </span>
                               </div>
                             );
