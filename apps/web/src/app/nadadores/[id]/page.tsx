@@ -24,9 +24,9 @@ export default async function NadadorPage({ params }: { params: { id: string } }
   try {
     const [swimmer, pbs, resultsPage, clubHistory, stats, evolution] = await Promise.all([
       fetchSwimmer(params.id),
-      fetchSwimmerPersonalBests(params.id),
-      fetchSwimmerResults(params.id),
-      fetchSwimmerClubHistory(params.id),
+      fetchSwimmerPersonalBests(params.id).catch(() => [] as Awaited<ReturnType<typeof fetchSwimmerPersonalBests>>),
+      fetchSwimmerResults(params.id).catch(() => ({ total: 0, page: 1, limit: 20, results: [] }) as Awaited<ReturnType<typeof fetchSwimmerResults>>),
+      fetchSwimmerClubHistory(params.id).catch(() => [] as Awaited<ReturnType<typeof fetchSwimmerClubHistory>>),
       fetchSwimmerStatistics(params.id).catch(() => null),
       fetchSwimmerTimeEvolution(params.id).catch(() => []),
     ]);
@@ -189,6 +189,7 @@ export default async function NadadorPage({ params }: { params: { id: string } }
                             <div className="flex items-center justify-center gap-1">
                               {r.isPb && <span className="text-xs font-bold text-emerald-400 bg-emerald-400/10 px-1.5 py-0.5 rounded">PB</span>}
                               {r.isRecord && <RecordBadge />}
+                              {!r.homologated && <span className="text-xs text-pool-500 bg-pool-800/60 px-1.5 py-0.5 rounded">Pendiente</span>}
                             </div>
                           </td>
                         </tr>
@@ -198,6 +199,15 @@ export default async function NadadorPage({ params }: { params: { id: string } }
                 </table>
               </div>
             </section>
+          )}
+
+          {/* Estado vacío */}
+          {!stats?.global && evolution.length === 0 && pbs.length === 0 && resultsPage.results.length === 0 && clubHistory.length === 0 && (
+            <div className="text-center py-16 text-pool-400">
+              <p className="text-5xl mb-4">🏊</p>
+              <p className="font-semibold text-white">Sin resultados registrados</p>
+              <p className="text-sm mt-1">Este nadador todavía no tiene resultados importados en la plataforma.</p>
+            </div>
           )}
 
           {/* Historial de clubes */}

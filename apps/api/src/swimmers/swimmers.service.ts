@@ -10,6 +10,7 @@ import { CreateSwimmerDto } from './dto/create-swimmer.dto';
 import { UpdateSwimmerDto } from './dto/update-swimmer.dto';
 import { AssignClubDto } from './dto/assign-club.dto';
 import { Gender, Prisma, ResultSource } from '@prisma/client';
+import { buildProgression } from './progression/progression';
 
 export interface SwimmerFilters {
   search?: string;
@@ -242,10 +243,11 @@ export class SwimmersService {
   async getResults(id: string, page = 1, limit = 20) {
     await this.findOne(id);
     const skip = (page - 1) * limit;
+    const where: Prisma.ResultWhereInput = { swimmerId: id, status: { in: ['OK', 'DSQ', 'DNS', 'DNF'] as ('OK' | 'DSQ' | 'DNS' | 'DNF')[] } };
     const [total, results] = await Promise.all([
-      this.prisma.result.count({ where: { swimmerId: id, homologated: true, status: 'OK' } }),
+      this.prisma.result.count({ where }),
       this.prisma.result.findMany({
-        where: { swimmerId: id, homologated: true, status: 'OK' },
+        where,
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
@@ -391,6 +393,43 @@ export class SwimmersService {
       create: { swimmerId, ...data },
       update: data,
     });
+  }
+
+  async getProgression(swimmerId: string, pool?: 'P25' | 'P50') {
+    await this.findOne(swimmerId);
+
+    const rows = await this.prisma.result.findMany({
+      where: {
+        swimmerId,
+        status: 'OK',
+        homologated: true,
+        finalTime: { not: null },
+        ...(pool ? { event: { tournament: { poolLength: pool } } } : {}),
+      },
+      select: {
+        id: true,
+        finalTime: true,
+        status: true,
+        homologated: true,
+        place: true,
+        isPb: true,
+        event: {
+          select: {
+            orderNo: true,
+            eventDefinition: {
+              select: { id: true, stroke: true, distance: true, gender: true, code: true },
+            },
+            tournament: {
+              select: { id: true, name: true, startDate: true, poolLength: true },
+            },
+          },
+        },
+        category: { select: { id: true, name: true } },
+        club: { select: { id: true, name: true, shortName: true } },
+      },
+    });
+
+    return buildProgression(swimmerId, rows as Parameters<typeof buildProgression>[1], pool);
   }
 
   private async ensureClubExists(clubId: string) {

@@ -104,6 +104,13 @@ export function fetchClubRanking(params?: Record<string, string>) {
 
 // ─── Nadadores ───────────────────────────────────────────────────────────────
 
+export function fetchSwimmers(params?: { search?: string; page?: number; limit?: number }) {
+  const qs = params ? '?' + new URLSearchParams(
+    Object.fromEntries(Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)]))
+  ).toString() : '';
+  return serverFetch<{ items: Swimmer[]; total: number; page: number; limit: number }>(`/swimmers${qs}`, 30);
+}
+
 export function fetchSwimmer(id: string) {
   return serverFetch<Swimmer>(`/swimmers/${id}`, 300);
 }
@@ -148,6 +155,43 @@ export function fetchSwimmerTimeEvolution(id: string) {
 
 export function fetchSwimmerStatistics(id: string) {
   return serverFetch<SwimmerStatistics>(`/swimmers/${id}/statistics`, 300);
+}
+
+export interface ProgressionHistoryEntry {
+  tournamentId: string;
+  tournamentName: string;
+  date: string;
+  timeMs: number;
+  deltaVsPreviousMs: number | null;
+  deltaVsPbMs: number | null;
+  isPb: boolean;
+  categoryName: string;
+  clubName: string;
+  place: number | null;
+  medal: 'gold' | 'silver' | 'bronze' | null;
+}
+
+export interface ProgressionEvent {
+  eventDefinitionId: string;
+  label: string;
+  stroke: string;
+  distance: number;
+  pool: 'P25' | 'P50';
+  personalBest: { timeMs: number; tournamentId: string; tournamentName: string; date: string; worldAquaticsPoints: number | null } | null;
+  last: { timeMs: number; tournamentId: string; tournamentName: string; date: string; deltaVsPreviousMs: number | null; deltaVsPbMs: number | null; isPb: boolean } | null;
+  totalImprovementMs: number | null;
+  history: ProgressionHistoryEntry[];
+}
+
+export interface SwimmerProgression {
+  swimmerId: string;
+  events: ProgressionEvent[];
+  tournaments: Array<{ tournamentId: string; name: string; date: string; pool: 'P25' | 'P50'; events: number; pbs: number; medals: { gold: number; silver: number; bronze: number } }>;
+}
+
+export function fetchSwimmerProgression(id: string, pool?: 'P25' | 'P50') {
+  const qs = pool ? `?pool=${pool}` : '';
+  return serverFetch<SwimmerProgression>(`/swimmers/${id}/progression${qs}`, 60);
 }
 
 // ─── Récords ─────────────────────────────────────────────────────────────────
@@ -313,6 +357,7 @@ export interface SwimmerResult {
   status: string;
   isPb: boolean;
   isRecord: boolean;
+  homologated: boolean;
   event: {
     eventDefinition: { code: string; stroke: string; distance: number };
     tournament: { id: string; name: string; startDate: string; poolLength: 'P25' | 'P50' };

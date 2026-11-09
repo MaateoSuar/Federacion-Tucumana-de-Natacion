@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { SwimmerNameLink } from '@/components/SwimmerNameLink';
 import type { DayFile, SembradoRow, ResultadoRow } from '@/lib/api';
 import { formatTime } from '@/lib/formatTime';
 import { matchesFuzzySearch } from '@/lib/search';
@@ -296,7 +297,10 @@ function SembradosTablePublic({ rows }: { rows: SembradoRow[] }) {
                             className={`${SEMBRADO_GRID} gap-2 px-4 py-1.5 text-xs items-center transition-colors ${isCurrent ? 'bg-aqua-500/20' : ''}`}
                           >
                             <span className="min-w-0 truncate font-bold text-aqua-300">{r.lane}</span>
-                            <span className="min-w-0 truncate text-pool-100">{r.swimmerName}</span>
+                            <SwimmerNameLink
+                              name={r.swimmerName}
+                              className="min-w-0 truncate text-pool-100 hover:text-aqua-300 transition-colors"
+                            />
                             <span className="min-w-0 truncate text-pool-400">{r.age ?? '—'}</span>
                             <span className="min-w-0 truncate text-pool-400">{r.club}</span>
                             <span className="min-w-0 truncate font-mono text-pool-300 text-right">
@@ -592,7 +596,11 @@ function ResultadosListPublic({ rows }: { rows: ResultadoRow[] }) {
                                     <span className="font-bold text-aqua-300">{PLACE_LABEL[r.status] ?? '—'}</span>
                                   )}
                                 </span>
-                                <span className="min-w-0 truncate text-pool-100">{r.swimmerName}</span>
+                                <SwimmerNameLink
+                                  name={r.swimmerName}
+                                  className="min-w-0 truncate text-pool-100 hover:text-aqua-300 transition-colors"
+                                  onClick={(e) => e.stopPropagation()}
+                                />
                                 <span className="min-w-0 truncate text-pool-400">{r.club}</span>
                                 <span className="min-w-0 truncate font-mono text-pool-400 text-right">
                                   {r.seedTimeMs === null ? '—' : formatTime(r.seedTimeMs)}

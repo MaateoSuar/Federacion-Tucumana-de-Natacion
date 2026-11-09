@@ -135,6 +135,16 @@ export class SwimmersController {
     return this.swimmersService.getTimeEvolution(id, poolLength);
   }
 
+  @Get(':id/progression')
+  @ApiOperation({ summary: 'Progresión del nadador: historia por prueba con deltas y PBs' })
+  @ApiQuery({ name: 'pool', required: false, enum: ['P25', 'P50'] })
+  getProgression(
+    @Param('id') id: string,
+    @Query('pool') pool?: 'P25' | 'P50',
+  ) {
+    return this.swimmersService.getProgression(id, pool);
+  }
+
   @Get(':id/profile')
   @ApiOperation({ summary: 'Perfil público del atleta' })
   getProfile(@Param('id') id: string) {
