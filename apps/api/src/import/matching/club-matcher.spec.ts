@@ -63,6 +63,22 @@ describe('ClubMatcher', () => {
     expect(result.requiresConfirmation).toBe(true);
   });
 
+  it('sugiere el club aunque el nombre venga en otro orden o sin "Club"', async () => {
+    const prisma = makePrisma();
+    (prisma.club.findMany as jest.Mock).mockResolvedValue([
+      { id: 'club-cat', name: 'Club Atlético Tucumán', shortName: 'CAT' },
+      { id: 'club-azu', name: 'Club Azucena', shortName: 'AZU' },
+    ]);
+    const matcher = new ClubMatcher(prisma as never);
+    for (const name of ['Azucena Club', 'Azucena', 'AZUCENA']) {
+      const result = await matcher.match(makeClub({ name, short_name: '' }), 'meet_manager');
+      expect(result.requiresConfirmation).toBe(true);
+      expect(result.clubId).toBeNull();
+      expect(result.candidateClubId).toBe('club-azu');
+      expect(result.candidates?.[0]?.reasons.length).toBeGreaterThan(0);
+    }
+  });
+
   it('none si no hay match', async () => {
     const prisma = makePrisma();
     const matcher = new ClubMatcher(prisma as never);

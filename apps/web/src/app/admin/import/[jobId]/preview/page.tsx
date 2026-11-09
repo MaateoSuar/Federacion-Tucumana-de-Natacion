@@ -18,8 +18,28 @@ interface Issue {
   suggestion?: string;
 }
 
+interface MatchCandidate {
+  displayName: string;
+  score: number;
+  reasons: string[];
+  birthYear?: number | null;
+  clubName?: string | null;
+}
+
+interface MatchToReview {
+  displayName: string;
+  matchedBy: string;
+  candidates?: MatchCandidate[];
+}
+
+interface MatchGroups {
+  needsConfirmation: MatchToReview[];
+}
+
 interface Preview {
   jobId: string;
+  swimmerMatches?: MatchGroups;
+  clubMatches?: MatchGroups;
   status: string;
   summary: {
     totalRows: number;
@@ -81,6 +101,55 @@ function SeverityBadge({ sev }: { sev: string }) {
   };
   return (
     <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${map[sev] ?? ''}`}>{sev}</span>
+  );
+}
+
+function MatchReviewSection({ title, items }: { title: string; items: MatchToReview[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <div className="px-6 py-4 border-b border-gray-50">
+        <h2 className="font-semibold text-gray-800">{title}</h2>
+        <p className="text-xs text-gray-400 mt-0.5">
+          Posibles coincidencias por similitud de nombre. Son informativas: al importar no se unifican automáticamente.
+        </p>
+      </div>
+      <ul className="divide-y divide-gray-50 max-h-96 overflow-y-auto">
+        {items.map((item, i) => (
+          <li key={`${item.displayName}-${i}`} className="px-6 py-4">
+            <p className="text-sm font-medium text-gray-800">
+              <span className="text-gray-400 font-normal">En el archivo: </span>
+              {item.displayName}
+            </p>
+            {item.candidates && item.candidates.length > 0 ? (
+              <ul className="mt-2 space-y-2">
+                {item.candidates.map((c, j) => (
+                  <li key={`${c.displayName}-${j}`} className="flex items-start gap-3 rounded-xl bg-gray-50 px-3 py-2">
+                    <span className="shrink-0 mt-0.5 px-2 py-0.5 rounded-full bg-aqua-100 text-aqua-600 text-xs font-semibold tabular-nums">
+                      {Math.round(c.score * 100)}%
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm text-gray-800">
+                        {c.displayName}
+                        {(c.birthYear || c.clubName) && (
+                          <span className="text-gray-400">
+                            {' · '}
+                            {[c.birthYear, c.clubName].filter(Boolean).join(' · ')}
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">{c.reasons.join(' · ')}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-gray-400 mt-1">Coincidencia por {item.matchedBy}.</p>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -242,6 +311,19 @@ export default function PreviewPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {preview && (
+        <>
+          <MatchReviewSection
+            title="Clubes a revisar"
+            items={preview.clubMatches?.needsConfirmation ?? []}
+          />
+          <MatchReviewSection
+            title="Nadadores a revisar"
+            items={preview.swimmerMatches?.needsConfirmation ?? []}
+          />
+        </>
       )}
 
       {/* Issues */}

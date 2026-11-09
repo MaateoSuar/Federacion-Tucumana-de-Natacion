@@ -12,6 +12,7 @@ import { CommitProcessor } from './processors/commit.processor';
 import { AthleteMatcher } from './matching/athlete-matcher';
 import { ClubMatcher } from './matching/club-matcher';
 import { DuplicateDetector } from './matching/duplicate-detector';
+import { MATCH_CONFIG, parseMatchConfig } from './matching/match-config';
 import { MeetManagerPdfAdapter } from '../ingest/adapters/meet-manager-pdf/meet-manager-pdf-adapter';
 import { CsvAdapter } from '../ingest/adapters/csv/csv-adapter';
 import { ExcelAdapter } from '../ingest/adapters/excel/excel-adapter';
@@ -43,6 +44,12 @@ import { IMPORT_QUEUE } from './import.queue';
     ImportRepository,
     ImportProcessor,
     CommitProcessor,
+    {
+      provide: MATCH_CONFIG,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) =>
+        parseMatchConfig(config.get<string>('IMPORT_MATCHING_CONFIG')),
+    },
     AthleteMatcher,
     ClubMatcher,
     DuplicateDetector,

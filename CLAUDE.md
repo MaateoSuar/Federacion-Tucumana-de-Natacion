@@ -130,6 +130,24 @@ Seguir siempre este ciclo:
 
 ---
 
+## Agentes del proyecto (`.claude/agents/`)
+
+| Agente | Tipo | Cuándo usarlo |
+|--------|------|---------------|
+| `milestone-planner` | Flujo (solo lectura) | Al iniciar cualquier feature: produce el plan para aprobar (paso 1 de la metodología). |
+| `verifier` | Flujo (solo lectura) | Antes de cada commit y al cerrar un milestone: lint + typecheck + test (paso 4). |
+| `rules-guardian` | Flujo (solo lectura) | Antes de cada commit, junto con `verifier`: diff contra reglas inviolables y alcance. |
+| `ingest-specialist` | Dominio | Problemas de lectura de PDF/HY3/CSV de Meet Manager y normalización. |
+| `identity-matcher` | Dominio | Matching de nadadores/clubes escritos distinto entre archivos; duplicados. |
+| `data-quality-auditor` | Dominio (solo lectura) | Después de importaciones grandes: informe de nadadores/clubes duplicados y datos incompletos en la base. |
+| `security-reviewer` | Flujo (solo lectura) | Antes de deployar o al tocar auth, roles, endpoints de admin, subida de archivos o datos personales. |
+| `ui-designer` | Estética | Crear o rediseñar pantallas de `apps/web` con la identidad visual FTN. |
+| `ui-reviewer` | Estética (solo lectura) | Auditoría visual/UX después de cambios de frontend. |
+
+Un commit se hace solo si `verifier` está en verde y `rules-guardian` da **OK**.
+
+---
+
 ## Qué NO hacer sin preguntar
 
 - **Cambiar el esquema de datos aprobado** (tablas, columnas, tipos, relaciones, índices) sin consultar.

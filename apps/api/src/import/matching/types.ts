@@ -15,6 +15,23 @@ export type ClubMatchedBy =
   | 'fuzzy'
   | 'none';
 
+export interface SwimmerCandidate {
+  swimmerId: string;
+  displayName: string;
+  birthYear: number | null;
+  clubName: string | null;
+  /** 0–1. Sugerencia para el admin, nunca una decisión. */
+  score: number;
+  reasons: string[];
+}
+
+export interface ClubCandidate {
+  clubId: string;
+  displayName: string;
+  score: number;
+  reasons: string[];
+}
+
 export interface SwimmerMatchResult {
   /** Índice en normalizedMeet.swimmers */
   swimmerRef: string;
@@ -26,6 +43,8 @@ export interface SwimmerMatchResult {
   requiresConfirmation: boolean;
   /** Solo para fuzzy: ID sugerido, pero no confirmado */
   candidateSwimmerId?: string;
+  /** Solo para fuzzy: candidatos ordenados de mayor a menor puntaje */
+  candidates?: SwimmerCandidate[];
   displayName: string;
 }
 
@@ -37,6 +56,7 @@ export interface ClubMatchResult {
   matchedBy: ClubMatchedBy;
   requiresConfirmation: boolean;
   candidateClubId?: string;
+  candidates?: ClubCandidate[];
   displayName: string;
 }
 

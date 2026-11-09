@@ -51,6 +51,57 @@ export function similarity(a: string, b: string): number {
   return 1 - levenshtein(na, nb) / maxLen;
 }
 
-/** Umbral mínimo para considerar un match fuzzy válido (sugiere candidato, no automático). */
-export const FUZZY_SWIMMER_THRESHOLD = 0.8;
-export const FUZZY_CLUB_THRESHOLD = 0.75;
+/**
+ * Separa un texto en palabras normalizadas. Las siglas con puntos ("C.A.T.") se compactan ("cat").
+ */
+export function tokenize(text: string): string[] {
+  const compacted = text.replace(/(?<=\b[A-Za-z])\.(?=[A-Za-z]\b)/g, '');
+  return normalizeText(compacted)
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(' ')
+    .filter((t) => t.length > 0);
+}
+
+/**
+ * Similaridad Jaro-Winkler [0, 1]. Más adecuada que Levenshtein para palabras cortas como nombres propios.
+ */
+export function jaroWinkler(a: string, b: string): number {
+  if (a === b) return 1;
+  if (a.length === 0 || b.length === 0) return 0;
+
+  const window = Math.max(0, Math.floor(Math.max(a.length, b.length) / 2) - 1);
+  const aMatched: boolean[] = new Array<boolean>(a.length).fill(false);
+  const bMatched: boolean[] = new Array<boolean>(b.length).fill(false);
+
+  let matches = 0;
+  for (let i = 0; i < a.length; i++) {
+    const from = Math.max(0, i - window);
+    const to = Math.min(b.length - 1, i + window);
+    for (let j = from; j <= to; j++) {
+      if (!bMatched[j] && a[i] === b[j]) {
+        aMatched[i] = true;
+        bMatched[j] = true;
+        matches++;
+        break;
+      }
+    }
+  }
+  if (matches === 0) return 0;
+
+  let transpositions = 0;
+  let k = 0;
+  for (let i = 0; i < a.length; i++) {
+    if (!aMatched[i]) continue;
+    while (!bMatched[k]) k++;
+    if (a[i] !== b[k]) transpositions++;
+    k++;
+  }
+
+  const jaro =
+    (matches / a.length + matches / b.length + (matches - transpositions / 2) / matches) / 3;
+
+  let prefix = 0;
+  while (prefix < 4 && prefix < a.length && prefix < b.length && a[prefix] === b[prefix]) prefix++;
+
+  return jaro + prefix * 0.1 * (1 - jaro);
+}
