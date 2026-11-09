@@ -14,6 +14,10 @@ import type {
   NormalizedStroke,
   NormalizedRound,
 } from '../../ingest/types/normalized-meet.types';
+import type { MatchResolution, MatchResultsPayload } from '../matching/types';
+import { countPendingDecisions } from '../matching/pending-decisions';
+import { AthleteMatcher } from '../matching/athlete-matcher';
+import { ClubMatcher } from '../matching/club-matcher';
 
 interface RollbackPayload {
   tournamentId: string | null;
@@ -21,6 +25,44 @@ interface RollbackPayload {
   newClubIds: string[];
   newEventIds: string[];
   resultIds: string[];
+  /** Grafías de nadadores/clubes aprendidas en este import (external_id_map). */
+  learnedExternalIds: string[];
+}
+
+const SOURCE_SYSTEM = 'meet_manager';
+
+function resolvedTargetId(resolution: MatchResolution | undefined, matchedId: string | null): string | null {
+  if (resolution) return resolution.decision === 'link' ? resolution.targetId : null;
+  return matchedId;
+}
+
+function bringsNewMatch(
+  previousIds: Array<string | null>,
+  freshConfidence: string,
+  freshIds: Array<string | null>,
+): boolean {
+  if (freshConfidence === 'none') return false;
+  return freshIds.some((id) => id !== null && !previousIds.includes(id));
+}
+
+function auditPayload(
+  jobId: string,
+  nameInFile: string,
+  matchedBy: string,
+  resolution: MatchResolution,
+  candidates: Array<{ id: string; displayName: string; score: number }>,
+  committedBy: string | null,
+): Prisma.InputJsonValue {
+  return {
+    importJobId: jobId,
+    nameInFile,
+    matchedBy,
+    decision: resolution.decision,
+    targetId: resolution.decision === 'link' ? resolution.targetId : null,
+    decidedAt: resolution.decidedAt,
+    committedBy,
+    candidates,
+  };
 }
 
 const STROKE_CODE: Record<NormalizedStroke, string> = {
@@ -68,10 +110,63 @@ export class CommitProcessor {
   constructor(
     private readonly prisma: PrismaService,
     private readonly repo: ImportRepository,
+    private readonly athleteMatcher: AthleteMatcher,
+    private readonly clubMatcher: ClubMatcher,
     @Optional() private readonly resultsGateway: ResultsGateway | null,
   ) {}
 
-  async commit(jobId: string): Promise<string> {
+  /**
+   * Vuelve a analizar solo lo que el commit crearía como nuevo. Si otra importación confirmada
+   * después del análisis creó o aprendió a esa persona/club, el match se reemplaza por el fresco
+   * (queda pendiente de revisión) en vez de duplicar. Devuelve cuántos matches cambiaron.
+   */
+  private async refreshStaleMatches(meet: NormalizedMeet, matchResults: MatchResultsPayload): Promise<number> {
+    let refreshed = 0;
+    const clubIdByRef: Record<string, string | null> = {};
+
+    for (let i = 0; i < matchResults.clubs.length; i++) {
+      const old = matchResults.clubs[i];
+      if (!old) continue;
+      const target = resolvedTargetId(old.resolution, old.clubId);
+      clubIdByRef[old.clubRef] = target;
+      if (target) continue;
+      const club = meet.clubs.find((c) => c.external_team_id === old.clubRef);
+      if (!club) continue;
+      const fresh = await this.clubMatcher.match(club, SOURCE_SYSTEM);
+      const previousIds = [old.clubId, ...(old.candidates ?? []).map((c) => c.clubId)];
+      if (bringsNewMatch(previousIds, fresh.confidence, [fresh.clubId, ...(fresh.candidates ?? []).map((c) => c.clubId)])) {
+        matchResults.clubs[i] = fresh;
+        refreshed++;
+      }
+    }
+
+    const swimmerIndexByRef = new Map(matchResults.swimmers.map((m, i) => [m.swimmerRef, i]));
+    const toCreate = meet.swimmers.filter((s) => {
+      const i = swimmerIndexByRef.get(s.external_athlete_id);
+      const m = i === undefined ? undefined : matchResults.swimmers[i];
+      return m !== undefined && resolvedTargetId(m.resolution, m.swimmerId) === null;
+    });
+    if (toCreate.length === 0) return refreshed;
+
+    const seasonYear = parseInt(meet.meet.start_date.slice(0, 4), 10);
+    const freshResults = await this.athleteMatcher.matchAll(toCreate, SOURCE_SYSTEM, {
+      seasonYear: Number.isNaN(seasonYear) ? undefined : seasonYear,
+      clubIdByRef,
+    });
+    for (const fresh of freshResults) {
+      const i = swimmerIndexByRef.get(fresh.swimmerRef);
+      const old = i === undefined ? undefined : matchResults.swimmers[i];
+      if (i === undefined || !old) continue;
+      const previousIds = [old.swimmerId, ...(old.candidates ?? []).map((c) => c.swimmerId)];
+      if (bringsNewMatch(previousIds, fresh.confidence, [fresh.swimmerId, ...(fresh.candidates ?? []).map((c) => c.swimmerId)])) {
+        matchResults.swimmers[i] = fresh;
+        refreshed++;
+      }
+    }
+    return refreshed;
+  }
+
+  async commit(jobId: string, committedBy?: string): Promise<string> {
     const job = await this.repo.findById(jobId);
     if (!job) throw new BadRequestException('Job no encontrado.');
     if (job.status !== 'preview') {
@@ -84,12 +179,34 @@ export class CommitProcessor {
     }
 
     const normalizedMeet = job.meetManagerImport.parsedPayload as unknown as NormalizedMeet;
+    const matchResults = job.meetManagerImport.matchResults as unknown as MatchResultsPayload | null;
+    if (!matchResults) {
+      throw new BadRequestException('El import no tiene resultados de matching; volvé a subir el archivo.');
+    }
+    const pending = countPendingDecisions(matchResults);
+    if (pending > 0) {
+      throw new BadRequestException(
+        `Hay ${pending} nadador(es)/club(es) sin decidir. Resolvelos en el preview antes de confirmar.`,
+      );
+    }
+    const refreshed = await this.refreshStaleMatches(normalizedMeet, matchResults);
+    if (refreshed > 0) {
+      await this.repo.saveMatchResults(jobId, matchResults);
+      throw new BadRequestException(
+        `Desde que se analizó el archivo aparecieron ${refreshed} coincidencia(s) nueva(s), ` +
+          'probablemente por otra importación confirmada. Revisalas en el preview antes de confirmar.',
+      );
+    }
+    const swimmerMatchByRef = new Map(matchResults.swimmers.map((m) => [m.swimmerRef, m]));
+    const clubMatchByRef = new Map(matchResults.clubs.map((m) => [m.clubRef, m]));
+
     const rollback: RollbackPayload = {
       tournamentId: null,
       newSwimmerIds: [],
       newClubIds: [],
       newEventIds: [],
       resultIds: [],
+      learnedExternalIds: [],
     };
 
     const tournamentYear = new Date(normalizedMeet.meet.start_date).getFullYear();
@@ -131,12 +248,15 @@ export class CommitProcessor {
         // ── Clubs ────────────────────────────────────────────────
         const clubIdMap: Record<string, string> = {};
         for (const club of normalizedMeet.clubs) {
-          const existing = await tx.club.findFirst({
-            where: { name: { equals: club.name, mode: 'insensitive' } },
-            select: { id: true },
-          });
-          if (existing) {
-            clubIdMap[club.external_team_id] = existing.id;
+          const match = clubMatchByRef.get(club.external_team_id);
+          if (!match) throw new BadRequestException(`Falta el matching del club "${club.name}".`);
+          const existingId = resolvedTargetId(match.resolution, match.clubId);
+          if (existingId) {
+            const stillExists = await tx.club.findUnique({ where: { id: existingId }, select: { id: true } });
+            if (!stillExists) {
+              throw new BadRequestException(`El club elegido para "${club.name}" ya no existe.`);
+            }
+            clubIdMap[club.external_team_id] = existingId;
           } else {
             const created = await tx.club.create({
               data: {
@@ -155,17 +275,25 @@ export class CommitProcessor {
         for (const sw of normalizedMeet.swimmers) {
           const gender: Gender = sw.gender === 'F' ? 'F' : 'M';
           const clubId = clubIdMap[sw.club_ref] ?? null;
-          // Find existing swimmer by name + gender (idempotent re-import)
-          const existing = await tx.swimmer.findFirst({
-            where: {
-              firstName: { equals: sw.first_name, mode: 'insensitive' },
-              lastName: { equals: sw.last_name, mode: 'insensitive' },
-              gender,
-            },
-            select: { id: true, currentClubId: true },
-          });
+          const match = swimmerMatchByRef.get(sw.external_athlete_id);
+          if (!match) {
+            throw new BadRequestException(
+              `Falta el matching del nadador "${sw.first_name} ${sw.last_name}".`,
+            );
+          }
+          const existingId = resolvedTargetId(match.resolution, match.swimmerId);
+          const existing = existingId
+            ? await tx.swimmer.findUnique({
+                where: { id: existingId },
+                select: { id: true, currentClubId: true },
+              })
+            : null;
+          if (existingId && !existing) {
+            throw new BadRequestException(
+              `El nadador elegido para "${sw.first_name} ${sw.last_name}" ya no existe.`,
+            );
+          }
           if (existing) {
-            // Update currentClub if not set yet
             if (!existing.currentClubId && clubId) {
               await tx.swimmer.update({ where: { id: existing.id }, data: { currentClubId: clubId } });
             }
@@ -186,6 +314,73 @@ export class CommitProcessor {
             rollback.newSwimmerIds.push(created.id);
           }
         }
+
+        // ── Aprendizaje: cada grafía del PDF queda mapeada a su nadador/club ──
+        // Solo PDF: su ID externo se deriva del nombre y es estable entre archivos.
+        // Los IDs de CSV/Excel son posicionales y mapearían personas distintas.
+        if (normalizedMeet.meet.source === 'pdf') {
+          const toLearn = [
+            ...normalizedMeet.swimmers
+              .filter((s) => swimmerMatchByRef.get(s.external_athlete_id)?.matchedBy !== 'external_id')
+              .map((s) => ({ externalId: s.external_athlete_id, swimmerId: swimmerIdMap[s.external_athlete_id] ?? null, clubId: null })),
+            ...normalizedMeet.clubs
+              .filter((c) => clubMatchByRef.get(c.external_team_id)?.matchedBy !== 'external_id')
+              .map((c) => ({ externalId: c.external_team_id, swimmerId: null, clubId: clubIdMap[c.external_team_id] ?? null })),
+          ];
+          const alreadyMapped = new Set(
+            (
+              await tx.externalIdMap.findMany({
+                where: { sourceSystem: SOURCE_SYSTEM, externalId: { in: toLearn.map((l) => l.externalId) } },
+                select: { externalId: true },
+              })
+            ).map((m) => m.externalId),
+          );
+          const newMappings = toLearn.filter((l) => !alreadyMapped.has(l.externalId));
+          if (newMappings.length > 0) {
+            await tx.externalIdMap.createMany({
+              data: newMappings.map((l) => ({ sourceSystem: SOURCE_SYSTEM, ...l })),
+            });
+            rollback.learnedExternalIds.push(...newMappings.map((l) => l.externalId));
+          }
+        }
+
+        // ── Auditoría de las decisiones humanas de identidad ─────
+        const auditEntries: Prisma.AuditLogCreateManyInput[] = [];
+        for (const m of matchResults.swimmers) {
+          if (!m.resolution) continue;
+          auditEntries.push({
+            userId: m.resolution.decidedBy,
+            action: m.resolution.decision === 'link' ? 'IMPORT_SWIMMER_LINKED' : 'IMPORT_SWIMMER_MARKED_NEW',
+            entityType: 'Swimmer',
+            entityId: swimmerIdMap[m.swimmerRef] ?? m.swimmerRef,
+            payload: auditPayload(
+              jobId,
+              m.displayName,
+              m.matchedBy,
+              m.resolution,
+              (m.candidates ?? []).map((c) => ({ id: c.swimmerId, displayName: c.displayName, score: c.score })),
+              committedBy ?? null,
+            ),
+          });
+        }
+        for (const m of matchResults.clubs) {
+          if (!m.resolution) continue;
+          auditEntries.push({
+            userId: m.resolution.decidedBy,
+            action: m.resolution.decision === 'link' ? 'IMPORT_CLUB_LINKED' : 'IMPORT_CLUB_MARKED_NEW',
+            entityType: 'Club',
+            entityId: clubIdMap[m.clubRef] ?? m.clubRef,
+            payload: auditPayload(
+              jobId,
+              m.displayName,
+              m.matchedBy,
+              m.resolution,
+              (m.candidates ?? []).map((c) => ({ id: c.clubId, displayName: c.displayName, score: c.score })),
+              committedBy ?? null,
+            ),
+          });
+        }
+        if (auditEntries.length > 0) await tx.auditLog.createMany({ data: auditEntries });
 
         // ── Tournament ───────────────────────────────────────────
         const tournament = await tx.tournament.create({
@@ -345,6 +540,11 @@ export class CommitProcessor {
     const mapping = (job.meetManagerImport?.mapping ?? {}) as unknown as RollbackPayload;
 
     await this.prisma.$transaction(async (tx) => {
+      if (mapping.learnedExternalIds?.length) {
+        await tx.externalIdMap.deleteMany({
+          where: { sourceSystem: SOURCE_SYSTEM, externalId: { in: mapping.learnedExternalIds } },
+        });
+      }
       if (mapping.resultIds?.length) {
         await tx.split.deleteMany({ where: { resultId: { in: mapping.resultIds } } });
         await tx.result.deleteMany({ where: { id: { in: mapping.resultIds } } });

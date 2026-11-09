@@ -141,6 +141,9 @@ Seguir siempre este ciclo:
 | `identity-matcher` | Dominio | Matching de nadadores/clubes escritos distinto entre archivos; duplicados. |
 | `data-quality-auditor` | Dominio (solo lectura) | Después de importaciones grandes: informe de nadadores/clubes duplicados y datos incompletos en la base. |
 | `security-reviewer` | Flujo (solo lectura) | Antes de deployar o al tocar auth, roles, endpoints de admin, subida de archivos o datos personales. |
+| `swim-platform-benchmarker` | Producto (solo lectura) | Antes de planear una feature: cómo la resuelven SwimCloud, SwimRankings, Meet Mobile, Swimify, World Aquatics, etc. |
+| `sports-ux-benchmarker` | Estética (solo lectura) | Antes de que `ui-designer` construya una pantalla: patrones de UI de apps deportivas de referencia. |
+| `swim-standards-expert` | Dominio (solo lectura) | Validar contra estándares: Lenex, HY3/SD3, puntos World Aquatics, reglas de récords y categorías. |
 | `ui-designer` | Estética | Crear o rediseñar pantallas de `apps/web` con la identidad visual FTN. |
 | `ui-reviewer` | Estética (solo lectura) | Auditoría visual/UX después de cambios de frontend. |
 

@@ -15,6 +15,11 @@ export type ClubMatchedBy =
   | 'fuzzy'
   | 'none';
 
+/** Decisión humana sobre un match que requería confirmación. */
+export type MatchResolution =
+  | { decision: 'link'; targetId: string; decidedBy: string; decidedAt: string }
+  | { decision: 'new'; decidedBy: string; decidedAt: string };
+
 export interface SwimmerCandidate {
   swimmerId: string;
   displayName: string;
@@ -45,6 +50,7 @@ export interface SwimmerMatchResult {
   candidateSwimmerId?: string;
   /** Solo para fuzzy: candidatos ordenados de mayor a menor puntaje */
   candidates?: SwimmerCandidate[];
+  resolution?: MatchResolution;
   displayName: string;
 }
 
@@ -57,6 +63,7 @@ export interface ClubMatchResult {
   requiresConfirmation: boolean;
   candidateClubId?: string;
   candidates?: ClubCandidate[];
+  resolution?: MatchResolution;
   displayName: string;
 }
 

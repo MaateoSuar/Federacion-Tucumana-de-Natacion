@@ -18,6 +18,8 @@ import type { PreviewResponseDto, SwimmerMatchGroups, ClubMatchGroups } from './
 import type { NormalizedMeet } from '../ingest/types/normalized-meet.types';
 import type { ImportIssue } from '../ingest/types/import-issue.types';
 import type { MatchResultsPayload, SwimmerMatchResult, ClubMatchResult } from './matching/types';
+import type { MatchDecisionDto, ResolveMatchesDto } from './dto/resolve-matches.dto';
+import { countPendingDecisions } from './matching/pending-decisions';
 
 const UPLOAD_DIR = join(process.cwd(), 'uploads', 'imports');
 
@@ -89,6 +91,7 @@ export class ImportService {
 
     const confirmationRequired =
       swimmerMatches.needsConfirmation.length + clubMatches.needsConfirmation.length;
+    const pendingDecisions = countPendingDecisions(matchResults);
 
     return {
       jobId: job.id,
@@ -101,6 +104,7 @@ export class ImportService {
         newSwimmers: staging?.newSwimmersCount ?? 0,
         matchedSwimmers: staging?.matchedSwimmersCount ?? 0,
         confirmationRequired,
+        pendingDecisions,
         newClubs: clubMatches.new.length,
         recordCandidates: staging?.recordsDetectedCount ?? 0,
       },
@@ -120,13 +124,77 @@ export class ImportService {
     };
   }
 
-  async commit(jobId: string): Promise<{ tournamentId: string }> {
-    const tournamentId = await this.commitProcessor.commit(jobId);
+  async resolveMatches(jobId: string, dto: ResolveMatchesDto, userId: string): Promise<PreviewResponseDto> {
+    const job = await this.repo.findById(jobId);
+    if (!job) throw new NotFoundException('Import job no encontrado.');
+    if (job.status !== 'preview') {
+      throw new BadRequestException(
+        `Solo se pueden resolver matches de un import en preview (estado actual: ${job.status}).`,
+      );
+    }
+    const matchResults = job.meetManagerImport?.matchResults as unknown as MatchResultsPayload | null;
+    if (!matchResults) throw new BadRequestException('Este import no tiene resultados de matching.');
+
+    const decidedAt = new Date().toISOString();
+    applyDecisions(
+      'nadador',
+      matchResults.swimmers,
+      (m) => m.swimmerRef,
+      (m) => (m.candidates ?? []).map((c) => c.swimmerId),
+      dto.swimmers ?? [],
+      userId,
+      decidedAt,
+    );
+    applyDecisions(
+      'club',
+      matchResults.clubs,
+      (m) => m.clubRef,
+      (m) => (m.candidates ?? []).map((c) => c.clubId),
+      dto.clubs ?? [],
+      userId,
+      decidedAt,
+    );
+
+    await this.repo.saveMatchResults(jobId, matchResults);
+    return this.getPreview(jobId);
+  }
+
+  async commit(jobId: string, committedBy?: string): Promise<{ tournamentId: string }> {
+    const tournamentId = await this.commitProcessor.commit(jobId, committedBy);
     return { tournamentId };
   }
 
   async rollback(jobId: string): Promise<void> {
     await this.commitProcessor.rollback(jobId);
+  }
+}
+
+function applyDecisions<T extends SwimmerMatchResult | ClubMatchResult>(
+  label: string,
+  matches: T[],
+  refOf: (m: T) => string,
+  candidateIdsOf: (m: T) => string[],
+  decisions: MatchDecisionDto[],
+  userId: string,
+  decidedAt: string,
+): void {
+  const byRef = new Map(matches.map((m) => [refOf(m), m]));
+  for (const d of decisions) {
+    const match = byRef.get(d.ref);
+    if (!match) throw new BadRequestException(`No existe el ${label} "${d.ref}" en este import.`);
+    if (!match.requiresConfirmation) {
+      throw new BadRequestException(`El ${label} "${match.displayName}" no requiere confirmación.`);
+    }
+    if (d.decision === 'new') {
+      match.resolution = { decision: 'new', decidedBy: userId, decidedAt };
+      continue;
+    }
+    if (!d.targetId || !candidateIdsOf(match).includes(d.targetId)) {
+      throw new BadRequestException(
+        `El ${label} elegido para "${match.displayName}" no está entre los candidatos sugeridos.`,
+      );
+    }
+    match.resolution = { decision: 'link', targetId: d.targetId, decidedBy: userId, decidedAt };
   }
 }
 

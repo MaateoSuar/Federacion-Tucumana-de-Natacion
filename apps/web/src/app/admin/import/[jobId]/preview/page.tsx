@@ -19,6 +19,8 @@ interface Issue {
 }
 
 interface MatchCandidate {
+  swimmerId?: string;
+  clubId?: string;
   displayName: string;
   score: number;
   reasons: string[];
@@ -26,15 +28,31 @@ interface MatchCandidate {
   clubName?: string | null;
 }
 
+type Resolution = { decision: 'link'; targetId: string } | { decision: 'new' };
+
 interface MatchToReview {
+  swimmerRef?: string;
+  clubRef?: string;
   displayName: string;
   matchedBy: string;
   candidates?: MatchCandidate[];
+  resolution?: Resolution;
 }
 
 interface MatchGroups {
   needsConfirmation: MatchToReview[];
 }
+
+type MatchKind = 'swimmers' | 'clubs';
+
+interface DecisionInput {
+  ref: string;
+  decision: 'link' | 'new';
+  targetId?: string;
+}
+
+const refOf = (m: MatchToReview) => m.swimmerRef ?? m.clubRef ?? '';
+const candidateIdOf = (c: MatchCandidate) => c.swimmerId ?? c.clubId ?? '';
 
 interface Preview {
   jobId: string;
@@ -48,6 +66,7 @@ interface Preview {
     warningCount: number;
     newSwimmers: number;
     matchedSwimmers: number;
+    pendingDecisions?: number;
     newClubs: number;
     recordCandidates: number;
   };
@@ -104,50 +123,107 @@ function SeverityBadge({ sev }: { sev: string }) {
   );
 }
 
-function MatchReviewSection({ title, items }: { title: string; items: MatchToReview[] }) {
+function MatchReviewSection({
+  title,
+  kind,
+  items,
+  editable,
+  busy,
+  onDecide,
+}: {
+  title: string;
+  kind: MatchKind;
+  items: MatchToReview[];
+  editable: boolean;
+  busy: boolean;
+  onDecide: (kind: MatchKind, decision: DecisionInput) => void;
+}) {
   if (items.length === 0) return null;
+  const pending = items.filter((i) => !i.resolution).length;
+  const newLabel = kind === 'swimmers' ? 'Es un nadador nuevo' : 'Es un club nuevo';
+
   return (
     <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-50">
-        <h2 className="font-semibold text-gray-800">{title}</h2>
-        <p className="text-xs text-gray-400 mt-0.5">
-          Posibles coincidencias por similitud de nombre. Son informativas: al importar no se unifican automáticamente.
-        </p>
+      <div className="px-6 py-4 border-b border-gray-50 flex items-start justify-between gap-3">
+        <div>
+          <h2 className="font-semibold text-gray-800">{title}</h2>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Posibles coincidencias por similitud de nombre. Elegí a quién corresponde o marcalo como nuevo.
+          </p>
+        </div>
+        {pending > 0 ? (
+          <span className="shrink-0 px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">
+            {pending} pendiente{pending === 1 ? '' : 's'}
+          </span>
+        ) : (
+          <span className="shrink-0 px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-xs font-semibold">
+            Todo decidido
+          </span>
+        )}
       </div>
-      <ul className="divide-y divide-gray-50 max-h-96 overflow-y-auto">
-        {items.map((item, i) => (
-          <li key={`${item.displayName}-${i}`} className="px-6 py-4">
-            <p className="text-sm font-medium text-gray-800">
-              <span className="text-gray-400 font-normal">En el archivo: </span>
-              {item.displayName}
-            </p>
-            {item.candidates && item.candidates.length > 0 ? (
-              <ul className="mt-2 space-y-2">
-                {item.candidates.map((c, j) => (
-                  <li key={`${c.displayName}-${j}`} className="flex items-start gap-3 rounded-xl bg-gray-50 px-3 py-2">
-                    <span className="shrink-0 mt-0.5 px-2 py-0.5 rounded-full bg-aqua-100 text-aqua-600 text-xs font-semibold tabular-nums">
-                      {Math.round(c.score * 100)}%
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-sm text-gray-800">
-                        {c.displayName}
-                        {(c.birthYear || c.clubName) && (
-                          <span className="text-gray-400">
-                            {' · '}
-                            {[c.birthYear, c.clubName].filter(Boolean).join(' · ')}
-                          </span>
-                        )}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-0.5">{c.reasons.join(' · ')}</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-xs text-gray-400 mt-1">Coincidencia por {item.matchedBy}.</p>
-            )}
-          </li>
-        ))}
+      <ul className="divide-y divide-gray-50 max-h-[32rem] overflow-y-auto">
+        {items.map((item) => {
+          const ref = refOf(item);
+          const chosen = item.resolution;
+          return (
+            <li key={ref} className="px-6 py-4">
+              <p className="text-sm font-medium text-gray-800">
+                <span className="text-gray-400 font-normal">En el archivo: </span>
+                {item.displayName}
+              </p>
+              <div className="mt-2 space-y-2">
+                {(item.candidates ?? []).map((c) => {
+                  const id = candidateIdOf(c);
+                  const selected = chosen?.decision === 'link' && chosen.targetId === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      disabled={!editable || busy}
+                      aria-pressed={selected}
+                      onClick={() => onDecide(kind, { ref, decision: 'link', targetId: id })}
+                      className={`w-full text-left flex items-start gap-3 rounded-xl px-3 py-2 border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aqua-400 disabled:cursor-default ${
+                        selected
+                          ? 'border-aqua-500 bg-aqua-100/60'
+                          : 'border-transparent bg-gray-50 enabled:hover:border-aqua-300'
+                      }`}
+                    >
+                      <span className="shrink-0 mt-0.5 px-2 py-0.5 rounded-full bg-aqua-100 text-aqua-600 text-xs font-semibold tabular-nums">
+                        {Math.round(c.score * 100)}%
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm text-gray-800">
+                          {c.displayName}
+                          {(c.birthYear || c.clubName) && (
+                            <span className="text-gray-400">
+                              {' · '}
+                              {[c.birthYear, c.clubName].filter(Boolean).join(' · ')}
+                            </span>
+                          )}
+                        </span>
+                        <span className="block text-xs text-gray-500 mt-0.5">{c.reasons.join(' · ')}</span>
+                      </span>
+                      {selected && <span className="shrink-0 text-xs font-semibold text-aqua-600">Es este</span>}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  disabled={!editable || busy}
+                  aria-pressed={chosen?.decision === 'new'}
+                  onClick={() => onDecide(kind, { ref, decision: 'new' })}
+                  className={`w-full text-left rounded-xl px-3 py-2 border text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aqua-400 disabled:cursor-default ${
+                    chosen?.decision === 'new'
+                      ? 'border-gray-500 bg-gray-100 text-gray-800 font-medium'
+                      : 'border-dashed border-gray-200 text-gray-500 enabled:hover:border-gray-400'
+                  }`}
+                >
+                  {newLabel}
+                </button>
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
@@ -229,8 +305,47 @@ export default function PreviewPage() {
     }
   };
 
+  const [resolving, setResolving] = useState(false);
+
+  const saveDecisions = async (body: { swimmers?: DecisionInput[]; clubs?: DecisionInput[] }) => {
+    setResolving(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`${API}/import/${jobId}/matches`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { message?: string | string[] };
+        const message = Array.isArray(err.message) ? err.message.join(' · ') : err.message;
+        throw new Error(message ?? `Error ${res.status}`);
+      }
+      setData({ status: 'ready', preview: (await res.json()) as Preview });
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'No se pudo guardar la decisión.');
+    } finally {
+      setResolving(false);
+    }
+  };
+
+  const decide = (kind: MatchKind, decision: DecisionInput) => {
+    void saveDecisions({ [kind]: [decision] });
+  };
+
+  const markRestAsNew = () => {
+    const pendingOf = (items: MatchToReview[] | undefined): DecisionInput[] =>
+      (items ?? []).filter((m) => !m.resolution).map((m) => ({ ref: refOf(m), decision: 'new' }));
+    void saveDecisions({
+      swimmers: pendingOf(data.preview?.swimmerMatches?.needsConfirmation),
+      clubs: pendingOf(data.preview?.clubMatches?.needsConfirmation),
+    });
+  };
+
   const isPolling = POLLING_STATES.has(jobStatus);
   const { preview } = data;
+  const pendingDecisions = preview?.summary.pendingDecisions ?? 0;
+  const canDecide = jobStatus === 'preview';
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -317,12 +432,37 @@ export default function PreviewPage() {
         <>
           <MatchReviewSection
             title="Clubes a revisar"
+            kind="clubs"
             items={preview.clubMatches?.needsConfirmation ?? []}
+            editable={canDecide}
+            busy={resolving}
+            onDecide={decide}
           />
           <MatchReviewSection
             title="Nadadores a revisar"
+            kind="swimmers"
             items={preview.swimmerMatches?.needsConfirmation ?? []}
+            editable={canDecide}
+            busy={resolving}
+            onDecide={decide}
           />
+          {canDecide && pendingDecisions > 0 && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-amber-50 border border-amber-100 rounded-xl">
+              <p className="text-sm text-amber-800">
+                {pendingDecisions === 1 ? 'Queda' : 'Quedan'} <strong>{pendingDecisions}</strong> coincidencia
+                {pendingDecisions === 1 ? '' : 's'} sin decidir.
+                No se puede confirmar la importación hasta resolverlas.
+              </p>
+              <button
+                type="button"
+                onClick={markRestAsNew}
+                disabled={resolving}
+                className="shrink-0 px-4 py-2 rounded-lg border border-amber-300 text-amber-800 text-sm font-medium hover:bg-amber-100 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+              >
+                Marcar el resto como nuevos
+              </button>
+            </div>
+          )}
         </>
       )}
 
@@ -356,7 +496,8 @@ export default function PreviewPage() {
         <div className="flex gap-3 pt-2">
           <button
             onClick={() => handleAction('commit')}
-            disabled={actionState === 'loading'}
+            disabled={actionState === 'loading' || resolving || pendingDecisions > 0}
+            title={pendingDecisions > 0 ? 'Resolvé las coincidencias pendientes antes de confirmar' : undefined}
             className="flex-1 bg-aqua-600 hover:bg-aqua-500 disabled:bg-aqua-300 text-white font-semibold py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2"
           >
             {actionState === 'loading' ? (

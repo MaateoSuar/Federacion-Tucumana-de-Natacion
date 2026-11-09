@@ -1,7 +1,9 @@
 import {
+  Body,
   Controller,
   Post,
   Get,
+  Patch,
   Param,
   UseGuards,
   UseInterceptors,
@@ -18,15 +20,21 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
+import { SystemRole } from '@ftn/shared';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser, AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { ImportService } from './import.service';
+import { ResolveMatchesDto } from './dto/resolve-matches.dto';
 
 const ALLOWED_EXTENSIONS = new Set(['.pdf', '.hy3', '.sd3', '.csv', '.xlsx', '.xls']);
 const MAX_SIZE = 20 * 1024 * 1024; // 20 MB
 
 @ApiTags('import')
 @Controller('import')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(SystemRole.ADMIN, SystemRole.SUPER_ADMIN)
 @ApiBearerAuth()
 export class ImportController {
   constructor(private readonly importService: ImportService) {}
@@ -78,10 +86,20 @@ export class ImportController {
     return this.importService.getPreview(id);
   }
 
+  @Patch(':id/matches')
+  @ApiOperation({ summary: 'Decidir los matches dudosos: vincular a un candidato o crear nuevo' })
+  resolveMatches(
+    @Param('id') id: string,
+    @Body() dto: ResolveMatchesDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.importService.resolveMatches(id, dto, user.id);
+  }
+
   @Post(':id/commit')
   @ApiOperation({ summary: 'Confirmar el import — persiste en tablas oficiales' })
-  commit(@Param('id') id: string) {
-    return this.importService.commit(id);
+  commit(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.importService.commit(id, user.id);
   }
 
   @Post(':id/rollback')
