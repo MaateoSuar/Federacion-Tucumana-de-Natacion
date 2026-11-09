@@ -6,9 +6,31 @@ function authHeader(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+async function tryRefresh(): Promise<boolean> {
+  try {
+    const rt = localStorage.getItem('ftn_refresh_token');
+    if (!rt) return false;
+    const res = await fetch(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${rt}` },
+    });
+    if (!res.ok) return false;
+    const { accessToken, refreshToken } = await res.json() as {
+      accessToken: string;
+      refreshToken: string;
+    };
+    localStorage.setItem('ftn_access_token', accessToken);
+    localStorage.setItem('ftn_refresh_token', refreshToken);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function apiFetch<T>(
   path: string,
   options?: RequestInit,
+  _retry = true,
 ): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: {
@@ -18,6 +40,14 @@ export async function apiFetch<T>(
     },
     ...options,
   });
+
+  if (res.status === 401 && _retry && typeof window !== 'undefined') {
+    const refreshed = await tryRefresh();
+    if (refreshed) return apiFetch<T>(path, options, false);
+    localStorage.removeItem('ftn_access_token');
+    localStorage.removeItem('ftn_refresh_token');
+  }
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     const message: string =

@@ -13,6 +13,9 @@ import { extname, join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { randomUUID } from 'crypto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { SystemRole } from '@ftn/shared';
 
 type FileFilter = NonNullable<MulterOptions['fileFilter']>;
 
@@ -69,7 +72,8 @@ function buildStorage() {
 @Controller('upload')
 export class StorageController {
   @Post('image')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(SystemRole.ADMIN, SystemRole.SUPER_ADMIN)
   @ApiBearerAuth()
   @UseInterceptors(
     FileInterceptor('file', {
