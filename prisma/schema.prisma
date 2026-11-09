@@ -345,6 +345,7 @@ model Club {
   frozenRegistrations Registration[]       @relation("RegistrationFrozenClub")
   externalIdMaps      ExternalIdMap[]
   records             Record[]
+  aliases             ClubAlias[]
 
   @@map("clubs")
 }
@@ -442,6 +443,7 @@ model Swimmer {
   achievements   AthleteAchievement[]
   linkRequests   AccountLinkRequest[]
   externalIdMaps ExternalIdMap[]
+  aliases        SwimmerAlias[]
 
   @@map("swimmers")
 }
@@ -1053,6 +1055,37 @@ model Media {
 
   @@index([entityType, entityId])
   @@map("media")
+}
+
+// Variantes de nombre confirmadas para un nadador (p.ej. grafías en PDF).
+// Permite reconocimiento automático en importaciones futuras.
+model SwimmerAlias {
+  id               String   @id @default(cuid())
+  swimmerId        String   @map("swimmer_id")
+  aliasNormalized  String   @map("alias_normalized")
+  source           String   @default("manual") // "import" | "manual" | "merge"
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  swimmer Swimmer @relation(fields: [swimmerId], references: [id], onDelete: Cascade)
+
+  @@unique([swimmerId, aliasNormalized])
+  @@index([aliasNormalized])
+  @@map("swimmer_aliases")
+}
+
+// Variantes de nombre/sigla confirmadas para un club.
+model ClubAlias {
+  id              String   @id @default(cuid())
+  clubId          String   @map("club_id")
+  aliasNormalized String   @map("alias_normalized")
+  source          String   @default("manual") // "import" | "manual" | "merge"
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  @@unique([clubId, aliasNormalized])
+  @@index([aliasNormalized])
+  @@map("club_aliases")
 }
 
 // Auditoría de acciones administrativas y de vinculación.
