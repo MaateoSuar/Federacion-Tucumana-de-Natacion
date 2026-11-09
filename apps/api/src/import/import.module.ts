@@ -17,6 +17,7 @@ import { MeetManagerPdfAdapter } from '../ingest/adapters/meet-manager-pdf/meet-
 import { CsvAdapter } from '../ingest/adapters/csv/csv-adapter';
 import { ExcelAdapter } from '../ingest/adapters/excel/excel-adapter';
 import { IMPORT_QUEUE } from './import.queue';
+import { HomologationModule } from '../homologation/homologation.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { IMPORT_QUEUE } from './import.queue';
     PrismaModule,
     AuthModule,
     IngestModule,
+    HomologationModule,
   ],
   controllers: [ImportController],
   providers: [

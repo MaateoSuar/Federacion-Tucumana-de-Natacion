@@ -41,11 +41,13 @@ export class ClubMatcher {
       };
     }
 
-    // ── 2. short_name exacto (case-insensitive) ──────────────────────────────
-    const byShortName = await this.prisma.club.findFirst({
-      where: { shortName: { equals: club.short_name, mode: 'insensitive' } },
-      select: { id: true },
-    });
+    // ── 2. short_name exacto (case-insensitive) — solo si no está vacío ────────
+    const byShortName = club.short_name?.trim()
+      ? await this.prisma.club.findFirst({
+          where: { shortName: { equals: club.short_name, mode: 'insensitive' } },
+          select: { id: true },
+        })
+      : null;
     if (byShortName) {
       return {
         clubRef: club.external_team_id,

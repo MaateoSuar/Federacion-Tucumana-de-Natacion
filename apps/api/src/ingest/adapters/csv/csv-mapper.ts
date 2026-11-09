@@ -1,3 +1,4 @@
+import { basename } from 'path';
 import { parseTimeToMs } from '../meet-manager-pdf/pdf-time-parser';
 import { CSV_PROFILES, CsvSemanticField } from './csv-profile';
 import type { CsvProfile } from './csv-profile';
@@ -352,7 +353,7 @@ export function mapRowsToMeet(
 
   return {
     meet: {
-      name: fileName.replace(/\.[^.]+$/, ''),
+      name: basename(fileName).replace(/\.[^.]+$/, ''),
       venue: '',
       course: 50,
       start_date: '',

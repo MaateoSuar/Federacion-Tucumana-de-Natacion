@@ -28,7 +28,8 @@ import { CurrentUser, AuthenticatedUser } from '../auth/decorators/current-user.
 import { ImportService } from './import.service';
 import { ResolveMatchesDto } from './dto/resolve-matches.dto';
 
-const ALLOWED_EXTENSIONS = new Set(['.pdf', '.hy3', '.sd3', '.csv', '.xlsx', '.xls']);
+// HY3 y SD3 se aceptarán cuando haya adaptador (ver TRASPASO-SONNET.md M7/M8)
+const ALLOWED_EXTENSIONS = new Set(['.pdf', '.csv', '.xlsx', '.xls']);
 const MAX_SIZE = 20 * 1024 * 1024; // 20 MB
 
 @ApiTags('import')
@@ -49,7 +50,7 @@ export class ImportController {
         if (!ALLOWED_EXTENSIONS.has(ext)) {
           return cb(
             new BadRequestException(
-              `Extensión no permitida: "${ext}". Permitidos: PDF, HY3, CSV, XLSX.`,
+              `Extensión no permitida: "${ext}". Permitidos: PDF, CSV, XLSX.`,
             ),
             false,
           );

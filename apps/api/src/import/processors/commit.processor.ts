@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, Logger, Optional } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger, Optional, Inject } from '@nestjs/common';
 import {
   Gender,
   ResultStatus,
@@ -18,6 +18,7 @@ import type { MatchResolution, MatchResultsPayload } from '../matching/types';
 import { countPendingDecisions } from '../matching/pending-decisions';
 import { AthleteMatcher } from '../matching/athlete-matcher';
 import { ClubMatcher } from '../matching/club-matcher';
+import { HomologationService } from '../../homologation/homologation.service';
 
 interface RollbackPayload {
   tournamentId: string | null;
@@ -88,7 +89,7 @@ function resolveCategory(
 ): string | null {
   let sportAge: number;
   if (birthDate) {
-    sportAge = tournamentYear - birthDate.getFullYear();
+    sportAge = tournamentYear - birthDate.getUTCFullYear();
   } else if (age != null) {
     sportAge = age;
   } else {
@@ -113,6 +114,7 @@ export class CommitProcessor {
     private readonly athleteMatcher: AthleteMatcher,
     private readonly clubMatcher: ClubMatcher,
     @Optional() private readonly resultsGateway: ResultsGateway | null,
+    @Optional() @Inject(HomologationService) private readonly homologationService: HomologationService | null,
   ) {}
 
   /**
@@ -209,7 +211,11 @@ export class CommitProcessor {
       learnedExternalIds: [],
     };
 
-    const tournamentYear = new Date(normalizedMeet.meet.start_date).getFullYear();
+    // B-06: start_date puede estar vacío en CSV/Excel; usar año actual como fallback
+    const parsedStartDate = normalizedMeet.meet.start_date
+      ? new Date(normalizedMeet.meet.start_date)
+      : new Date();
+    const tournamentYear = parsedStartDate.getUTCFullYear();
 
     // Load categories once outside the transaction (read-only lookup)
     const categories = await this.prisma.category.findMany({
@@ -388,8 +394,8 @@ export class CommitProcessor {
             name: normalizedMeet.meet.name,
             venue: normalizedMeet.meet.venue,
             poolLength: normalizedMeet.meet.course === 25 ? 'P25' : 'P50',
-            startDate: new Date(normalizedMeet.meet.start_date),
-            endDate: new Date(normalizedMeet.meet.end_date),
+            startDate: parsedStartDate,
+            endDate: normalizedMeet.meet.end_date ? new Date(normalizedMeet.meet.end_date) : parsedStartDate,
             type: 'provincial',
             scope: 'provincial',
             seasonId: season.id,
@@ -525,6 +531,14 @@ export class CommitProcessor {
       this.resultsGateway.notifyResultsUpdated(rollback.tournamentId, rollback.newEventIds);
     }
 
+    // B-10: encolar homologación del torneo recién importado (async, no bloquea)
+    if (this.homologationService && rollback.tournamentId) {
+      void this.homologationService.homologateTournament(rollback.tournamentId, committedBy ?? 'system')
+        .catch((err: unknown) => {
+          this.logger.warn(`Homologación post-commit falló para ${rollback.tournamentId}: ${String(err)}`);
+        });
+    }
+
     return rollback.tournamentId!;
   }
 
@@ -556,11 +570,30 @@ export class CommitProcessor {
       if (mapping.tournamentId) {
         await tx.tournament.delete({ where: { id: mapping.tournamentId } });
       }
+      // B-19: solo borrar nadadores/clubes que no tienen resultados en otros torneos
       if (mapping.newSwimmerIds?.length) {
-        await tx.swimmer.deleteMany({ where: { id: { in: mapping.newSwimmerIds } } });
+        const safeToDelete = await tx.result.groupBy({
+          by: ['swimmerId'],
+          where: { swimmerId: { in: mapping.newSwimmerIds }, id: { notIn: mapping.resultIds ?? [] } },
+          _count: true,
+        });
+        const usedIds = new Set(safeToDelete.map((r) => r.swimmerId));
+        const deletable = mapping.newSwimmerIds.filter((id) => !usedIds.has(id));
+        if (deletable.length) {
+          await tx.swimmer.deleteMany({ where: { id: { in: deletable } } });
+        }
       }
       if (mapping.newClubIds?.length) {
-        await tx.club.deleteMany({ where: { id: { in: mapping.newClubIds } } });
+        const safeToDelete = await tx.result.groupBy({
+          by: ['clubId'],
+          where: { clubId: { in: mapping.newClubIds }, id: { notIn: mapping.resultIds ?? [] } },
+          _count: true,
+        });
+        const usedIds = new Set(safeToDelete.map((r) => r.clubId).filter(Boolean) as string[]);
+        const deletable = mapping.newClubIds.filter((id) => !usedIds.has(id));
+        if (deletable.length) {
+          await tx.club.deleteMany({ where: { id: { in: deletable } } });
+        }
       }
       await tx.importJob.update({
         where: { id: jobId },

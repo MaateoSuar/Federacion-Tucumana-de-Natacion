@@ -127,7 +127,7 @@ function setup(meet: NormalizedMeet, matches: MatchResultsPayload, existingSwimm
       Promise.resolve({ clubRef: c.external_team_id, confidence: 'none', clubId: null, matchedBy: 'none', requiresConfirmation: false, displayName: '' }),
     ),
   };
-  const processor = new CommitProcessor(prisma as never, repo as never, athleteMatcher as never, clubMatcher as never, null);
+  const processor = new CommitProcessor(prisma as never, repo as never, athleteMatcher as never, clubMatcher as never, null, null);
   return { processor, tx, prisma, repo, athleteMatcher, clubMatcher };
 }
 
