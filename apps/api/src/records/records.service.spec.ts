@@ -7,7 +7,10 @@ const txMock = {
   record: {
     findFirst: jest.fn(),
     update: jest.fn(),
+    delete: jest.fn(),
   },
+  result: { update: jest.fn(), findUnique: jest.fn() },
+  auditLog: { create: jest.fn() },
 };
 
 const mockPrisma = {
@@ -64,6 +67,7 @@ describe('RecordsService', () => {
     }).compile();
     service = module.get<RecordsService>(RecordsService);
     jest.clearAllMocks();
+    txMock.result.findUnique.mockResolvedValue({ homologated: true, status: 'OK' });
   });
 
   // ─── findCurrent ────────────────────────────────────────────────────────────
@@ -204,6 +208,110 @@ describe('RecordsService', () => {
 
       // Se llama exactamente 2 veces: una para superseded, una para homologated
       expect(txMock.record.update).toHaveBeenCalledTimes(2);
+    });
+
+    it('rechaza si el candidato ya no mejora al vigente (no pisa un récord más rápido)', async () => {
+      mockPrisma.record.findUnique.mockResolvedValue(CANDIDATE); // 54000
+      txMock.record.findFirst.mockResolvedValue({ ...CURRENT_RECORD, timeMs: 53000 });
+
+      await expect(service.homologateRecord('rec1', 'admin1')).rejects.toThrow(BadRequestException);
+      expect(txMock.record.update).not.toHaveBeenCalled();
+      expect(txMock.result.update).not.toHaveBeenCalled();
+    });
+
+    it('rechaza si el candidato iguala al vigente', async () => {
+      mockPrisma.record.findUnique.mockResolvedValue(CANDIDATE);
+      txMock.record.findFirst.mockResolvedValue({ ...CURRENT_RECORD, timeMs: CANDIDATE.timeMs });
+
+      await expect(service.homologateRecord('rec1', 'admin1')).rejects.toThrow(BadRequestException);
+      expect(txMock.record.update).not.toHaveBeenCalled();
+    });
+
+    it('marca result.isRecord recién al aprobar y encadena al vigente real', async () => {
+      mockPrisma.record.findUnique.mockResolvedValue({ ...CANDIDATE, previousRecordId: 'rec-viejo' });
+      txMock.record.findFirst.mockResolvedValue(CURRENT_RECORD);
+      txMock.record.update.mockResolvedValue({});
+
+      await service.homologateRecord('rec1', 'admin1');
+
+      expect(txMock.result.update).toHaveBeenCalledWith({ where: { id: 'r1' }, data: { isRecord: true } });
+      expect(txMock.record.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'rec1' },
+          data: expect.objectContaining({ previousRecordId: 'rec0', homologatedBy: 'admin1' }),
+        }),
+      );
+    });
+
+    it.each([
+      ['el resultado fue borrado', null],
+      ['el resultado no está homologado', { homologated: false, status: 'OK' }],
+    ])('rechaza un candidato huérfano: %s', async (_label, source) => {
+      mockPrisma.record.findUnique.mockResolvedValue(CANDIDATE);
+      txMock.result.findUnique.mockResolvedValue(source);
+      txMock.record.findFirst.mockResolvedValue(null);
+
+      await expect(service.homologateRecord('rec1', 'admin1')).rejects.toThrow(BadRequestException);
+      expect(txMock.record.update).not.toHaveBeenCalled();
+    });
+
+    it('audita la homologación con el Admin que la aprobó', async () => {
+      mockPrisma.record.findUnique.mockResolvedValue(CANDIDATE);
+      txMock.record.findFirst.mockResolvedValue(CURRENT_RECORD);
+      txMock.record.update.mockResolvedValue({});
+
+      await service.homologateRecord('rec1', 'admin1');
+
+      expect(txMock.auditLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'admin1',
+          action: 'RECORD_HOMOLOGATED',
+          entityType: 'Record',
+          entityId: 'rec1',
+          payload: expect.objectContaining({ supersededRecordId: 'rec0', timeMs: 54000 }),
+        }),
+      });
+    });
+  });
+
+  // ─── rejectCandidate ────────────────────────────────────────────────────────
+
+  describe('rejectCandidate', () => {
+    it('elimina el candidato y deja copia en audit_logs', async () => {
+      mockPrisma.record.findUnique.mockResolvedValue({ ...CANDIDATE, tournamentName: 'Torneo X' });
+
+      await service.rejectCandidate('rec1', 'admin1', 'cruce de género');
+
+      expect(txMock.auditLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'admin1',
+          action: 'RECORD_CANDIDATE_REJECTED',
+          entityId: 'rec1',
+          payload: expect.objectContaining({
+            reason: 'cruce de género',
+            candidate: expect.objectContaining({ timeMs: 54000, swimmerId: 's1', sourceResultId: 'r1' }),
+          }),
+        }),
+      });
+      expect(txMock.record.delete).toHaveBeenCalledWith({ where: { id: 'rec1' } });
+    });
+
+    it('no toca el récord vigente ni ningún resultado', async () => {
+      mockPrisma.record.findUnique.mockResolvedValue(CANDIDATE);
+      await service.rejectCandidate('rec1', 'admin1');
+      expect(txMock.record.update).not.toHaveBeenCalled();
+      expect(txMock.result.update).not.toHaveBeenCalled();
+    });
+
+    it('lanza NotFoundException si no existe', async () => {
+      mockPrisma.record.findUnique.mockResolvedValue(null);
+      await expect(service.rejectCandidate('noop', 'admin1')).rejects.toThrow(NotFoundException);
+    });
+
+    it.each(['homologated', 'superseded'] as const)('nunca borra un récord %s', async (status) => {
+      mockPrisma.record.findUnique.mockResolvedValue({ ...CANDIDATE, status });
+      await expect(service.rejectCandidate('rec1', 'admin1')).rejects.toThrow(BadRequestException);
+      expect(txMock.record.delete).not.toHaveBeenCalled();
     });
   });
 });

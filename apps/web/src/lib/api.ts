@@ -398,6 +398,13 @@ export interface RecordEntry {
   eventDefinition: { id: string; code: string; stroke: string; distance: number };
   category: { id: string; code: string; name: string };
   sourceResult?: { id: string; event: { tournament: { id: string; name: string; startDate: string } } };
+  /** Solo en candidatos (`/records/candidates`): récord vigente al momento de la detección. */
+  previousRecord?: {
+    id: string;
+    timeMs: number;
+    recordDate: string;
+    swimmer: { id: string; firstName: string; lastName: string };
+  } | null;
 }
 
 export interface EventDefinition {

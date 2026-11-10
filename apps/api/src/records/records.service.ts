@@ -118,6 +118,20 @@ export class RecordsService {
     const now = new Date();
 
     return this.prisma.$transaction(async (tx) => {
+      // Solo se evalúan récords sobre resultados homologados: si el resultado
+      // origen fue revertido (rollback de importación) el candidato quedó huérfano.
+      const source = candidate.sourceResultId
+        ? await tx.result.findUnique({
+            where: { id: candidate.sourceResultId },
+            select: { homologated: true, status: true },
+          })
+        : null;
+      if (!source || !source.homologated || source.status !== 'OK') {
+        throw new BadRequestException(
+          'El resultado que originó este candidato ya no existe o no está homologado. Rechazalo.',
+        );
+      }
+
       // Desactivar el récord vigente anterior para la misma clave
       const current = await tx.record.findFirst({
         where: {
@@ -130,6 +144,14 @@ export class RecordsService {
           id: { not: recordId }, // no es el candidato mismo
         },
       });
+
+      // El vigente pudo cambiar desde que se detectó el candidato (otro candidato
+      // aprobado, edición manual). Un candidato que ya no lo mejora no se publica.
+      if (current && candidate.timeMs >= current.timeMs) {
+        throw new BadRequestException(
+          `El candidato (${candidate.timeMs} ms) ya no mejora el récord vigente (${current.timeMs} ms). Rechazalo.`,
+        );
+      }
 
       if (current) {
         await tx.record.update({
@@ -146,12 +168,34 @@ export class RecordsService {
           status: 'homologated',
           homologatedBy,
           homologatedAt: now,
-          // Si no tenía previousRecordId seteado, lo seteamos ahora
-          ...(current && !candidate.previousRecordId
-            ? { previousRecordId: current.id }
-            : {}),
+          // La cadena histórica apunta al vigente real al momento de aprobar
+          previousRecordId: current?.id ?? null,
         },
         include: RECORD_INCLUDE,
+      });
+
+      // El resultado se marca como récord recién con la aprobación humana
+      if (candidate.sourceResultId) {
+        await tx.result.update({
+          where: { id: candidate.sourceResultId },
+          data: { isRecord: true },
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          userId: homologatedBy,
+          action: 'RECORD_HOMOLOGATED',
+          entityType: 'Record',
+          entityId: recordId,
+          payload: {
+            timeMs: candidate.timeMs,
+            swimmerId: candidate.swimmerId,
+            sourceResultId: candidate.sourceResultId,
+            supersededRecordId: current?.id ?? null,
+            supersededTimeMs: current?.timeMs ?? null,
+          },
+        },
       });
 
       this.logger.log(
@@ -160,6 +204,56 @@ export class RecordsService {
 
       return homologated;
     });
+  }
+
+  // ─── Rechazo de un candidato (Admin) ───────────────────────────────────────
+  //
+  // El candidato rechazado se elimina (RecordStatus no tiene "rejected") y queda
+  // una copia completa en audit_logs. Solo aplica a candidatos pendientes: un
+  // récord homologado o histórico nunca se borra por acá.
+
+  async rejectCandidate(recordId: string, rejectedBy: string, reason?: string) {
+    const candidate = await this.prisma.record.findUnique({ where: { id: recordId } });
+
+    if (!candidate) throw new NotFoundException('Récord candidato no encontrado.');
+    if (candidate.status !== 'pending_homologation' || candidate.isCurrent) {
+      throw new BadRequestException(
+        `Solo se pueden rechazar candidatos en estado "pending_homologation". Estado actual: "${candidate.status}".`,
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.auditLog.create({
+        data: {
+          userId: rejectedBy,
+          action: 'RECORD_CANDIDATE_REJECTED',
+          entityType: 'Record',
+          entityId: recordId,
+          payload: {
+            reason: reason ?? null,
+            candidate: {
+              scope: candidate.scope,
+              eventDefinitionId: candidate.eventDefinitionId,
+              categoryId: candidate.categoryId,
+              gender: candidate.gender,
+              poolLength: candidate.poolLength,
+              timeMs: candidate.timeMs,
+              swimmerId: candidate.swimmerId,
+              clubId: candidate.clubId,
+              recordDate: candidate.recordDate.toISOString(),
+              tournamentName: candidate.tournamentName,
+              sourceResultId: candidate.sourceResultId,
+              previousRecordId: candidate.previousRecordId,
+              createdAt: candidate.createdAt.toISOString(),
+            },
+          },
+        },
+      });
+      await tx.record.delete({ where: { id: recordId } });
+    });
+
+    this.logger.log(`Record candidate ${recordId} rejected by ${rejectedBy}`);
+    return { id: recordId, rejected: true };
   }
 
   // ─── Edición manual de un récord vigente (Admin) ──────────────────────────

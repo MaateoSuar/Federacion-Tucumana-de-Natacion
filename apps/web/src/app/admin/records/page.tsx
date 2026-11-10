@@ -60,17 +60,22 @@ export default function AdminRecordsPage() {
   const [form, setForm] = useState<EditFormState | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [candidates, setCandidates] = useState<RecordEntry[]>([]);
+  const [candidateBusy, setCandidateBusy] = useState<string | null>(null);
+  const [candidateError, setCandidateError] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [recordsData, clubsData] = await Promise.all([
+      const [recordsData, clubsData, candidatesData] = await Promise.all([
         apiFetch<RecordEntry[]>('/records?scope=provincial'),
         apiFetch<{ items: Club[]; total: number }>('/clubs?limit=200'),
+        apiFetch<RecordEntry[]>('/records/candidates?scope=provincial'),
       ]);
       setRecords(recordsData);
       setClubs(clubsData.items);
+      setCandidates(candidatesData);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -92,6 +97,28 @@ export default function AdminRecordsPage() {
       }).filter((c) => c.records.length > 0),
     })).filter((p) => p.categories.length > 0);
   }, [records]);
+
+  const resolveCandidate = async (candidate: RecordEntry, action: 'homologate' | 'reject') => {
+    const who = `${candidate.swimmer.lastName}, ${candidate.swimmer.firstName} (${formatTime(candidate.timeMs)})`;
+    const question = action === 'homologate'
+      ? `¿Homologar el récord de ${who}? Pasa a ser el récord vigente y se publica.`
+      : `¿Rechazar el candidato de ${who}? Se elimina y queda registrado en la auditoría.`;
+    if (!window.confirm(question)) return;
+
+    setCandidateBusy(candidate.id);
+    setCandidateError(null);
+    try {
+      await apiFetch(`/records/${candidate.id}/${action}`, {
+        method: 'PATCH',
+        body: JSON.stringify({}),
+      });
+      await load();
+    } catch (e) {
+      setCandidateError((e as Error).message);
+    } finally {
+      setCandidateBusy(null);
+    }
+  };
 
   const openEdit = (record: RecordEntry) => {
     setEditing(record);
@@ -167,6 +194,74 @@ export default function AdminRecordsPage() {
 
       {loading && <p className="text-gray-400 text-sm">Cargando...</p>}
       {error && <p className="text-red-500 text-sm">{error}</p>}
+
+      {!loading && !error && candidates.length > 0 && (
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <h2 className="text-lg font-bold text-gray-800">
+            Candidatos pendientes de homologación ({candidates.length})
+          </h2>
+          <p className="text-sm text-gray-500 mt-0.5 mb-3">
+            Marcas detectadas automáticamente que superan al récord vigente. No se publican hasta que las homologues.
+          </p>
+          {candidateError && <p className="text-red-500 text-sm mb-2">{candidateError}</p>}
+          <div className="overflow-x-auto rounded-lg border border-amber-100 bg-white">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 text-gray-400 text-xs uppercase tracking-wide">
+                  <th className="text-left px-3 py-2">Prueba</th>
+                  <th className="text-left px-3 py-2">Categoría</th>
+                  <th className="text-left px-3 py-2">Tiempo</th>
+                  <th className="text-left px-3 py-2">Vigente</th>
+                  <th className="text-left px-3 py-2">Atleta</th>
+                  <th className="text-left px-3 py-2">Torneo</th>
+                  <th className="text-right px-3 py-2">Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                {candidates.map((c) => (
+                  <tr key={c.id} className="border-t border-gray-100">
+                    <td className="px-3 py-2 font-medium text-gray-800">
+                      {c.eventDefinition.distance} m {STROKE_ES[c.eventDefinition.stroke] ?? c.eventDefinition.stroke}
+                      <span className="block text-xs font-normal text-gray-400">
+                        {POOL_LABEL[c.poolLength]} · {GENDER_LABEL[c.gender] ?? c.gender}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-gray-600">{c.category.name}</td>
+                    <td className="px-3 py-2 font-mono font-semibold text-gray-700">{formatTime(c.timeMs)}</td>
+                    <td className="px-3 py-2 font-mono text-gray-500">
+                      {c.previousRecord ? formatTime(c.previousRecord.timeMs) : '—'}
+                    </td>
+                    <td className="px-3 py-2 text-gray-600">
+                      {c.swimmer.lastName}, {c.swimmer.firstName}
+                      <span className="block text-xs text-gray-400">{c.club.shortName}</span>
+                    </td>
+                    <td className="px-3 py-2 text-gray-400 text-xs">
+                      {c.sourceResult?.event.tournament.name ?? '—'}
+                      <span className="block">{new Date(c.recordDate).toLocaleDateString('es-AR')}</span>
+                    </td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                      <button
+                        onClick={() => void resolveCandidate(c, 'homologate')}
+                        disabled={candidateBusy !== null}
+                        className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 disabled:opacity-50"
+                      >
+                        Homologar
+                      </button>
+                      <button
+                        onClick={() => void resolveCandidate(c, 'reject')}
+                        disabled={candidateBusy !== null}
+                        className="ml-3 text-xs font-semibold text-red-600 hover:text-red-700 disabled:opacity-50"
+                      >
+                        Rechazar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {!loading && !error && (
         <div className="space-y-8">

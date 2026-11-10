@@ -6,6 +6,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { RecordsService } from './records.service';
 import { RecordQueryDto } from './dto/record-query.dto';
 import { UpdateRecordDto } from './dto/update-record.dto';
+import { RejectRecordDto } from './dto/reject-record.dto';
 
 @Controller('records')
 export class RecordsController {
@@ -40,6 +41,18 @@ export class RecordsController {
     @Request() req: { user: { id: string } },
   ) {
     return this.service.homologateRecord(id, req.user.id);
+  }
+
+  /** Rechazar un candidato pendiente (se elimina y queda auditado) — solo Admin */
+  @Patch(':id/reject')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(SystemRole.SUPER_ADMIN, SystemRole.ADMIN)
+  reject(
+    @Param('id') id: string,
+    @Body() dto: RejectRecordDto,
+    @Request() req: { user: { id: string } },
+  ) {
+    return this.service.rejectCandidate(id, req.user.id, dto.reason);
   }
 
   /** Editar manualmente el récord vigente (nuevo holder/tiempo/club/fecha/torneo) — solo Admin */
