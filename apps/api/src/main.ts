@@ -17,8 +17,17 @@ async function bootstrap() {
     }),
   );
 
+  // Detrás del proxy del hosting: la IP real del visitante viene en X-Forwarded-For
+  // (la usa el límite de intentos de login).
+  app.set('trust proxy', 1);
+
+  // CORS_ORIGIN admite varios orígenes separados por coma.
+  const corsOrigins = (process.env['CORS_ORIGIN'] ?? 'http://localhost:3000')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
   app.enableCors({
-    origin: process.env['CORS_ORIGIN'] ?? 'http://localhost:3000',
+    origin: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,
     credentials: true,
   });
 

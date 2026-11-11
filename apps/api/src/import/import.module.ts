@@ -18,6 +18,7 @@ import { CsvAdapter } from '../ingest/adapters/csv/csv-adapter';
 import { ExcelAdapter } from '../ingest/adapters/excel/excel-adapter';
 import { IMPORT_QUEUE } from './import.queue';
 import { HomologationModule } from '../homologation/homologation.module';
+import { bullConnectionFromUrl } from '../redis/redis-connection';
 
 @Module({
   imports: [
@@ -26,13 +27,7 @@ import { HomologationModule } from '../homologation/homologation.module';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const redisUrl = config.get<string>('REDIS_URL') ?? 'redis://localhost:6379';
-        const url = new URL(redisUrl);
-        return {
-          connection: {
-            host: url.hostname,
-            port: parseInt(url.port || '6379', 10),
-          },
-        };
+        return { connection: bullConnectionFromUrl(redisUrl) };
       },
     }),
     PrismaModule,
