@@ -42,8 +42,12 @@ const standardStyle = (color: string): StandardStyle => STANDARD_STYLES[color] ?
 function StandardCutRow({ standard }: { standard: EventStandard }) {
   const st = standardStyle(standard.color);
   const count = standard.qualifiedCount;
+  // Detalle al pasar el mouse: qué marca es, su tiempo y qué significa la línea.
+  const detail =
+    `${standard.name}${standard.timeMs !== null ? ` — ${formatTime(standard.timeMs)}` : ''}. ` +
+    `Quienes están por encima de esta línea cumplen la marca (${count}).`;
   return (
-    <tr aria-label={`Línea de corte: ${standard.name}`}>
+    <tr aria-label={`Línea de corte: ${standard.name}`} title={detail} className="cursor-help">
       <td colSpan={5} className="px-4 py-1.5">
         <div className="flex items-center gap-3">
           <span className={`h-0 flex-1 border-t-2 border-dashed ${st.line}`} aria-hidden="true" />
@@ -104,29 +108,19 @@ export default function RankingsPage() {
   // Resultados
   const [eventRankings, setEventRankings] = useState<RankingEntry[] | null>(null);
   const [standards, setStandards] = useState<EventStandard[]>([]);
-  // Sets de marcas básicas que el usuario ocultó desde la leyenda
-  const [hiddenSets, setHiddenSets] = useState<Set<string>>(new Set());
-  const visibleStandards = useMemo(() => standards.filter((s) => !hiddenSets.has(s.setId)), [standards, hiddenSets]);
   // Con categoría elegida cada set tiene una marca única: la línea de corte va después
   // de la última fila que la cumple (las filas vienen ordenadas por tiempo).
   const cutLines = useMemo(() => {
     const lines = new Map<number, EventStandard[]>();
     if (!eventRankings) return lines;
-    for (const s of visibleStandards) {
+    for (const s of standards) {
       if (s.timeMs === null) continue;
       const timeMs = s.timeMs;
       const after = eventRankings.filter((r) => r.finalTime <= timeMs).length;
       lines.set(after, [...(lines.get(after) ?? []), s]);
     }
     return lines;
-  }, [eventRankings, visibleStandards]);
-  const toggleSet = (setId: string) =>
-    setHiddenSets((prev) => {
-      const next = new Set(prev);
-      if (next.has(setId)) next.delete(setId);
-      else next.add(setId);
-      return next;
-    });
+  }, [eventRankings, standards]);
   const [clubRankings, setClubRankings] = useState<ClubRankingEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -292,33 +286,6 @@ export default function RankingsPage() {
             ? <p className="text-pool-400 text-center py-16">Sin resultados para estos filtros.</p>
             : (
               <>
-              {standards.length > 0 && (
-                <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
-                  <span className="text-pool-400 uppercase tracking-wider font-semibold">Marcas básicas</span>
-                  {standards.map((s) => {
-                    const st = standardStyle(s.color);
-                    const hidden = hiddenSets.has(s.setId);
-                    return (
-                      <button
-                        key={s.setId}
-                        type="button"
-                        onClick={() => toggleSet(s.setId)}
-                        aria-pressed={!hidden}
-                        title={hidden ? 'Mostrar' : 'Ocultar'}
-                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-semibold transition-opacity ${st.chip} ${hidden ? 'opacity-40 line-through' : ''}`}
-                      >
-                        <span className={`h-2 w-2 rounded-full ${st.dot}`} aria-hidden="true" />
-                        {s.name}
-                        {s.timeMs !== null && <span className="font-mono">{formatTime(s.timeMs)}</span>}
-                        <span className="font-normal opacity-80">· {s.qualifiedCount} {s.qualifiedCount === 1 ? 'nadador' : 'nadadores'}</span>
-                      </button>
-                    );
-                  })}
-                  {!categoryId && (
-                    <span className="text-pool-500">Elegí una categoría para ver la línea de corte.</span>
-                  )}
-                </div>
-              )}
               <div className="overflow-x-auto rounded-xl border border-pool-700/40">
                 <table className="w-full text-sm">
                   <thead>
@@ -340,7 +307,7 @@ export default function RankingsPage() {
                           <Link href={`/nadadores/${r.swimmerId}`} className="hover:text-aqua-300 transition-colors">
                             {r.swimmerName}
                           </Link>
-                          {visibleStandards
+                          {standards
                             .filter((s) => r.meets?.includes(s.setId))
                             .map((s) => (
                               <span
