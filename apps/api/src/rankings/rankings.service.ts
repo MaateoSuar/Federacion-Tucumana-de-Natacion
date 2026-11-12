@@ -15,6 +15,21 @@ export interface RankingEntry {
   finalTime: number;
   sourceResultId: string | null;
   computedAt?: Date;
+  /** Ids de los sets de marcas básicas que este tiempo cumple (tiempo <= marca de SU categoría). */
+  meets: string[];
+}
+
+/** Un set de marcas básicas aplicado a un ranking por prueba. */
+export interface EventStandard {
+  setId: string;
+  code: string;
+  name: string;
+  shortLabel: string;
+  color: string;
+  /** Marca de la categoría filtrada; null si no se filtró por categoría o esa categoría no tiene marca. */
+  timeMs: number | null;
+  /** Cuántos nadadores del ranking mostrado cumplen la marca de su categoría. */
+  qualifiedCount: number;
 }
 
 export interface ClubRankingEntry {
@@ -69,7 +84,8 @@ export class RankingsService {
   async queryEventRanking(dto: EventRankingQueryDto): Promise<RankingEntry[]> {
     const key = this.cacheKeyEvent(dto);
     const cached = await this.redis.get<RankingEntry[]>(key);
-    if (cached) return cached;
+    // Entradas cacheadas antes de existir `meets` se descartan y se recalculan.
+    if (cached && cached.every((c) => Array.isArray(c.meets))) return cached;
 
     const rows = await this.prisma.ranking.findMany({
       where: {
@@ -122,6 +138,17 @@ export class RankingsService {
     });
     const clubMap = new Map(clubs.map((c) => [c.id, c.name]));
 
+    // Marcas básicas de esta prueba/pileta/género. La clave incluye poolLength:
+    // una marca de 25 m nunca se compara con un tiempo de 50 m. Cada tiempo se
+    // compara con la marca de la categoría congelada de su fila.
+    const standards = await this.findStandards(dto);
+    const standardsByCategory = new Map<string, Array<{ setId: string; timeMs: number }>>();
+    for (const st of standards) {
+      const list = standardsByCategory.get(st.categoryId) ?? [];
+      list.push({ setId: st.setId, timeMs: st.timeMs });
+      standardsByCategory.set(st.categoryId, list);
+    }
+
     const result: RankingEntry[] = effectiveRows.map((r, idx) => {
       const tied = tiedCategoryNames.get(r.swimmerId);
       const categoryName =
@@ -139,11 +166,49 @@ export class RankingsService {
         finalTime: r.finalTime,
         sourceResultId: r.sourceResultId,
         computedAt: r.computedAt,
+        meets: (standardsByCategory.get(r.categoryId) ?? [])
+          .filter((st) => r.finalTime <= st.timeMs)
+          .map((st) => st.setId),
       };
     });
 
     await this.redis.set(key, result, CACHE_TTL.EVENT_BEST);
     return result;
+  }
+
+  // ─── Marcas básicas del ranking por prueba ─────────────────────────────────
+
+  private findStandards(dto: EventRankingQueryDto) {
+    if (dto.gender === 'MIX') return Promise.resolve([]);
+    return this.prisma.timeStandard.findMany({
+      where: {
+        eventDefinitionId: dto.eventDefinitionId,
+        poolLength: dto.poolLength,
+        gender: dto.gender,
+        set: { isActive: true },
+      },
+      include: { set: true },
+      orderBy: { set: { orderNo: 'asc' } },
+    });
+  }
+
+  async queryEventStandards(dto: EventRankingQueryDto): Promise<EventStandard[]> {
+    const [ranking, standards] = await Promise.all([this.queryEventRanking(dto), this.findStandards(dto)]);
+    const sets = new Map<string, EventStandard>();
+    for (const st of standards) {
+      const entry = sets.get(st.setId) ?? {
+        setId: st.setId,
+        code: st.set.code,
+        name: st.set.name,
+        shortLabel: st.set.shortLabel,
+        color: st.set.color,
+        timeMs: null,
+        qualifiedCount: ranking.filter((r) => r.meets.includes(st.setId)).length,
+      };
+      if (dto.categoryId && st.categoryId === dto.categoryId) entry.timeMs = st.timeMs;
+      sets.set(st.setId, entry);
+    }
+    return [...sets.values()];
   }
 
   private cacheKeyEvent(dto: EventRankingQueryDto): string {

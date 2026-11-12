@@ -315,6 +315,20 @@ export interface RankingEntry {
   categoryName: string;
   finalTime: number;
   sourceResultId: string | null;
+  /** Ids de los sets de marcas básicas que este tiempo cumple en su categoría. */
+  meets?: string[];
+}
+
+/** Set de marcas básicas aplicado al ranking por prueba (GET /rankings/event/standards). */
+export interface EventStandard {
+  setId: string;
+  code: string;
+  name: string;
+  shortLabel: string;
+  color: string;
+  /** Marca de la categoría filtrada; null si no hay categoría elegida o no tiene marca. */
+  timeMs: number | null;
+  qualifiedCount: number;
 }
 
 export interface ClubRankingEntry {

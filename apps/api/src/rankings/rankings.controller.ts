@@ -12,6 +12,12 @@ export class RankingsController {
     return this.service.queryEventRanking(query);
   }
 
+  /** Marcas básicas (sets) que aplican al mismo filtro del ranking por prueba. */
+  @Get('event/standards')
+  getEventStandards(@Query() query: EventRankingQueryDto) {
+    return this.service.queryEventStandards(query);
+  }
+
   @Get('club')
   getClubRanking(@Query() query: ClubRankingQueryDto) {
     return this.service.queryClubRanking(query);

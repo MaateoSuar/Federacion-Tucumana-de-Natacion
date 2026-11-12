@@ -19,6 +19,7 @@
     "db:seed:demo": "node --env-file=.env --require ts-node/register prisma/seed-demo.ts",
     "db:seed:demo:clean": "node --env-file=.env --require ts-node/register prisma/seed-demo-clean.ts",
     "db:seed:records": "node --env-file=.env --require ts-node/register prisma/seed-records.ts",
+    "db:seed:standards": "node --env-file=.env --require ts-node/register prisma/seed-time-standards.ts",
     "db:studio": "prisma studio --schema=prisma/schema.prisma",
     "db:reset": "prisma migrate reset --schema=prisma/schema.prisma",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\" --ignore-path .gitignore"

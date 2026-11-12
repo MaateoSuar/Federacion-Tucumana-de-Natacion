@@ -11,6 +11,7 @@ const mockPrisma = {
   club: { findMany: jest.fn() },
   scoringScheme: { findFirst: jest.fn() },
   record: { findMany: jest.fn() },
+  timeStandard: { findMany: jest.fn() },
 };
 
 const mockRedis = {
@@ -34,6 +35,7 @@ describe('RankingsService', () => {
     service = module.get<RankingsService>(RankingsService);
     jest.clearAllMocks();
     mockRedis.get.mockResolvedValue(null);
+    mockPrisma.timeStandard.findMany.mockResolvedValue([]);
   });
 
   describe('queryEventRanking', () => {
@@ -105,13 +107,119 @@ describe('RankingsService', () => {
         gender: 'M',
         categoryId: 'cat1',
       };
-      const cached: RankingEntry[] = [{ position: 1, swimmerId: 's1', swimmerName: 'Juan Pérez', clubId: 'c1', clubName: 'Club A', categoryId: 'cat1', categoryName: 'Mayores', finalTime: 55000, sourceResultId: 'r1' }];
+      const cached: RankingEntry[] = [{ position: 1, swimmerId: 's1', swimmerName: 'Juan Pérez', clubId: 'c1', clubName: 'Club A', categoryId: 'cat1', categoryName: 'Mayores', finalTime: 55000, sourceResultId: 'r1', meets: [] }];
       mockRedis.get.mockResolvedValue(cached);
 
       const result = await service.queryEventRanking(dto);
 
       expect(result).toEqual(cached);
       expect(mockPrisma.ranking.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── Marcas básicas (P-1) ───────────────────────────────────────────────────
+
+  describe('marcas básicas en el ranking por prueba', () => {
+    const row = (swimmerId: string, categoryId: string, finalTime: number) => ({
+      position: 1, swimmerId, clubId: 'c1', categoryId, finalTime, sourceResultId: `r-${swimmerId}`, computedAt: new Date(),
+      swimmer: { id: swimmerId, firstName: 'N', lastName: swimmerId }, category: { id: categoryId, name: categoryId, code: categoryId },
+    });
+    const std = (setId: string, code: string, orderNo: number, categoryId: string, timeMs: number) => ({
+      setId, categoryId, timeMs,
+      set: { id: setId, code, name: `Básica ${code}`, shortLabel: code.slice(0, 3), color: 'sky', orderNo },
+    });
+    const base: EventRankingQueryDto = { eventDefinitionId: 'evt1', poolLength: 'P25', gender: 'F' };
+
+    beforeEach(() => {
+      mockPrisma.club.findMany.mockResolvedValue([{ id: 'c1', name: 'Club A' }]);
+    });
+
+    it('cumple quien tiene tiempo MENOR O IGUAL a la marca de su categoría', async () => {
+      mockPrisma.ranking.findMany.mockResolvedValue([row('s1', 'MEN_1', 33000), row('s2', 'MEN_1', 34000), row('s3', 'MEN_1', 34010)]);
+      mockPrisma.timeStandard.findMany.mockResolvedValue([std('nac', 'NACIONAL', 1, 'MEN_1', 34000)]);
+
+      const result = await service.queryEventRanking({ ...base, categoryId: 'MEN_1' });
+
+      expect(result.map((r) => r.meets)).toEqual([['nac'], ['nac'], []]);
+    });
+
+    it('cada fila se compara con la marca de SU categoría congelada, no con la de otra', async () => {
+      // Misma marca de tiempo: alcanza para Menores 1 (34000) pero no para Cadetes 1 (30410).
+      mockPrisma.ranking.findMany.mockResolvedValue([row('s1', 'CAD_1', 32000), row('s2', 'MEN_1', 32000)]);
+      mockPrisma.timeStandard.findMany.mockResolvedValue([
+        std('nac', 'NACIONAL', 1, 'MEN_1', 34000),
+        std('nac', 'NACIONAL', 1, 'CAD_1', 30410),
+      ]);
+
+      const result = await service.queryEventRanking(base);
+
+      expect(result.find((r) => r.swimmerId === 's1')?.meets).toEqual([]);
+      expect(result.find((r) => r.swimmerId === 's2')?.meets).toEqual(['nac']);
+    });
+
+    it('una categoría sin marca (Absoluto, agrupadas) no cumple ni incumple nada', async () => {
+      mockPrisma.ranking.findMany.mockResolvedValue([row('s1', 'ABS', 20000)]);
+      mockPrisma.timeStandard.findMany.mockResolvedValue([std('nac', 'NACIONAL', 1, 'MEN_1', 34000)]);
+
+      const result = await service.queryEventRanking(base);
+
+      expect(result[0]?.meets).toEqual([]);
+    });
+
+    it('25 m y 50 m no se cruzan: las marcas se buscan solo para la pileta del ranking', async () => {
+      mockPrisma.ranking.findMany.mockResolvedValue([]);
+      await service.queryEventRanking({ ...base, poolLength: 'P50' });
+
+      expect(mockPrisma.timeStandard.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ eventDefinitionId: 'evt1', poolLength: 'P50', gender: 'F', set: { isActive: true } }),
+        }),
+      );
+    });
+
+    it('varios sets: cada uno se evalúa por separado', async () => {
+      mockPrisma.ranking.findMany.mockResolvedValue([row('s1', 'MEN_1', 33000), row('s2', 'MEN_1', 36000), row('s3', 'MEN_1', 40000)]);
+      mockPrisma.timeStandard.findMany.mockResolvedValue([
+        std('nac', 'NACIONAL', 1, 'MEN_1', 34000),
+        std('fed', 'FEDERARSE', 2, 'MEN_1', 37500),
+      ]);
+
+      const result = await service.queryEventRanking({ ...base, categoryId: 'MEN_1' });
+
+      expect(result.map((r) => r.meets)).toEqual([['nac', 'fed'], ['fed'], []]);
+    });
+
+    it('queryEventStandards: con categoría devuelve la marca y cuántos la cumplen', async () => {
+      mockPrisma.ranking.findMany.mockResolvedValue([row('s1', 'MEN_1', 33000), row('s2', 'MEN_1', 36000), row('s3', 'MEN_1', 40000)]);
+      mockPrisma.timeStandard.findMany.mockResolvedValue([
+        std('nac', 'NACIONAL', 1, 'MEN_1', 34000),
+        std('fed', 'FEDERARSE', 2, 'MEN_1', 37500),
+      ]);
+
+      const result = await service.queryEventStandards({ ...base, categoryId: 'MEN_1' });
+
+      expect(result).toEqual([
+        expect.objectContaining({ setId: 'nac', code: 'NACIONAL', timeMs: 34000, qualifiedCount: 1 }),
+        expect.objectContaining({ setId: 'fed', code: 'FEDERARSE', timeMs: 37500, qualifiedCount: 2 }),
+      ]);
+    });
+
+    it('queryEventStandards: sin categoría no hay una marca única (timeMs null), pero sí el conteo', async () => {
+      mockPrisma.ranking.findMany.mockResolvedValue([row('s1', 'CAD_1', 30000), row('s2', 'MEN_1', 32000)]);
+      mockPrisma.timeStandard.findMany.mockResolvedValue([
+        std('nac', 'NACIONAL', 1, 'MEN_1', 34000),
+        std('nac', 'NACIONAL', 1, 'CAD_1', 30410),
+      ]);
+
+      const result = await service.queryEventStandards(base);
+
+      expect(result).toEqual([expect.objectContaining({ setId: 'nac', timeMs: null, qualifiedCount: 2 })]);
+    });
+
+    it('relevos mixtos: no se consultan marcas', async () => {
+      mockPrisma.ranking.findMany.mockResolvedValue([]);
+      await service.queryEventRanking({ ...base, gender: 'MIX' });
+      expect(mockPrisma.timeStandard.findMany).not.toHaveBeenCalled();
     });
   });
 

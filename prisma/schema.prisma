@@ -368,6 +368,7 @@ model Season {
   categoriesTo      Category[]           @relation("CategoryValidTo")
   schemesFrom       ScoringScheme[]      @relation("SchemeValidFrom")
   schemesTo         ScoringScheme[]      @relation("SchemeValidTo")
+  timeStandardSets  TimeStandardSet[]
 
   @@map("seasons")
 }
@@ -410,6 +411,7 @@ model Category {
   // Categoría congelada en registraciones y resultados
   frozenResults       Result[]         @relation("ResultFrozenCategory")
   frozenRegistrations Registration[]   @relation("RegistrationFrozenCategory")
+  timeStandards       TimeStandard[]
 
   @@map("categories")
 }
@@ -549,6 +551,7 @@ model EventDefinition {
   records        Record[]
   rankingHistory RankingHistory[]
   rankings       Ranking[]
+  timeStandards  TimeStandard[]
 
   @@map("event_definitions")
 }
@@ -1105,4 +1108,46 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([userId])
   @@map("audit_logs")
+}
+
+// ─── Marcas básicas / tiempos mínimos (P-1) ──────────────────────────────────
+// Un "set" es una tabla de marcas (p. ej. "Básica Nacional", "Básica para federarse").
+// Todo configurable: nada de esto se hardcodea en el código.
+model TimeStandardSet {
+  id         String   @id @default(cuid())
+  code       String   @unique // NACIONAL, FEDERARSE
+  name       String // "Básica Nacional"
+  shortLabel String   @map("short_label") // chip en el ranking: "NAC", "FED"
+  purpose    String // nacional | federacion | otro
+  color      String // token de la paleta de la web: "sky", "emerald"…
+  orderNo    Int      @default(0) @map("order_no")
+  source     String? // quién la publica: CADDA, FTN…
+  seasonId   String?  @map("season_id") // null = vigente sin temporada asociada
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  season    Season?        @relation(fields: [seasonId], references: [id])
+  standards TimeStandard[]
+
+  @@map("time_standard_sets")
+}
+
+// Cumple la marca quien tiene tiempo <= timeMs. 25 m y 50 m son independientes
+// (poolLength es parte de la clave) y se compara con la categoría CONGELADA del resultado.
+model TimeStandard {
+  id                String     @id @default(cuid())
+  setId             String     @map("set_id")
+  eventDefinitionId String     @map("event_definition_id")
+  categoryId        String     @map("category_id")
+  gender            Gender
+  poolLength        PoolLength @map("pool_length")
+  timeMs            Int        @map("time_ms") // milisegundos enteros
+
+  set             TimeStandardSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+  eventDefinition EventDefinition @relation(fields: [eventDefinitionId], references: [id])
+  category        Category        @relation(fields: [categoryId], references: [id])
+
+  @@unique([setId, eventDefinitionId, categoryId, gender, poolLength])
+  @@index([eventDefinitionId, poolLength, gender])
+  @@map("time_standards")
 }

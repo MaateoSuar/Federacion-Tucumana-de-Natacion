@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { Fragment, useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { NavBar } from '@/components/NavBar';
 import { MedalIcon } from '@/components/ui/MedalIcon';
 import { formatTime } from '@/lib/formatTime';
 import type {
-  RankingEntry, ClubRankingEntry,
+  RankingEntry, ClubRankingEntry, EventStandard,
   EventDefinition, Category, Season, Tournament,
 } from '@/lib/api';
 
@@ -24,6 +24,40 @@ async function fetchJson<T>(url: string): Promise<T> {
 }
 
 type Tab = 'prueba' | 'club';
+
+// Color de cada set de marcas básicas: token configurable (time_standard_sets.color) → clases.
+interface StandardStyle { text: string; line: string; chip: string; dot: string }
+const DEFAULT_STANDARD_STYLE: StandardStyle = {
+  text: 'text-aqua-300', line: 'border-aqua-400/70', chip: 'bg-aqua-500/15 text-aqua-300 border-aqua-400/40', dot: 'bg-aqua-400',
+};
+const STANDARD_STYLES: Record<string, StandardStyle> = {
+  sky: { text: 'text-sky-300', line: 'border-sky-400/70', chip: 'bg-sky-500/15 text-sky-300 border-sky-400/40', dot: 'bg-sky-400' },
+  emerald: { text: 'text-emerald-300', line: 'border-emerald-400/70', chip: 'bg-emerald-500/15 text-emerald-300 border-emerald-400/40', dot: 'bg-emerald-400' },
+  amber: { text: 'text-amber-300', line: 'border-amber-400/70', chip: 'bg-amber-500/15 text-amber-300 border-amber-400/40', dot: 'bg-amber-400' },
+  aqua: DEFAULT_STANDARD_STYLE,
+};
+const standardStyle = (color: string): StandardStyle => STANDARD_STYLES[color] ?? DEFAULT_STANDARD_STYLE;
+
+/** Línea de corte de una marca básica: quienes están arriba la cumplen. */
+function StandardCutRow({ standard }: { standard: EventStandard }) {
+  const st = standardStyle(standard.color);
+  const count = standard.qualifiedCount;
+  return (
+    <tr aria-label={`Línea de corte: ${standard.name}`}>
+      <td colSpan={5} className="px-4 py-1.5">
+        <div className="flex items-center gap-3">
+          <span className={`h-0 flex-1 border-t-2 border-dashed ${st.line}`} aria-hidden="true" />
+          <span className={`text-center text-[11px] font-bold uppercase tracking-wider ${st.text}`}>
+            ▲ {standard.name}
+            {standard.timeMs !== null && <> · <span className="font-mono">{formatTime(standard.timeMs)}</span></>}
+            <span className="block sm:inline"> · {count} {count === 1 ? 'nadador' : 'nadadores'}</span>
+          </span>
+          <span className={`h-0 flex-1 border-t-2 border-dashed ${st.line}`} aria-hidden="true" />
+        </div>
+      </td>
+    </tr>
+  );
+}
 
 // Key to identify a "base event" (distance + stroke), without gender
 function baseKey(e: EventDefinition) { return `${e.distance}-${e.stroke}`; }
@@ -69,6 +103,30 @@ export default function RankingsPage() {
 
   // Resultados
   const [eventRankings, setEventRankings] = useState<RankingEntry[] | null>(null);
+  const [standards, setStandards] = useState<EventStandard[]>([]);
+  // Sets de marcas básicas que el usuario ocultó desde la leyenda
+  const [hiddenSets, setHiddenSets] = useState<Set<string>>(new Set());
+  const visibleStandards = useMemo(() => standards.filter((s) => !hiddenSets.has(s.setId)), [standards, hiddenSets]);
+  // Con categoría elegida cada set tiene una marca única: la línea de corte va después
+  // de la última fila que la cumple (las filas vienen ordenadas por tiempo).
+  const cutLines = useMemo(() => {
+    const lines = new Map<number, EventStandard[]>();
+    if (!eventRankings) return lines;
+    for (const s of visibleStandards) {
+      if (s.timeMs === null) continue;
+      const timeMs = s.timeMs;
+      const after = eventRankings.filter((r) => r.finalTime <= timeMs).length;
+      lines.set(after, [...(lines.get(after) ?? []), s]);
+    }
+    return lines;
+  }, [eventRankings, visibleStandards]);
+  const toggleSet = (setId: string) =>
+    setHiddenSets((prev) => {
+      const next = new Set(prev);
+      if (next.has(setId)) next.delete(setId);
+      else next.add(setId);
+      return next;
+    });
   const [clubRankings, setClubRankings] = useState<ClubRankingEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -103,6 +161,9 @@ export default function RankingsPage() {
       });
       const data = await fetchJson<RankingEntry[]>(`${API_BASE}/rankings/event?${params}`);
       setEventRankings(data);
+      // Las marcas básicas son un agregado: si fallan, el ranking se muestra igual.
+      const stds = await fetchJson<EventStandard[]>(`${API_BASE}/rankings/event/standards?${params}`).catch(() => []);
+      setStandards(stds);
     } catch {
       setError('No se pudieron cargar los rankings.');
     } finally {
@@ -230,6 +291,34 @@ export default function RankingsPage() {
           eventRankings.length === 0
             ? <p className="text-pool-400 text-center py-16">Sin resultados para estos filtros.</p>
             : (
+              <>
+              {standards.length > 0 && (
+                <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="text-pool-400 uppercase tracking-wider font-semibold">Marcas básicas</span>
+                  {standards.map((s) => {
+                    const st = standardStyle(s.color);
+                    const hidden = hiddenSets.has(s.setId);
+                    return (
+                      <button
+                        key={s.setId}
+                        type="button"
+                        onClick={() => toggleSet(s.setId)}
+                        aria-pressed={!hidden}
+                        title={hidden ? 'Mostrar' : 'Ocultar'}
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-semibold transition-opacity ${st.chip} ${hidden ? 'opacity-40 line-through' : ''}`}
+                      >
+                        <span className={`h-2 w-2 rounded-full ${st.dot}`} aria-hidden="true" />
+                        {s.name}
+                        {s.timeMs !== null && <span className="font-mono">{formatTime(s.timeMs)}</span>}
+                        <span className="font-normal opacity-80">· {s.qualifiedCount} {s.qualifiedCount === 1 ? 'nadador' : 'nadadores'}</span>
+                      </button>
+                    );
+                  })}
+                  {!categoryId && (
+                    <span className="text-pool-500">Elegí una categoría para ver la línea de corte.</span>
+                  )}
+                </div>
+              )}
               <div className="overflow-x-auto rounded-xl border border-pool-700/40">
                 <table className="w-full text-sm">
                   <thead>
@@ -242,22 +331,38 @@ export default function RankingsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-pool-700/20">
-                    {eventRankings.map((r) => (
-                      <tr key={`${r.swimmerId}-${r.categoryId}-${r.sourceResultId}`} className="hover:bg-pool-800/30 transition-colors">
+                    {(cutLines.get(0) ?? []).map((s) => <StandardCutRow key={s.setId} standard={s} />)}
+                    {eventRankings.map((r, idx) => (
+                      <Fragment key={`${r.swimmerId}-${r.categoryId}-${r.sourceResultId}`}>
+                      <tr className="hover:bg-pool-800/30 transition-colors">
                         <td className="px-4 py-3"><MedalIcon position={r.position} /></td>
                         <td className="px-4 py-3 font-medium text-white">
                           <Link href={`/nadadores/${r.swimmerId}`} className="hover:text-aqua-300 transition-colors">
                             {r.swimmerName}
                           </Link>
+                          {visibleStandards
+                            .filter((s) => r.meets?.includes(s.setId))
+                            .map((s) => (
+                              <span
+                                key={s.setId}
+                                title={`Cumple la ${s.name}`}
+                                className={`ml-2 inline-block rounded border px-1.5 py-0.5 align-middle text-[10px] font-bold tracking-wide ${standardStyle(s.color).chip}`}
+                              >
+                                {s.shortLabel}
+                              </span>
+                            ))}
                         </td>
                         <td className="px-4 py-3 text-pool-300 hidden sm:table-cell">{r.clubName}</td>
                         <td className="px-4 py-3 text-pool-300 text-xs sm:text-sm">{r.categoryName}</td>
                         <td className="px-4 py-3 text-right font-mono font-bold text-white">{formatTime(r.finalTime)}</td>
                       </tr>
+                      {(cutLines.get(idx + 1) ?? []).map((s) => <StandardCutRow key={s.setId} standard={s} />)}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
               </div>
+              </>
             )
         )}
 
