@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { EventRankingQueryDto } from './dto/event-ranking-query.dto';
@@ -14,7 +14,8 @@ export interface RankingEntry {
   categoryName: string;
   finalTime: number;
   sourceResultId: string | null;
-  computedAt?: Date;
+  /** Fecha (ISO) del torneo o del récord donde hizo ese tiempo. */
+  achievedAt?: string;
   /** Ids de los sets de marcas básicas que este tiempo cumple (tiempo <= marca de SU categoría). */
   meets: string[];
 }
@@ -66,20 +67,14 @@ export class RankingsService {
 
   // ─── Event Rankings ────────────────────────────────────────────────────────
   //
-  // Una sola vista: mejor marca por nadador, tomada de la tabla Ranking. Esa
-  // tabla ya combina resultados homologados de torneos (poblados por
-  // RankingProcessor tras cada homologación) y récords oficiales/históricos
-  // cargados manualmente (seed-records.ts, records.service.updateManualRecord)
-  // — si un nadador hizo récord en algún momento, aparece acá aunque no tenga
-  // un Result asociado. El detalle del récord vigente vive en /records.
-  //
-  // El campo `position` guardado en la tabla es por categoría (1er puesto de
-  // Cadetes, 1er puesto de Absoluto, etc.) — NUNCA se usa para ordenar acá.
-  // Un ranking es SIEMPRE por tiempo, de mejor a peor, con posiciones 1,2,3...
-  // estrictamente correlativas (sin empates de categorías distintas
-  // compartiendo el 1er puesto). Cuando se filtra por una sola categoría da
-  // el mismo resultado; cuando es "Todos" (varias categorías mezcladas), el
-  // orden real por tiempo es el único que tiene sentido.
+  // Ranking por prueba: TODOS los nadadores, una sola vez cada uno, con su mejor
+  // tiempo dentro del período elegido (histórico, una temporada o un rango de
+  // fechas). Se calcula en el momento desde dos fuentes:
+  //   - resultados homologados de torneos (por fecha del torneo), y
+  //   - récords oficiales homologados (por fecha del récord), para no perder las
+  //     marcas históricas cuyos resultados no están cargados.
+  // Siempre se ordena por tiempo, con posiciones 1,2,3… correlativas. La tabla
+  // `rankings` (precalculada por temporada) ya no se usa para esta vista.
 
   async queryEventRanking(dto: EventRankingQueryDto): Promise<RankingEntry[]> {
     const key = this.cacheKeyEvent(dto);
@@ -87,56 +82,130 @@ export class RankingsService {
     // Entradas cacheadas antes de existir `meets` se descartan y se recalculan.
     if (cached && cached.every((c) => Array.isArray(c.meets))) return cached;
 
-    const rows = await this.prisma.ranking.findMany({
+    const scope = dto.scope ?? 'provincial';
+    const period = await this.resolvePeriod(dto);
+    const dateFilter = period ? { gte: period.from, lte: period.to } : undefined;
+
+    // 1) Resultados homologados de torneos. La pileta es la del torneo (congelada):
+    //    25 m y 50 m nunca se mezclan. Categoría y club son los congelados del resultado.
+    const results = await this.prisma.result.findMany({
       where: {
+        homologated: true,
+        status: 'OK',
+        finalTime: { not: null },
+        ...(dto.categoryId ? { categoryId: dto.categoryId } : {}),
+        // El género se exige en la prueba y en el nadador: un resultado cargado en
+        // la prueba del otro género no entra al ranking.
+        ...(dto.gender === 'MIX' ? {} : { swimmer: { gender: dto.gender } }),
+        event: {
+          eventDefinitionId: dto.eventDefinitionId,
+          eventDefinition: { gender: dto.gender },
+          tournament: {
+            poolLength: dto.poolLength,
+            scope,
+            ...(dateFilter ? { startDate: dateFilter } : {}),
+          },
+        },
+      },
+      select: {
+        id: true,
+        swimmerId: true,
+        clubId: true,
+        categoryId: true,
+        finalTime: true,
+        swimmer: { select: { firstName: true, lastName: true } },
+        club: { select: { name: true } },
+        category: { select: { name: true, code: true } },
+        event: { select: { tournament: { select: { startDate: true } } } },
+      },
+    });
+
+    // 2) Récords oficiales homologados (vigentes o ya superados): incluyen marcas
+    //    históricas cuyos resultados no están cargados. Entran con la fecha del récord.
+    const records = await this.prisma.record.findMany({
+      where: {
+        scope,
         eventDefinitionId: dto.eventDefinitionId,
         poolLength: dto.poolLength,
         gender: dto.gender,
-        scope: dto.scope ?? 'provincial',
-        seasonId: dto.seasonId ?? null,
+        status: { in: ['homologated', 'superseded'] },
         ...(dto.categoryId ? { categoryId: dto.categoryId } : {}),
+        ...(dateFilter ? { recordDate: dateFilter } : {}),
       },
-      orderBy: { finalTime: 'asc' },
-      include: {
-        swimmer: { select: { id: true, firstName: true, lastName: true } },
-        category: { select: { id: true, name: true, code: true } },
+      select: {
+        swimmerId: true,
+        clubId: true,
+        categoryId: true,
+        timeMs: true,
+        recordDate: true,
+        sourceResultId: true,
+        swimmer: { select: { firstName: true, lastName: true } },
+        club: { select: { name: true } },
+        category: { select: { name: true, code: true } },
       },
     });
 
-    // Cuando se ven todas las categorías juntas ("Todos"), un mismo nadador
-    // puede tener marca en su categoría real (ej. Mayores) y en Absoluto
-    // (categoría abierta que se solapa con todas las franjas etarias) para
-    // la misma prueba — sin este merge aparecería duplicado. Nos quedamos con
-    // su mejor tiempo; si hay empate real (misma marca en dos categorías),
-    // se combinan los nombres ("Mayores y Absoluto") en vez de descartar una
-    // — el nadador realmente tiene esa marca homologada en ambas.
-    let effectiveRows = rows;
-    const tiedCategoryNames = new Map<string, Set<string>>();
-    if (!dto.categoryId) {
-      const bestBySwimmer = new Map<string, (typeof rows)[number]>();
-      for (const r of rows) {
-        const current = bestBySwimmer.get(r.swimmerId);
-        if (!current || r.finalTime < current.finalTime) {
-          bestBySwimmer.set(r.swimmerId, r);
-          tiedCategoryNames.set(r.swimmerId, new Set([r.category.name]));
-        } else if (r.finalTime === current.finalTime) {
-          tiedCategoryNames.get(r.swimmerId)!.add(r.category.name);
-          // La fila "representativa" (de donde salen categoryId/club, etc.) preferimos
-          // que sea la categoría específica, no Absoluto — es solo el agregado.
-          if (current.category.code === 'ABS' && r.category.code !== 'ABS') {
-            bestBySwimmer.set(r.swimmerId, r);
-          }
-        }
-      }
-      effectiveRows = Array.from(bestBySwimmer.values()).sort((a, b) => a.finalTime - b.finalTime);
+    interface Candidate {
+      swimmerId: string;
+      swimmerName: string;
+      clubId: string;
+      clubName: string;
+      categoryId: string;
+      categoryName: string;
+      categoryCode: string;
+      finalTime: number;
+      sourceResultId: string | null;
+      achievedAt: Date;
+      fromResult: boolean;
     }
+    const candidates: Candidate[] = [
+      ...results.map((r) => ({
+        swimmerId: r.swimmerId,
+        swimmerName: `${r.swimmer.firstName} ${r.swimmer.lastName}`,
+        clubId: r.clubId,
+        clubName: r.club.name,
+        categoryId: r.categoryId,
+        categoryName: r.category.name,
+        categoryCode: r.category.code,
+        finalTime: r.finalTime as number,
+        sourceResultId: r.id,
+        achievedAt: r.event.tournament.startDate,
+        fromResult: true,
+      })),
+      ...records.map((r) => ({
+        swimmerId: r.swimmerId,
+        swimmerName: `${r.swimmer.firstName} ${r.swimmer.lastName}`,
+        clubId: r.clubId,
+        clubName: r.club.name,
+        categoryId: r.categoryId,
+        categoryName: r.category.name,
+        categoryCode: r.category.code,
+        finalTime: r.timeMs,
+        sourceResultId: r.sourceResultId,
+        achievedAt: r.recordDate,
+        fromResult: false,
+      })),
+    ];
 
-    const clubIds = [...new Set(effectiveRows.map((r) => r.clubId))];
-    const clubs = await this.prisma.club.findMany({
-      where: { id: { in: clubIds } },
-      select: { id: true, name: true },
-    });
-    const clubMap = new Map(clubs.map((c) => [c.id, c.name]));
+    // Un nadador aparece UNA sola vez, con su mejor tiempo del período. A igual
+    // tiempo se prefiere la fila que viene de un resultado (trae la categoría fina
+    // congelada), después una categoría específica antes que Absoluto, y la más antigua.
+    const isBetter = (a: Candidate, b: Candidate): boolean => {
+      if (a.finalTime !== b.finalTime) return a.finalTime < b.finalTime;
+      if (a.fromResult !== b.fromResult) return a.fromResult;
+      const aOpen = a.categoryCode === 'ABS';
+      const bOpen = b.categoryCode === 'ABS';
+      if (aOpen !== bOpen) return !aOpen;
+      return a.achievedAt.getTime() < b.achievedAt.getTime();
+    };
+    const bestBySwimmer = new Map<string, Candidate>();
+    for (const c of candidates) {
+      const current = bestBySwimmer.get(c.swimmerId);
+      if (!current || isBetter(c, current)) bestBySwimmer.set(c.swimmerId, c);
+    }
+    const ranked = [...bestBySwimmer.values()].sort(
+      (a, b) => a.finalTime - b.finalTime || a.achievedAt.getTime() - b.achievedAt.getTime(),
+    );
 
     // Marcas básicas de esta prueba/pileta/género. La clave incluye poolLength:
     // una marca de 25 m nunca se compara con un tiempo de 50 m. Cada tiempo se
@@ -149,31 +218,54 @@ export class RankingsService {
       standardsByCategory.set(st.categoryId, list);
     }
 
-    const result: RankingEntry[] = effectiveRows.map((r, idx) => {
-      const tied = tiedCategoryNames.get(r.swimmerId);
-      const categoryName =
-        tied && tied.size > 1
-          ? `${r.category.name} y ${[...tied].filter((n) => n !== r.category.name).join(', ')}`
-          : r.category.name;
-      return {
-        position: idx + 1,
-        swimmerId: r.swimmerId,
-        swimmerName: `${r.swimmer.firstName} ${r.swimmer.lastName}`,
-        clubId: r.clubId,
-        clubName: clubMap.get(r.clubId) ?? '',
-        categoryId: r.categoryId,
-        categoryName,
-        finalTime: r.finalTime,
-        sourceResultId: r.sourceResultId,
-        computedAt: r.computedAt,
-        meets: (standardsByCategory.get(r.categoryId) ?? [])
-          .filter((st) => r.finalTime <= st.timeMs)
-          .map((st) => st.setId),
-      };
-    });
+    const result: RankingEntry[] = ranked.map((c, idx) => ({
+      position: idx + 1,
+      swimmerId: c.swimmerId,
+      swimmerName: c.swimmerName,
+      clubId: c.clubId,
+      clubName: c.clubName,
+      categoryId: c.categoryId,
+      categoryName: c.categoryName,
+      finalTime: c.finalTime,
+      sourceResultId: c.sourceResultId,
+      achievedAt: c.achievedAt.toISOString(),
+      meets: (standardsByCategory.get(c.categoryId) ?? [])
+        .filter((st) => c.finalTime <= st.timeMs)
+        .map((st) => st.setId),
+    }));
 
     await this.redis.set(key, result, CACHE_TTL.EVENT_BEST);
     return result;
+  }
+
+  /**
+   * Período del ranking: un rango explícito (from/to) tiene prioridad; si no, la
+   * temporada elegida; si no hay ninguno, histórico (sin límite de fechas).
+   * `to` incluye el día completo.
+   */
+  private async resolvePeriod(dto: EventRankingQueryDto): Promise<{ from?: Date; to?: Date } | null> {
+    if (dto.from || dto.to) {
+      const from = dto.from ? new Date(`${dto.from}T00:00:00.000Z`) : undefined;
+      const to = dto.to ? new Date(`${dto.to}T23:59:59.999Z`) : undefined;
+      if ((from && Number.isNaN(from.getTime())) || (to && Number.isNaN(to.getTime()))) {
+        throw new BadRequestException('El período es inválido: alguna de las fechas no existe.');
+      }
+      if (from && to && from.getTime() > to.getTime()) {
+        throw new BadRequestException('El período es inválido: "desde" es posterior a "hasta".');
+      }
+      return { from, to };
+    }
+    if (dto.seasonId) {
+      const season = await this.prisma.season.findUnique({
+        where: { id: dto.seasonId },
+        select: { startDate: true, endDate: true },
+      });
+      if (!season) throw new BadRequestException('Temporada inexistente.');
+      const to = new Date(season.endDate);
+      to.setUTCHours(23, 59, 59, 999);
+      return { from: season.startDate, to };
+    }
+    return null;
   }
 
   // ─── Marcas básicas del ranking por prueba ─────────────────────────────────
@@ -212,7 +304,8 @@ export class RankingsService {
   }
 
   private cacheKeyEvent(dto: EventRankingQueryDto): string {
-    return `ranking:event:${dto.eventDefinitionId}:${dto.poolLength}:${dto.gender}:${dto.scope ?? 'provincial'}:${dto.seasonId ?? 'all'}:${dto.categoryId ?? 'all'}`;
+    const period = dto.from || dto.to ? `:${dto.from ?? ''}_${dto.to ?? ''}` : '';
+    return `ranking:event:${dto.eventDefinitionId}:${dto.poolLength}:${dto.gender}:${dto.scope ?? 'provincial'}:${dto.seasonId ?? 'all'}:${dto.categoryId ?? 'all'}${period}`;
   }
 
   // ─── Club Ranking ──────────────────────────────────────────────────────────

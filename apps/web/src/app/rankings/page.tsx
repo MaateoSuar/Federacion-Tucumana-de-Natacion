@@ -25,6 +25,9 @@ async function fetchJson<T>(url: string): Promise<T> {
 
 type Tab = 'prueba' | 'club';
 
+// Valor del selector de período que habilita las fechas "desde / hasta"
+const RANGE_OPTION = '__range__';
+
 // Color de cada set de marcas básicas: token configurable (time_standard_sets.color) → clases.
 interface StandardStyle { text: string; line: string; chip: string; dot: string }
 const DEFAULT_STANDARD_STYLE: StandardStyle = {
@@ -81,6 +84,10 @@ export default function RankingsPage() {
   const [gender, setGender] = useState<'M' | 'F'>('M');
   const [categoryId, setCategoryId] = useState('');
   const [seasonId, setSeasonId] = useState('');
+  // Período elegido a mano (tiene prioridad sobre el año)
+  const [useRange, setUseRange] = useState(false);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [clubScope, setClubScope] = useState('');
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [tournamentId, setTournamentId] = useState('');
@@ -151,7 +158,9 @@ export default function RankingsPage() {
         poolLength,
         gender,
         categoryId,
-        ...(seasonId ? { seasonId } : {}),
+        ...(!useRange && seasonId ? { seasonId } : {}),
+        ...(useRange && dateFrom ? { from: dateFrom } : {}),
+        ...(useRange && dateTo ? { to: dateTo } : {}),
       });
       const data = await fetchJson<RankingEntry[]>(`${API_BASE}/rankings/event?${params}`);
       setEventRankings(data);
@@ -163,7 +172,7 @@ export default function RankingsPage() {
     } finally {
       setLoading(false);
     }
-  }, [eventDefId, poolLength, gender, categoryId, seasonId]); // categoryId puede ser ''
+  }, [eventDefId, poolLength, gender, categoryId, seasonId, useRange, dateFrom, dateTo]); // categoryId puede ser ''
 
   const loadClubRankings = useCallback(async () => {
     setLoading(true);
@@ -247,12 +256,46 @@ export default function RankingsPage() {
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
-            <select value={seasonId} onChange={(e) => setSeasonId(e.target.value)} className="bg-pool-800 border border-pool-600 rounded-lg px-3 py-2 text-sm text-white">
-              <option value="">Histórico global</option>
+            <select
+              aria-label="Período"
+              value={useRange ? RANGE_OPTION : seasonId}
+              onChange={(e) => {
+                const v = e.target.value;
+                setUseRange(v === RANGE_OPTION);
+                setSeasonId(v === RANGE_OPTION ? '' : v);
+              }}
+              className="bg-pool-800 border border-pool-600 rounded-lg px-3 py-2 text-sm text-white"
+            >
+              <option value="">Histórico</option>
               {seasons.map((s) => (
-                <option key={s.id} value={s.id}>{s.year}</option>
+                <option key={s.id} value={s.id}>Año {s.year}</option>
               ))}
+              <option value={RANGE_OPTION}>Elegir fechas…</option>
             </select>
+            {useRange && (
+              <div className="col-span-2 flex flex-wrap items-center gap-2 text-sm text-pool-300">
+                <label className="flex items-center gap-2">
+                  Desde
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    max={dateTo || undefined}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="bg-pool-800 border border-pool-600 rounded-lg px-3 py-2 text-sm text-white [color-scheme:dark]"
+                  />
+                </label>
+                <label className="flex items-center gap-2">
+                  Hasta
+                  <input
+                    type="date"
+                    value={dateTo}
+                    min={dateFrom || undefined}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="bg-pool-800 border border-pool-600 rounded-lg px-3 py-2 text-sm text-white [color-scheme:dark]"
+                  />
+                </label>
+              </div>
+            )}
           </div>
         )}
 
