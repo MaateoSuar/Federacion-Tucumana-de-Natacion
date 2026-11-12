@@ -12,6 +12,7 @@ import {
   HttpStatus,
   ParseIntPipe,
   DefaultValuePipe,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -140,8 +141,11 @@ export class SwimmersController {
   @ApiQuery({ name: 'pool', required: false, enum: ['P25', 'P50'] })
   getProgression(
     @Param('id') id: string,
-    @Query('pool') pool?: 'P25' | 'P50',
+    @Query('pool') pool?: string,
   ) {
+    if (pool !== undefined && pool !== 'P25' && pool !== 'P50') {
+      throw new BadRequestException('pool debe ser P25 o P50.');
+    }
     return this.swimmersService.getProgression(id, pool);
   }
 
