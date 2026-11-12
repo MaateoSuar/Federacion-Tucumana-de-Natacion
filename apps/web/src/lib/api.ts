@@ -315,6 +315,8 @@ export interface RankingEntry {
   categoryName: string;
   finalTime: number;
   sourceResultId: string | null;
+  /** Fecha (ISO) del torneo o del récord donde hizo ese tiempo. */
+  achievedAt?: string;
   /** Ids de los sets de marcas básicas que este tiempo cumple en su categoría. */
   meets?: string[];
 }

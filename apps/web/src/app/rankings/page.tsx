@@ -51,7 +51,7 @@ function StandardCutRow({ standard }: { standard: EventStandard }) {
     `Quienes están por encima de esta línea cumplen la marca (${count}).`;
   return (
     <tr aria-label={`Línea de corte: ${standard.name}`} title={detail} className="cursor-help">
-      <td colSpan={5} className="px-4 py-1.5">
+      <td colSpan={6} className="px-4 py-1.5">
         <div className="flex items-center gap-3">
           <span className={`h-0 flex-1 border-t-2 border-dashed ${st.line}`} aria-hidden="true" />
           <span className={`text-center text-[11px] font-bold uppercase tracking-wider ${st.text}`}>
@@ -337,6 +337,7 @@ export default function RankingsPage() {
                       <th className="text-left px-4 py-3">Nadador/a</th>
                       <th className="text-left px-4 py-3 hidden sm:table-cell">Club</th>
                       <th className="text-left px-4 py-3">Categoría</th>
+                      <th className="text-left px-4 py-3 hidden md:table-cell">Fecha</th>
                       <th className="text-right px-4 py-3">Tiempo</th>
                     </tr>
                   </thead>
@@ -364,6 +365,9 @@ export default function RankingsPage() {
                         </td>
                         <td className="px-4 py-3 text-pool-300 hidden sm:table-cell">{r.clubName}</td>
                         <td className="px-4 py-3 text-pool-300 text-xs sm:text-sm">{r.categoryName}</td>
+                        <td className="px-4 py-3 text-pool-400 text-xs hidden md:table-cell tabular-nums">
+                          {r.achievedAt ? new Date(r.achievedAt).toLocaleDateString('es-AR', { timeZone: 'UTC' }) : '—'}
+                        </td>
                         <td className="px-4 py-3 text-right font-mono font-bold text-white">{formatTime(r.finalTime)}</td>
                       </tr>
                       {(cutLines.get(idx + 1) ?? []).map((s) => <StandardCutRow key={s.setId} standard={s} />)}
