@@ -19,6 +19,7 @@ import { countPendingDecisions } from '../matching/pending-decisions';
 import { AthleteMatcher } from '../matching/athlete-matcher';
 import { ClubMatcher } from '../matching/club-matcher';
 import { HomologationService } from '../../homologation/homologation.service';
+import { resultIdempotencyKey } from '../matching/duplicate-detector';
 
 interface RollbackPayload {
   tournamentId: string | null;
@@ -28,6 +29,45 @@ interface RollbackPayload {
   resultIds: string[];
   /** Grafías de nadadores/clubes aprendidas en este import (external_id_map). */
   learnedExternalIds: string[];
+  /** Resultados del archivo que NO se insertaron, con el motivo (queda en `mapping`). */
+  skippedResults: SkippedResult[];
+}
+
+interface SkippedResult {
+  source_line: number;
+  event_key: string;
+  swimmer_ref: string;
+  reason: 'gender_mismatch' | 'duplicate_in_file';
+  detail: string;
+}
+
+/**
+ * Cada resultado debe apuntar a UNA prueba por `event_key`. Los payloads analizados
+ * antes de M2b referencian por número de prueba, que Meet Manager reutiliza entre
+ * categorías y géneros: confirmarlos duplica nados y cruza géneros. Se rechazan.
+ */
+function assertEventKeys(meet: NormalizedMeet): void {
+  const stale =
+    meet.events.some((e) => !e.event_key) || meet.results.some((r) => !r.event_key);
+  if (stale) {
+    throw new BadRequestException(
+      'Este archivo se analizó con una versión anterior del lector y no se puede confirmar. ' +
+        'Volvé a analizarlo antes de confirmar.',
+    );
+  }
+  const keys = new Set<string>();
+  for (const e of meet.events) {
+    if (keys.has(e.event_key)) {
+      throw new BadRequestException(`La prueba "${e.event_key}" está repetida en el archivo analizado.`);
+    }
+    keys.add(e.event_key);
+  }
+  const orphan = meet.results.find((r) => !keys.has(r.event_key));
+  if (orphan) {
+    throw new BadRequestException(
+      `Hay resultados que apuntan a una prueba inexistente ("${orphan.event_key}", línea ${orphan.source_line}).`,
+    );
+  }
 }
 
 const SOURCE_SYSTEM = 'meet_manager';
@@ -199,6 +239,7 @@ export class CommitProcessor {
           'probablemente por otra importación confirmada. Revisalas en el preview antes de confirmar.',
       );
     }
+    assertEventKeys(normalizedMeet);
     const swimmerMatchByRef = new Map(matchResults.swimmers.map((m) => [m.swimmerRef, m]));
     const clubMatchByRef = new Map(matchResults.clubs.map((m) => [m.clubRef, m]));
 
@@ -209,6 +250,7 @@ export class CommitProcessor {
       newEventIds: [],
       resultIds: [],
       learnedExternalIds: [],
+      skippedResults: [],
     };
 
     // B-06: start_date puede estar vacío en CSV/Excel; usar año actual como fallback
@@ -278,6 +320,8 @@ export class CommitProcessor {
 
         // ── Swimmers ─────────────────────────────────────────────
         const swimmerIdMap: Record<string, string> = {};
+        // Género del nadador en la base (el del registro existente manda sobre el del archivo)
+        const swimmerGenderMap: Record<string, Gender> = {};
         for (const sw of normalizedMeet.swimmers) {
           const gender: Gender = sw.gender === 'F' ? 'F' : 'M';
           const clubId = clubIdMap[sw.club_ref] ?? null;
@@ -291,7 +335,7 @@ export class CommitProcessor {
           const existing = existingId
             ? await tx.swimmer.findUnique({
                 where: { id: existingId },
-                select: { id: true, currentClubId: true },
+                select: { id: true, currentClubId: true, gender: true },
               })
             : null;
           if (existingId && !existing) {
@@ -304,6 +348,7 @@ export class CommitProcessor {
               await tx.swimmer.update({ where: { id: existing.id }, data: { currentClubId: clubId } });
             }
             swimmerIdMap[sw.external_athlete_id] = existing.id;
+            swimmerGenderMap[sw.external_athlete_id] = existing.gender;
           } else {
             const created = await tx.swimmer.create({
               data: {
@@ -317,6 +362,7 @@ export class CommitProcessor {
               },
             });
             swimmerIdMap[sw.external_athlete_id] = created.id;
+            swimmerGenderMap[sw.external_athlete_id] = gender;
             rollback.newSwimmerIds.push(created.id);
           }
         }
@@ -405,6 +451,19 @@ export class CommitProcessor {
         rollback.tournamentId = tournament.id;
 
         // ── Events, Heats, Results ───────────────────────────────
+        // Cada resultado pertenece a una sola prueba (event_key): se agrupan una vez
+        // y cada uno se inserta exactamente una vez (regla 5).
+        const resultsByEventKey = new Map<string, NormalizedMeet['results']>();
+        for (const r of normalizedMeet.results) {
+          const list = resultsByEventKey.get(r.event_key);
+          if (list) list.push(r);
+          else resultsByEventKey.set(r.event_key, [r]);
+        }
+        const swimmerByRef = new Map(normalizedMeet.swimmers.map((s) => [s.external_athlete_id, s]));
+        // Varias pruebas del archivo (una por categoría de edad) comparten Event y serie en la base
+        const heatIdByEventAndNo = new Map<string, string>();
+        const insertedKeys = new Set<string>();
+
         for (const event of normalizedMeet.events) {
           const strokeCode = STROKE_CODE[event.stroke] ?? event.stroke;
           const code = `${event.distance}${strokeCode}_${event.gender}`;
@@ -444,29 +503,56 @@ export class CommitProcessor {
             rollback.newEventIds.push(createdEvent.id);
           }
 
-          const resultsForEvent = normalizedMeet.results.filter(
-            (r) => r.event_ref === event.event_no,
-          );
-          const heatNos = [...new Set(resultsForEvent.map((r) => r.heat_no))];
-
-          const heatIdMap: Record<number, string> = {};
-          for (const heatNo of heatNos) {
-            const heat = await tx.heat.create({
-              data: { eventId: createdEvent.id, heatNumber: heatNo },
-            });
-            heatIdMap[heatNo] = heat.id;
-          }
+          const resultsForEvent = resultsByEventKey.get(event.event_key) ?? [];
+          const eventGender: Gender | null =
+            event.gender === 'X' || event.is_relay ? null : event.gender;
 
           for (const result of resultsForEvent) {
-            const swimmer = normalizedMeet.swimmers.find(
-              (s) => s.external_athlete_id === result.swimmer_ref,
-            );
+            const swimmer = swimmerByRef.get(result.swimmer_ref);
             if (!swimmer) continue;
             const swimmerId = swimmerIdMap[swimmer.external_athlete_id];
             if (!swimmerId) continue;
 
             const clubId = clubIdMap[swimmer.club_ref];
             if (!clubId) continue;
+
+            // Un nadador no puede tener un resultado en la prueba del otro género
+            // (pruebas mixtas y relevos aparte). No se inserta; queda registrado.
+            const swimmerGender = swimmerGenderMap[swimmer.external_athlete_id];
+            if (eventGender && swimmerGender && swimmerGender !== eventGender) {
+              rollback.skippedResults.push({
+                source_line: result.source_line,
+                event_key: result.event_key,
+                swimmer_ref: result.swimmer_ref,
+                reason: 'gender_mismatch',
+                detail: `Nadador ${swimmerGender} en prueba ${eventGender} (${code})`,
+              });
+              continue;
+            }
+
+            // Mismo nado repetido dentro del archivo: se usa el primero.
+            const idempotencyKey = resultIdempotencyKey(result);
+            if (insertedKeys.has(idempotencyKey)) {
+              rollback.skippedResults.push({
+                source_line: result.source_line,
+                event_key: result.event_key,
+                swimmer_ref: result.swimmer_ref,
+                reason: 'duplicate_in_file',
+                detail: `Repite ${idempotencyKey}`,
+              });
+              continue;
+            }
+            insertedKeys.add(idempotencyKey);
+
+            const heatKey = `${createdEvent.id}|${result.heat_no}`;
+            let heatId = heatIdByEventAndNo.get(heatKey);
+            if (!heatId) {
+              const heat = await tx.heat.create({
+                data: { eventId: createdEvent.id, heatNumber: result.heat_no },
+              });
+              heatId = heat.id;
+              heatIdByEventAndNo.set(heatKey, heatId);
+            }
 
             // Resolve frozen category
             const birthDate = swimmer.birth_date ? new Date(swimmer.birth_date) : null;
@@ -478,7 +564,7 @@ export class CommitProcessor {
               data: {
                 eventId: createdEvent.id,
                 swimmerId,
-                heatId: heatIdMap[result.heat_no] ?? null,
+                heatId,
                 lane: result.lane_no,
                 finalTime: result.final_time_ms,
                 place: result.place ?? null,
@@ -526,6 +612,12 @@ export class CommitProcessor {
       `Job ${jobId} committed — tournament ${rollback.tournamentId}, ` +
         `${rollback.resultIds.length} results, ${rollback.newSwimmerIds.length} new swimmers`,
     );
+    if (rollback.skippedResults.length > 0) {
+      this.logger.warn(
+        `Job ${jobId}: ${rollback.skippedResults.length} resultado(s) no insertados — ` +
+          JSON.stringify(rollback.skippedResults.slice(0, 20)),
+      );
+    }
 
     if (this.resultsGateway && rollback.tournamentId) {
       this.resultsGateway.notifyResultsUpdated(rollback.tournamentId, rollback.newEventIds);

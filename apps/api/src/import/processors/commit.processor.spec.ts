@@ -4,7 +4,7 @@ import type { MatchResultsPayload, MatchResolution } from '../matching/types';
 
 const MATEO = 'suar|mateo|club_azucena|M';
 const JUAN = 'perez|juan|club_azucena|M';
-const NUEVO = 'lopez|ana|club_azucena|F';
+const NUEVO = 'lopez|alan|club_azucena|M';
 
 const makeMeet = (source: NormalizedMeet['meet']['source']): NormalizedMeet => ({
   meet: { name: 'Torneo', venue: 'Pileta', course: 25, start_date: '2026-05-01', end_date: '2026-05-01', source },
@@ -19,9 +19,10 @@ const makeMeet = (source: NormalizedMeet['meet']['source']): NormalizedMeet => (
     source_line: i + 2,
   })),
   events: [
-    { event_no: 1, stroke: 'libre', distance: 50, gender: 'M', round: 'F', course: 25, age_group: '11-12', competition_type: 'FEDERADOS', is_relay: false, source_line: 1 },
+    { event_key: 'ev-m', event_no: 1, stroke: 'libre', distance: 50, gender: 'M', round: 'F', course: 25, age_group: '11-12', competition_type: 'FEDERADOS', is_relay: false, source_line: 1 },
   ],
   results: [MATEO, JUAN, NUEVO].map((ref, i) => ({
+    event_key: 'ev-m',
     event_ref: 1,
     swimmer_ref: ref,
     heat_no: 1,
@@ -69,7 +70,12 @@ const makeMatches = (opts: { mateo?: MatchResolution; club?: MatchResolution } =
 const link = (targetId: string): MatchResolution => ({ decision: 'link', targetId, decidedBy: 'admin-1', decidedAt: '2026-05-02T00:00:00Z' });
 const asNew: MatchResolution = { decision: 'new', decidedBy: 'admin-1', decidedAt: '2026-05-02T00:00:00Z' };
 
-function setup(meet: NormalizedMeet, matches: MatchResultsPayload, existingSwimmers = ['sw-mateo', 'sw-juan']) {
+function setup(
+  meet: NormalizedMeet,
+  matches: MatchResultsPayload,
+  existingSwimmers = ['sw-mateo', 'sw-juan'],
+  existingGender: 'M' | 'F' = 'M',
+) {
   let seq = 0;
   const tx = {
     club: {
@@ -80,7 +86,7 @@ function setup(meet: NormalizedMeet, matches: MatchResultsPayload, existingSwimm
     },
     swimmer: {
       findUnique: jest.fn().mockImplementation(({ where }: { where: { id: string } }) =>
-        Promise.resolve(existingSwimmers.includes(where.id) ? { id: where.id, currentClubId: 'club-azu' } : null),
+        Promise.resolve(existingSwimmers.includes(where.id) ? { id: where.id, currentClubId: 'club-azu', gender: existingGender } : null),
       ),
       create: jest.fn().mockImplementation(() => Promise.resolve({ id: `sw-new-${++seq}` })),
       update: jest.fn(),
@@ -90,7 +96,7 @@ function setup(meet: NormalizedMeet, matches: MatchResultsPayload, existingSwimm
     tournament: { create: jest.fn().mockResolvedValue({ id: 't-1' }), delete: jest.fn() },
     eventDefinition: { findUnique: jest.fn().mockResolvedValue({ id: 'ed-1' }), create: jest.fn() },
     event: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'ev-1' }), deleteMany: jest.fn() },
-    heat: { create: jest.fn().mockResolvedValue({ id: 'h-1' }), deleteMany: jest.fn() },
+    heat: { create: jest.fn().mockImplementation(() => Promise.resolve({ id: `h-${++seq}` })), deleteMany: jest.fn() },
     result: { create: jest.fn().mockImplementation(() => Promise.resolve({ id: `r-${++seq}` })), deleteMany: jest.fn() },
     split: { create: jest.fn(), deleteMany: jest.fn() },
     importJob: { update: jest.fn() },
@@ -254,6 +260,133 @@ describe('CommitProcessor — decisiones de matching', () => {
       committedBy: 'admin-2',
       candidates: [{ id: 'sw-mateo', displayName: 'Mateo Rodriguez Suar', score: 0.98 }],
     });
+  });
+});
+
+// ─── M2b / C-1 ────────────────────────────────────────────────────────────────
+// Meet Manager reutiliza el número de prueba entre categorías y géneros. Cada
+// resultado se asigna por event_key y se inserta exactamente una vez (regla 5).
+
+const ANA = 'lopez|ana|club_azucena|F';
+const resolved = () => makeMatches({ mateo: link('sw-mateo'), club: link('club-azu') });
+
+/** Tres pruebas con el MISMO número (59): varones 12-13, varones 14-15 y mujeres 12-13. */
+const makeSharedNumberMeet = (): NormalizedMeet => {
+  const meet = makeMeet('csv');
+  const event = (event_key: string, gender: 'M' | 'F', age_group: string): NormalizedMeet['events'][number] => ({
+    event_key, event_no: 59, stroke: 'espalda', distance: 50, gender, round: 'F', course: 25,
+    age_group, competition_type: 'FEDERADOS', is_relay: false, source_line: 1,
+  });
+  const result = (event_key: string, swimmer_ref: string, lane_no: number): NormalizedMeet['results'][number] => ({
+    event_key, event_ref: 59, swimmer_ref, heat_no: 1, lane_no, final_time_ms: 40_000 + lane_no,
+    status: 'OK', splits: [], source_line: 10 + lane_no,
+  });
+  meet.swimmers.push({ external_athlete_id: ANA, first_name: 'Ana', last_name: 'Lopez', gender: 'F', age: 12, club_ref: 'club_azucena', source_line: 9 });
+  meet.events = [event('59-M-12', 'M', '12-13'), event('59-M-14', 'M', '14-15'), event('59-F-12', 'F', '12-13')];
+  meet.results = [result('59-M-12', MATEO, 1), result('59-M-14', JUAN, 2), result('59-M-14', NUEVO, 3), result('59-F-12', ANA, 1)];
+  return meet;
+};
+
+const withAna = (matches: MatchResultsPayload): MatchResultsPayload => ({
+  ...matches,
+  swimmers: [...matches.swimmers, { swimmerRef: ANA, confidence: 'none', swimmerId: null, matchedBy: 'none', requiresConfirmation: false, displayName: 'Ana Lopez' }],
+});
+
+describe('CommitProcessor — cada resultado en su prueba (M2b)', () => {
+  it('pruebas que comparten número: cada nado se inserta UNA sola vez', async () => {
+    const meet = makeSharedNumberMeet();
+    const { processor, tx } = setup(meet, withAna(resolved()));
+    await processor.commit('job-1');
+    expect(tx.result.create).toHaveBeenCalledTimes(meet.results.length);
+    expect(new Set(resultSwimmerIds(tx)).size).toBe(4);
+  });
+
+  it('cada nado va a la prueba de su género, aunque el número sea el mismo', async () => {
+    const { processor, tx } = setup(makeSharedNumberMeet(), withAna(resolved()));
+    tx.eventDefinition.findUnique.mockImplementation(({ where }: { where: { code: string } }) =>
+      Promise.resolve({ id: `ed-${where.code}` }),
+    );
+    const eventByDef = new Map<string, string>();
+    tx.event.create.mockImplementation(({ data }: { data: { eventDefinitionId: string } }) => {
+      const id = `ev-${data.eventDefinitionId}`;
+      eventByDef.set(data.eventDefinitionId, id);
+      return Promise.resolve({ id });
+    });
+    tx.event.findFirst.mockImplementation(({ where }: { where: { eventDefinitionId: string } }) => {
+      const id = eventByDef.get(where.eventDefinitionId);
+      return Promise.resolve(id ? { id } : null);
+    });
+    await processor.commit('job-1');
+
+    const calls = (tx.result.create.mock.calls as Array<[{ data: { swimmerId: string; eventId: string } }]>).map(([a]) => a.data);
+    const male = calls.filter((c) => c.eventId === 'ev-ed-50E_M');
+    const female = calls.filter((c) => c.eventId === 'ev-ed-50E_F');
+    expect(male).toHaveLength(3);
+    expect(female).toHaveLength(1);
+    expect(male.map((c) => c.swimmerId)).not.toContain(female[0]?.swimmerId);
+    // Las dos categorías de varones comparten Event y serie en la base
+    expect(tx.event.create).toHaveBeenCalledTimes(2);
+    expect(tx.heat.create).toHaveBeenCalledTimes(2);
+  });
+
+  it('no inserta un resultado si el nadador es del otro género que la prueba, y lo deja registrado', async () => {
+    // El Admin vinculó a "Mateo" con una nadadora existente (F): su nado en la prueba de varones no entra.
+    const matches = resolved();
+    matches.swimmers[1] = { swimmerRef: JUAN, confidence: 'none', swimmerId: null, matchedBy: 'none', requiresConfirmation: false, displayName: 'Juan Perez' };
+    const { processor, tx } = setup(makeMeet('csv'), matches, ['sw-mateo'], 'F');
+    await processor.commit('job-1');
+
+    expect(resultSwimmerIds(tx)).not.toContain('sw-mateo');
+    expect(tx.result.create).toHaveBeenCalledTimes(2);
+    const mapping = (tx.meetManagerImport.update.mock.calls[0] as [{ data: { mapping: { skippedResults: Array<{ reason: string; swimmer_ref: string }> } } }])[0].data.mapping;
+    expect(mapping.skippedResults).toEqual([expect.objectContaining({ reason: 'gender_mismatch', swimmer_ref: MATEO })]);
+  });
+
+  it('las pruebas mixtas no aplican la validación de género', async () => {
+    const meet = makeMeet('csv');
+    const first = meet.events[0];
+    if (first) first.gender = 'X';
+    const { processor, tx } = setup(meet, resolved(), ['sw-mateo', 'sw-juan'], 'F');
+    await processor.commit('job-1');
+    expect(tx.result.create).toHaveBeenCalledTimes(3);
+  });
+
+  it('un nado repetido en el archivo se inserta una vez (se usa el primero)', async () => {
+    const meet = makeMeet('csv');
+    const first = meet.results[0];
+    if (first) meet.results.push({ ...first, final_time_ms: 99_999, source_line: 99 });
+    const { processor, tx } = setup(meet, resolved());
+    await processor.commit('job-1');
+    expect(tx.result.create).toHaveBeenCalledTimes(3);
+    const times = (tx.result.create.mock.calls as Array<[{ data: { finalTime: number } }]>).map(([a]) => a.data.finalTime);
+    expect(times).not.toContain(99_999);
+  });
+
+  it('rechaza un payload analizado con el lector viejo (sin event_key)', async () => {
+    const meet = makeMeet('csv');
+    for (const r of meet.results) delete (r as { event_key?: string }).event_key;
+    for (const e of meet.events) delete (e as { event_key?: string }).event_key;
+    const { processor, tx } = setup(meet, resolved());
+    await expect(processor.commit('job-1')).rejects.toThrow(/versión anterior del lector/);
+    expect(tx.result.create).not.toHaveBeenCalled();
+    expect(tx.tournament.create).not.toHaveBeenCalled();
+  });
+
+  it('rechaza si dos pruebas del archivo tienen la misma event_key', async () => {
+    const meet = makeMeet('csv');
+    const first = meet.events[0];
+    if (first) meet.events.push({ ...first });
+    const { processor, tx } = setup(meet, resolved());
+    await expect(processor.commit('job-1')).rejects.toThrow(/repetida/);
+    expect(tx.result.create).not.toHaveBeenCalled();
+  });
+
+  it('rechaza si un resultado apunta a una prueba que no existe', async () => {
+    const meet = makeMeet('csv');
+    const first = meet.results[0];
+    if (first) first.event_key = 'no-existe';
+    const { processor } = setup(meet, resolved());
+    await expect(processor.commit('job-1')).rejects.toThrow(/prueba inexistente/);
   });
 });
 

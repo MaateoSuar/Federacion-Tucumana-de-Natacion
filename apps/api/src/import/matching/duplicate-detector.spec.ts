@@ -29,8 +29,8 @@ describe('DuplicateDetector — intra-archivo', () => {
         { external_athlete_id: 'a2', first_name: 'Ana', last_name: 'Lopez', gender: 'F', birth_date: '2006-01-01', club_ref: 'c1', source_line: 2 },
       ],
       results: [
-        { event_ref: 1, swimmer_ref: 'a1', heat_no: 1, lane_no: 3, final_time_ms: 60000, status: 'OK', splits: [], source_line: 10 },
-        { event_ref: 1, swimmer_ref: 'a2', heat_no: 1, lane_no: 4, final_time_ms: 62000, status: 'OK', splits: [], source_line: 11 },
+        { event_key: 'ev-1', event_ref: 1, swimmer_ref: 'a1', heat_no: 1, lane_no: 3, final_time_ms: 60000, status: 'OK', splits: [], source_line: 10 },
+        { event_key: 'ev-1', event_ref: 1, swimmer_ref: 'a2', heat_no: 1, lane_no: 4, final_time_ms: 62000, status: 'OK', splits: [], source_line: 11 },
       ],
     };
     const { issues } = detector.detectInFile(meet);
@@ -55,8 +55,8 @@ describe('DuplicateDetector — intra-archivo', () => {
     const meet: NormalizedMeet = {
       ...baseMeet,
       results: [
-        { event_ref: 1, swimmer_ref: 'a1', heat_no: 1, lane_no: 3, final_time_ms: 60000, status: 'OK', splits: [], source_line: 10 },
-        { event_ref: 1, swimmer_ref: 'a1', heat_no: 1, lane_no: 3, final_time_ms: 60500, status: 'OK', splits: [], source_line: 11 },
+        { event_key: 'ev-1', event_ref: 1, swimmer_ref: 'a1', heat_no: 1, lane_no: 3, final_time_ms: 60000, status: 'OK', splits: [], source_line: 10 },
+        { event_key: 'ev-1', event_ref: 1, swimmer_ref: 'a1', heat_no: 1, lane_no: 3, final_time_ms: 60500, status: 'OK', splits: [], source_line: 11 },
       ],
     };
     const { issues } = detector.detectInFile(meet);
