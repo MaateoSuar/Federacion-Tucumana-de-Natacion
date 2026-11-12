@@ -9,6 +9,7 @@ import { RecordBadge } from '@/components/ui/RecordBadge';
 import { formatTime } from '@/lib/formatTime';
 import { useResultsSocket } from '@/hooks/useResultsSocket';
 import { matchesFuzzySearch } from '@/lib/search';
+import { buildPodium } from '@/lib/podium';
 import type { EventResultsResponse } from '@/lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -239,11 +240,28 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
           <div className="space-y-6">
             {categoryGroups.map((group) => (
               <div key={group.categoryId}>
-                {isMultiCategory && (
-                  <h2 className="text-xs font-bold text-aqua-400 uppercase tracking-widest mb-2 px-1">
-                    {group.categoryName}
-                  </h2>
-                )}
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2 px-1">
+                  {isMultiCategory ? (
+                    <h2 className="text-xs font-bold text-aqua-400 uppercase tracking-widest">
+                      {group.categoryName}
+                    </h2>
+                  ) : <span />}
+                  {/* Imagen del podio para compartir: solo con resultados homologados */}
+                  {buildPodium(group.results, group.categoryId).length > 0 && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-pool-400">Descargar podio:</span>
+                      {([['square', 'Cuadrada'], ['story', 'Historia']] as const).map(([format, label]) => (
+                        <a
+                          key={format}
+                          href={`/torneos/${params.id}/prueba/${params.eventId}/podio?categoryId=${encodeURIComponent(group.categoryId)}&format=${format}&download=1`}
+                          className="rounded-lg border border-aqua-500/40 bg-aqua-500/10 px-2.5 py-1 font-semibold text-aqua-300 hover:bg-aqua-500/20 transition-colors"
+                        >
+                          {label}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 {/* OK results table */}
                 {group.results.length > 0 && (
