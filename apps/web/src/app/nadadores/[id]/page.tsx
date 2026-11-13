@@ -101,7 +101,7 @@ export default async function NadadorPage({ params }: { params: { id: string } }
                       <th className="text-left px-4 py-3">Torneo</th>
                       <th className="text-left px-4 py-3">Prueba</th>
                       <th className="text-right px-4 py-3">Tiempo</th>
-                      <th className="text-center px-4 py-3 hidden sm:table-cell">Flags</th>
+                      <th className="text-center px-4 py-3 hidden sm:table-cell">Estado</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-pool-700/20">
@@ -126,7 +126,6 @@ export default async function NadadorPage({ params }: { params: { id: string } }
                           </td>
                           <td className="px-4 py-3 text-center hidden sm:table-cell">
                             <div className="flex items-center justify-center gap-1">
-                              {r.isPb && <span className="text-xs font-bold text-emerald-400 bg-emerald-400/10 px-1.5 py-0.5 rounded">PB</span>}
                               {r.isRecord && <RecordBadge />}
                               {!r.homologated && <span className="text-xs text-pool-500 bg-pool-800/60 px-1.5 py-0.5 rounded">Pendiente</span>}
                             </div>

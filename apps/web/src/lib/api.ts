@@ -1,3 +1,4 @@
+import type { StandardsTable } from './standards-match';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 function authHeader(): Record<string, string> {
@@ -95,6 +96,11 @@ export function fetchTournamentDayFiles(tournamentId: string, day: number) {
 export function fetchEventRanking(params: Record<string, string>) {
   const qs = '?' + new URLSearchParams(params).toString();
   return serverFetch<RankingEntry[]>(`/rankings/event${qs}`, 60);
+}
+
+/** Tabla de marcas básicas de una pileta, por edad (para los resultados de archivo). */
+export function fetchStandardsTable(poolLength: 'P25' | 'P50') {
+  return serverFetch<StandardsTable>(`/rankings/standards?poolLength=${poolLength}`, 300);
 }
 
 export function fetchClubRanking(params?: Record<string, string>) {

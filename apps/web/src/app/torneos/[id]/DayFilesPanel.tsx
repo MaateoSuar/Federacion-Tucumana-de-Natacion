@@ -9,6 +9,7 @@ import {
   matchesPruebaFilter, pruebaFilterOptions, STROKE_LABEL,
   type PruebaFilter, type PruebaStroke,
 } from '@/lib/prueba-label';
+import { standardsMetByFileResult, type StandardsTable } from '@/lib/standards-match';
 import { MedalIcon, positionClass } from '@/components/ui/MedalIcon';
 
 // Mismo esquema de puntos que la página oficial de resultados por prueba — puesto 1º a 8º.
@@ -112,7 +113,9 @@ function PruebaFilterBar({
 }
 
 /** Sembrados y Resultados por jornada — vista pública, sin login. */
-export function DayFilesPanel({ dayFiles, totalDays }: { dayFiles: DayFile[]; totalDays: number }) {
+export function DayFilesPanel({
+  dayFiles, totalDays, standards = null,
+}: { dayFiles: DayFile[]; totalDays: number; standards?: StandardsTable | null }) {
   const [fileType, setFileType] = useState<FileType>('sembrados');
   const [day, setDay] = useState<number | null>(null); // null = "Todas"
 
@@ -204,7 +207,7 @@ export function DayFilesPanel({ dayFiles, totalDays }: { dayFiles: DayFile[]; to
               {f.parsedRows && f.parsedRows.length > 0 && (
                 f.type === 'sembrados'
                   ? <SembradosTablePublic rows={f.parsedRows as SembradoRow[]} />
-                  : <ResultadosListPublic rows={f.parsedRows as ResultadoRow[]} />
+                  : <ResultadosListPublic rows={f.parsedRows as ResultadoRow[]} standards={standards} />
               )}
             </div>
           ))}
@@ -429,7 +432,15 @@ function TimeDelta({ seedMs, finalMs }: { seedMs: number | null; finalMs: number
 }
 
 /** Resultados divididos por prueba, con buscador (por prueba o por nadador) y detalle por categoría al hacer click. */
-function ResultadosListPublic({ rows }: { rows: ResultadoRow[] }) {
+// Chip de marca básica cumplida. Color según el token configurado en el set.
+const STANDARD_CHIP: Record<string, string> = {
+  sky: 'bg-sky-500/15 text-sky-300 border-sky-400/40',
+  emerald: 'bg-emerald-500/15 text-emerald-300 border-emerald-400/40',
+  amber: 'bg-amber-500/15 text-amber-300 border-amber-400/40',
+};
+const STANDARD_CHIP_DEFAULT = 'bg-aqua-500/15 text-aqua-300 border-aqua-400/40';
+
+function ResultadosListPublic({ rows, standards }: { rows: ResultadoRow[]; standards: StandardsTable | null }) {
   const [search, setSearch] = useState('');
   const [pruebaFilter, setPruebaFilter] = useState<PruebaFilter>(NO_PRUEBA_FILTER);
   const labels = useMemo(() => Array.from(new Set(rows.map((r) => r.eventLabel))), [rows]);
@@ -648,11 +659,23 @@ function ResultadosListPublic({ rows }: { rows: ResultadoRow[] }) {
                                     <span className="font-bold text-aqua-300">{PLACE_LABEL[r.status] ?? '—'}</span>
                                   )}
                                 </span>
-                                <SwimmerNameLink
-                                  name={r.swimmerName}
-                                  className="min-w-0 truncate text-pool-100 hover:text-aqua-300 transition-colors"
-                                  onClick={(e) => e.stopPropagation()}
-                                />
+                                <span className="flex min-w-0 items-center gap-1.5">
+                                  <SwimmerNameLink
+                                    name={r.swimmerName}
+                                    className="min-w-0 truncate text-pool-100 hover:text-aqua-300 transition-colors"
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                  {/* Marcas básicas que cumple (orientativo: resultado todavía no oficial) */}
+                                  {standardsMetByFileResult(r, standards).map((set) => (
+                                    <span
+                                      key={set.setId}
+                                      title={`Cumple la ${set.name} para su edad (dato orientativo: resultado no oficial)`}
+                                      className={`shrink-0 rounded border px-1 py-px text-[9px] font-bold tracking-wide ${STANDARD_CHIP[set.color] ?? STANDARD_CHIP_DEFAULT}`}
+                                    >
+                                      {set.shortLabel}
+                                    </span>
+                                  ))}
+                                </span>
                                 <span className="min-w-0 truncate text-pool-400">{r.club}</span>
                                 <span className="min-w-0 truncate font-mono text-pool-400 text-right">
                                   {r.seedTimeMs === null ? '—' : formatTime(r.seedTimeMs)}

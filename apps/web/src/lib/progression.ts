@@ -57,7 +57,7 @@ export function eventsForPool(progression: SwimmerProgression, pool: 'P25' | 'P5
 export interface PoolSummary {
   tournaments: number;
   events: number;
-  /** Mejores marcas logradas en el año del último torneo de esa pileta. */
+  /** Mejores marcas vigentes logradas en el año del último torneo de esa pileta. */
   pbsThisYear: number;
   latestYear: number | null;
   /** Suma de lo que bajó en cada prueba desde su primer tiempo (ms, siempre >= 0). */
@@ -80,12 +80,36 @@ export function summarizePool(progression: SwimmerProgression, pool: 'P25' | 'P5
     tournaments: tournaments.length,
     events: events.length,
     latestYear,
-    pbsThisYear: tournaments
-      .filter((t) => new Date(t.date).getUTCFullYear() === latestYear)
-      .reduce((sum, t) => sum + t.pbs, 0),
+    // Mejores marcas VIGENTES logradas ese año (una por prueba, no cada vez que la mejoró)
+    pbsThisYear: events.filter(
+      (e) => e.personalBest !== null && new Date(e.personalBest.date).getUTCFullYear() === latestYear,
+    ).length,
     totalImprovementMs: events.reduce((sum, e) => sum + Math.max(0, e.totalImprovementMs ?? 0), 0),
     medals,
   };
+}
+
+/**
+ * true solo para el nado que HOY es la mejor marca de esa prueba. Un tiempo que fue
+ * mejor marca en su momento pero después fue superado ya no se marca: la estrella
+ * aparece una sola vez por prueba.
+ */
+export function isCurrentBest(
+  event: Pick<ProgressionEvent, 'personalBest'>,
+  swim: { timeMs: number; tournamentId: string },
+): boolean {
+  const best = event.personalBest;
+  return best !== null && swim.timeMs === best.timeMs && swim.tournamentId === best.tournamentId;
+}
+
+/** Cuántas mejores marcas vigentes de una pileta se lograron en cada torneo. */
+export function currentBestsByTournament(progression: SwimmerProgression, pool: 'P25' | 'P50'): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const e of progression.events) {
+    if (e.pool !== pool || e.personalBest === null) continue;
+    counts.set(e.personalBest.tournamentId, (counts.get(e.personalBest.tournamentId) ?? 0) + 1);
+  }
+  return counts;
 }
 
 export interface ChartPoint {
@@ -94,6 +118,7 @@ export interface ChartPoint {
   timeMs: number;
   /** Mejor marca vigente después de ese torneo (línea escalonada). */
   bestSoFarMs: number;
+  /** Es la mejor marca vigente de la prueba (no "fue mejor marca en su momento"). */
   isPb: boolean;
   deltaVsPreviousMs: number | null;
 }
@@ -110,7 +135,7 @@ export function chartSeries(event: ProgressionEvent): ChartPoint[] {
         tournamentName: h.tournamentName,
         timeMs: h.timeMs,
         bestSoFarMs: best,
-        isPb: h.isPb,
+        isPb: isCurrentBest(event, h),
         deltaVsPreviousMs: h.deltaVsPreviousMs,
       };
     });

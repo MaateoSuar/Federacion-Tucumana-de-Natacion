@@ -381,6 +381,44 @@ describe('RankingsService', () => {
     });
   });
 
+  describe('queryStandardsTable', () => {
+    const row = (setId: string, purpose: string, code: string, minAge: number | null, maxAge: number | null, timeMs: number, scope = 'provincial') => ({
+      setId, gender: 'F', timeMs,
+      set: { id: setId, code: setId.toUpperCase(), name: setId, shortLabel: setId.slice(0, 3).toUpperCase(), color: 'sky', purpose, orderNo: 1 },
+      category: { code, minAge, maxAge, scope },
+      eventDefinition: { stroke: 'libre', distance: 50 },
+    });
+
+    it('devuelve los sets y las marcas por rango de edad, solo de la pileta pedida', async () => {
+      mockPrisma.timeStandard.findMany.mockResolvedValue([
+        row('nac', 'nacional', 'MEN_1', 12, 12, 34000),
+        row('fed', 'federacion', 'MEN_1', 12, 12, 37500),
+        row('nac', 'nacional', 'MAY', 19, null, 29000),
+      ]);
+
+      const table = await service.queryStandardsTable('P25');
+
+      expect(mockPrisma.timeStandard.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ poolLength: 'P25', set: { isActive: true }, category: { scope: 'provincial' } }),
+        }),
+      );
+      expect(table.poolLength).toBe('P25');
+      expect(table.sets.map((s) => [s.setId, s.purpose])).toEqual([['nac', 'nacional'], ['fed', 'federacion']]);
+      expect(table.standards).toEqual([
+        { setId: 'nac', stroke: 'libre', distance: 50, gender: 'F', minAge: 12, maxAge: 12, timeMs: 34000 },
+        { setId: 'fed', stroke: 'libre', distance: 50, gender: 'F', minAge: 12, maxAge: 12, timeMs: 37500 },
+        { setId: 'nac', stroke: 'libre', distance: 50, gender: 'F', minAge: 19, maxAge: null, timeMs: 29000 },
+      ]);
+    });
+
+    it('descarta categorías sin rango de edad (no se pueden ubicar por edad)', async () => {
+      mockPrisma.timeStandard.findMany.mockResolvedValue([row('nac', 'nacional', 'ABS', null, null, 25000)]);
+      const table = await service.queryStandardsTable('P50');
+      expect(table.standards).toEqual([]);
+    });
+  });
+
   describe('queryClubRanking', () => {
     it('calcula puntos por puesto real de cada resultado homologado (no por mejor marca histórica)', async () => {
       const dto: ClubRankingQueryDto = { scope: 'provincial' };

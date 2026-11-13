@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { NavBar } from '@/components/NavBar';
-import { fetchTournament, fetchTournamentEvents, fetchTournamentDayFiles } from '@/lib/api';
+import { fetchTournament, fetchTournamentEvents, fetchTournamentDayFiles, fetchStandardsTable } from '@/lib/api';
 import type { DayFile } from '@/lib/api';
 import { EventList } from './EventList';
 import { DayFilesPanel } from './DayFilesPanel';
@@ -29,6 +29,10 @@ export default async function TorneoPage({ params }: { params: { id: string } })
         .map((d) => fetchTournamentDayFiles(params.id, d).catch(() => [] as DayFile[])),
     );
     const dayFiles = dayFilesByDay.flat();
+    // Marcas básicas de la pileta del torneo (si fallan, los resultados se ven igual, sin chips)
+    const standards = dayFiles.length > 0
+      ? await fetchStandardsTable(tournament.poolLength).catch(() => null)
+      : null;
 
     const startDate = new Date(tournament.startDate).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
     const endDate = new Date(tournament.endDate).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -55,7 +59,7 @@ export default async function TorneoPage({ params }: { params: { id: string } })
           {/* Sembrados y Resultados por jornada */}
           {dayFiles.length > 0 && (
             <div className="mb-10">
-              <DayFilesPanel dayFiles={dayFiles} totalDays={totalDays} />
+              <DayFilesPanel dayFiles={dayFiles} totalDays={totalDays} standards={standards} />
             </div>
           )}
 

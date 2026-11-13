@@ -8,7 +8,7 @@ import {
 import type { ProgressionEvent, SwimmerProgression } from '@/lib/api';
 import { formatTime } from '@/lib/formatTime';
 import {
-  chartSeries, describeDelta, eventLabel, eventsForPool, initialPool, summarizePool,
+  chartSeries, currentBestsByTournament, describeDelta, eventLabel, eventsForPool, initialPool, isCurrentBest, summarizePool,
   type ChartPoint,
 } from '@/lib/progression';
 
@@ -150,7 +150,7 @@ function EventDetail({ event }: { event: ProgressionEvent }) {
                 </td>
                 <td className="py-2 pr-3 text-right">
                   <span className="font-mono font-bold tabular-nums text-white">{formatTime(h.timeMs)}</span>
-                  {h.isPb && <span className="ml-1.5"><PbBadge /></span>}
+                  {isCurrentBest(event, h) && <span className="ml-1.5"><PbBadge /></span>}
                 </td>
                 <td className="py-2 pr-3 text-right"><Delta ms={h.deltaVsPreviousMs} /></td>
                 <td className="hidden py-2 pr-3 text-right sm:table-cell"><Delta ms={h.deltaVsPbMs} /></td>
@@ -238,6 +238,7 @@ export function SwimmerProgressionView({ progression }: { progression: SwimmerPr
 
   const events = useMemo(() => eventsForPool(progression, pool), [progression, pool]);
   const summary = useMemo(() => summarizePool(progression, pool), [progression, pool]);
+  const bestsByTournament = useMemo(() => currentBestsByTournament(progression, pool), [progression, pool]);
   const tournaments = progression.tournaments
     .filter((t) => t.pool === pool)
     .sort((a, b) => b.date.localeCompare(a.date));
@@ -313,7 +314,9 @@ export function SwimmerProgressionView({ progression }: { progression: SwimmerPr
                   </Link>
                   <p className="text-xs text-pool-400">
                     {shortDate(t.date)} · {t.events} {t.events === 1 ? 'prueba' : 'pruebas'}
-                    {t.pbs > 0 && <span className="text-amber-300"> · {t.pbs} ★ MP</span>}
+                    {(bestsByTournament.get(t.tournamentId) ?? 0) > 0 && (
+                      <span className="text-amber-300"> · {bestsByTournament.get(t.tournamentId)} ★ MP</span>
+                    )}
                     {t.medals.gold > 0 && <span className="text-yellow-400"> · {t.medals.gold} oro</span>}
                     {t.medals.silver > 0 && <span className="text-slate-300"> · {t.medals.silver} plata</span>}
                     {t.medals.bronze > 0 && <span className="text-amber-600"> · {t.medals.bronze} bronce</span>}

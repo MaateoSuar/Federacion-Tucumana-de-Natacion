@@ -33,6 +33,21 @@ export interface EventStandard {
   qualifiedCount: number;
 }
 
+/** Tabla de marcas básicas de una pileta, por edad (GET /rankings/standards). */
+export interface StandardsTable {
+  poolLength: 'P25' | 'P50';
+  sets: Array<{ setId: string; code: string; name: string; shortLabel: string; color: string; purpose: string }>;
+  standards: Array<{
+    setId: string;
+    stroke: string;
+    distance: number;
+    gender: 'M' | 'F';
+    minAge: number | null;
+    maxAge: number | null;
+    timeMs: number;
+  }>;
+}
+
 export interface ClubRankingEntry {
   position: number;
   clubId: string;
@@ -305,6 +320,44 @@ export class RankingsService {
       sets.set(st.setId, entry);
     }
     return [...sets.values()];
+  }
+
+  /**
+   * Tabla completa de marcas básicas de una pileta, para vistas que no tienen la
+   * categoría oficial del resultado (p. ej. los archivos de resultados de un torneo,
+   * que solo traen la edad). Solo categorías provinciales con rango de edad: en los
+   * torneos locales los de 19-21 años son Mayores (Junior es de torneos nacionales).
+   */
+  async queryStandardsTable(poolLength: 'P25' | 'P50'): Promise<StandardsTable> {
+    const rows = await this.prisma.timeStandard.findMany({
+      where: { poolLength, set: { isActive: true }, category: { scope: 'provincial' } },
+      include: { set: true, category: true, eventDefinition: true },
+      orderBy: { set: { orderNo: 'asc' } },
+    });
+    const sets = new Map<string, StandardsTable['sets'][number]>();
+    for (const r of rows) {
+      if (!sets.has(r.setId)) {
+        sets.set(r.setId, {
+          setId: r.setId, code: r.set.code, name: r.set.name, shortLabel: r.set.shortLabel,
+          color: r.set.color, purpose: r.set.purpose,
+        });
+      }
+    }
+    return {
+      poolLength,
+      sets: [...sets.values()],
+      standards: rows
+        .filter((r) => r.gender !== 'MIX' && (r.category.minAge !== null || r.category.maxAge !== null))
+        .map((r) => ({
+          setId: r.setId,
+          stroke: r.eventDefinition.stroke,
+          distance: r.eventDefinition.distance,
+          gender: r.gender as 'M' | 'F',
+          minAge: r.category.minAge,
+          maxAge: r.category.maxAge,
+          timeMs: r.timeMs,
+        })),
+    };
   }
 
   private cacheKeyEvent(dto: EventRankingQueryDto): string {

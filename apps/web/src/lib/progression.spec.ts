@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { ProgressionEvent, ProgressionHistoryEntry, SwimmerProgression } from './api';
-import { chartSeries, describeDelta, eventLabel, eventsForPool, findNewImprovements, initialPool, summarizePool } from './progression';
+import {
+  chartSeries, currentBestsByTournament, describeDelta, eventLabel, eventsForPool, findNewImprovements,
+  initialPool, isCurrentBest, summarizePool,
+} from './progression';
 
 const hist = (date: string, timeMs: number, isPb = false, deltaVsPreviousMs: number | null = null): ProgressionHistoryEntry => ({
   tournamentId: `t-${date}`, tournamentName: `Torneo ${date}`, date, timeMs, deltaVsPreviousMs, deltaVsPbMs: null,
@@ -77,8 +80,20 @@ describe('summarizePool', () => {
     expect(s).toMatchObject({ tournaments: 3, events: 3, medals: { gold: 2, silver: 0, bronze: 0 } });
   });
 
-  it('mejoras del año = las del último año con torneos en esa pileta', () => {
-    expect(summarizePool(progression, 'P25')).toMatchObject({ latestYear: 2026, pbsThisYear: 3 });
+  it('mejores marcas del año = las VIGENTES logradas ese año, una por prueba', () => {
+    const best = (date: string) => ({ timeMs: 30000, tournamentId: `t-${date}`, tournamentName: 'T', date, worldAquaticsPoints: null });
+    const p: SwimmerProgression = {
+      swimmerId: 's',
+      events: [
+        { ...ev('libre', 50, 'P25'), personalBest: best('2026-08-01') },
+        { ...ev('pecho', 100, 'P25'), personalBest: best('2026-03-01') },
+        { ...ev('espalda', 50, 'P25'), personalBest: best('2025-05-01') }, // vigente, pero del año anterior
+        { ...ev('libre', 50, 'P50'), personalBest: best('2026-09-01') }, // otra pileta
+      ],
+      // Los torneos dicen que hubo 6 "mejores marcas en su momento": no es eso lo que se cuenta
+      tournaments: [tour('2025-05-01', 'P25', 3), tour('2026-03-01', 'P25', 2), tour('2026-08-01', 'P25', 1), tour('2026-09-01', 'P50', 7)],
+    };
+    expect(summarizePool(p, 'P25')).toMatchObject({ latestYear: 2026, pbsThisYear: 2 });
   });
 
   it('la mejora total suma lo que bajó en cada prueba y no cruza piletas', () => {
@@ -102,6 +117,40 @@ describe('chartSeries', () => {
     expect(series.map((p) => p.timeMs)).toEqual([34000, 32000, 33000]);
     // Tras empeorar en agosto, la mejor marca sigue siendo la de mayo
     expect(series.map((p) => p.bestSoFarMs)).toEqual([34000, 32000, 32000]);
+  });
+});
+
+describe('mejor marca vigente (la estrella aparece una sola vez por prueba)', () => {
+  // 34.00 (fue mejor marca) → 32.00 (la superó: es la vigente) → 33.00 (empeoró)
+  const event: ProgressionEvent = {
+    ...ev('libre', 50, 'P25', null, [hist('2026-03-01', 34000, true), hist('2026-05-01', 32000, true, -2000), hist('2026-08-01', 33000)]),
+    personalBest: { timeMs: 32000, tournamentId: 't-2026-05-01', tournamentName: 'T', date: '2026-05-01', worldAquaticsPoints: null },
+  };
+
+  it('solo el nado que hoy es la mejor marca lleva la estrella', () => {
+    expect(event.history.map((h) => isCurrentBest(event, h))).toEqual([false, true, false]);
+  });
+
+  it('el gráfico resalta solo ese punto', () => {
+    expect(chartSeries(event).map((p) => p.isPb)).toEqual([false, true, false]);
+  });
+
+  it('en la línea de tiempo cada torneo cuenta solo las mejores marcas vigentes logradas ahí', () => {
+    const other: ProgressionEvent = {
+      ...ev('pecho', 50, 'P25'),
+      personalBest: { timeMs: 40000, tournamentId: 't-2026-05-01', tournamentName: 'T', date: '2026-05-01', worldAquaticsPoints: null },
+    };
+    const otherPool: ProgressionEvent = {
+      ...ev('libre', 50, 'P50'),
+      personalBest: { timeMs: 33000, tournamentId: 't-2026-05-01', tournamentName: 'T', date: '2026-05-01', worldAquaticsPoints: null },
+    };
+    const counts = currentBestsByTournament({ swimmerId: 's', events: [event, other, otherPool], tournaments: [] }, 'P25');
+    expect(counts.get('t-2026-05-01')).toBe(2);
+    expect(counts.get('t-2026-03-01')).toBeUndefined();
+  });
+
+  it('sin mejor marca cargada no marca nada', () => {
+    expect(isCurrentBest(ev('libre', 50, 'P25'), { timeMs: 30000, tournamentId: 't' })).toBe(false);
   });
 });
 

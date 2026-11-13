@@ -350,7 +350,6 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
                                     >
                                       {r.swimmer.lastName}, {r.swimmer.firstName}
                                     </Link>
-                                    {r.isPb && <span className="text-xs font-bold text-emerald-400 bg-emerald-400/10 px-1.5 py-0.5 rounded">PB</span>}
                                     {r.isRecord && <RecordBadge />}
                                   </div>
                                 </td>
