@@ -27,26 +27,39 @@ export interface PodiumEntry {
 }
 
 export function buildPodium(results: PodiumSourceResult[], categoryId: string): PodiumEntry[] {
-  const valid = results
-    .filter(
-      (r): r is PodiumSourceResult & { finalTime: number } =>
-        r.category.id === categoryId && r.homologated && r.status === 'OK' && r.finalTime !== null,
-    )
-    .sort((a, b) => a.finalTime - b.finalTime);
+  return rankPodium(
+    results
+      .filter(
+        (r): r is PodiumSourceResult & { finalTime: number } =>
+          r.category.id === categoryId && r.homologated && r.status === 'OK' && r.finalTime !== null,
+      )
+      .map((r) => ({
+        swimmerName: `${r.swimmer.firstName} ${r.swimmer.lastName}`.trim(),
+        clubName: r.club.name,
+        timeMs: r.finalTime,
+      })),
+  );
+}
+
+/**
+ * Podio a partir de una lista de tiempos ya filtrada (una categoría de una prueba).
+ * Lo usan los torneos importados (vía buildPodium) y la vista de resultados de archivo,
+ * que no tiene categoría oficial ni homologación: ahí el podio es el del archivo.
+ * Por más nadadores que tenga la categoría, el podio siempre son los puestos 1 a 3.
+ */
+export function rankPodium(times: Array<{ swimmerName: string; clubName: string; timeMs: number | null }>): PodiumEntry[] {
+  const valid = times
+    .filter((t): t is { swimmerName: string; clubName: string; timeMs: number } => t.timeMs !== null)
+    .sort((a, b) => a.timeMs - b.timeMs);
 
   const podium: PodiumEntry[] = [];
   let place = 0;
   let previousTime: number | null = null;
-  valid.forEach((r, index) => {
-    if (r.finalTime !== previousTime) place = index + 1;
-    previousTime = r.finalTime;
+  valid.forEach((t, index) => {
+    if (t.timeMs !== previousTime) place = index + 1;
+    previousTime = t.timeMs;
     if (place === 1 || place === 2 || place === 3) {
-      podium.push({
-        place,
-        swimmerName: `${r.swimmer.firstName} ${r.swimmer.lastName}`.trim(),
-        clubName: r.club.name,
-        timeMs: r.finalTime,
-      });
+      podium.push({ place, swimmerName: t.swimmerName, clubName: t.clubName, timeMs: t.timeMs });
     }
   });
   return podium;

@@ -10,6 +10,8 @@ import {
   type PruebaFilter, type PruebaStroke,
 } from '@/lib/prueba-label';
 import { standardsMetByFileResult, type StandardsTable } from '@/lib/standards-match';
+import { rankPodium } from '@/lib/podium';
+import { Podium } from '@/components/ui/Podium';
 import { MedalIcon, positionClass } from '@/components/ui/MedalIcon';
 
 // Mismo esquema de puntos que la página oficial de resultados por prueba — puesto 1º a 8º.
@@ -634,6 +636,14 @@ function ResultadosListPublic({ rows, standards }: { rows: ResultadoRow[]; stand
                             {category}
                           </div>
                         )}
+                        {/* Podio de la categoría: los tres primeros, por más nadadores que haya */}
+                        <div className="px-3 pt-3 empty:hidden">
+                          <Podium
+                            entries={rankPodium(
+                              catRows.map(({ row }) => ({ swimmerName: row.swimmerName, clubName: row.club, timeMs: row.finalTimeMs })),
+                            )}
+                          />
+                        </div>
                         <div className="divide-y divide-pool-700/10">
                           {catRows.map(({ row: r, displayPlace }, i) => {
                             const key = `${groupKey}::${catIdx}::${i}`;

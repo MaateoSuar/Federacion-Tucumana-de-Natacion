@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPodium, isClassicPodium, type PodiumSourceResult } from './podium';
+import { buildPodium, isClassicPodium, rankPodium, type PodiumSourceResult } from './podium';
 
 const r = (
   lastName: string,
@@ -12,6 +12,28 @@ const r = (
   swimmer: { firstName: 'Ana', lastName },
   club: { name: `Club de ${lastName}`, shortName: 'CL' },
   category: { id: over.categoryId ?? 'CAD_1', name: 'Cadete 1' },
+});
+
+describe('rankPodium (resultados de archivo)', () => {
+  const t = (swimmerName: string, timeMs: number | null) => ({ swimmerName, clubName: 'Club', timeMs });
+
+  it('de una categoría con muchos nadadores, el podio son solo los tres primeros', () => {
+    const many = Array.from({ length: 40 }, (_, i) => t(`Nadador ${i}`, 60000 + i * 100));
+    const podium = rankPodium(many.reverse());
+    expect(podium.map((p) => [p.place, p.swimmerName])).toEqual([[1, 'Nadador 0'], [2, 'Nadador 1'], [3, 'Nadador 2']]);
+  });
+
+  it('descalificados o sin tiempo no suben', () => {
+    expect(rankPodium([t('A', null), t('B', 31000)]).map((p) => p.swimmerName)).toEqual(['B']);
+  });
+
+  it('empates comparten puesto', () => {
+    expect(rankPodium([t('A', 30000), t('B', 30000), t('C', 31000)]).map((p) => p.place)).toEqual([1, 1, 3]);
+  });
+
+  it('sin tiempos, podio vacío', () => {
+    expect(rankPodium([])).toEqual([]);
+  });
 });
 
 describe('buildPodium', () => {
