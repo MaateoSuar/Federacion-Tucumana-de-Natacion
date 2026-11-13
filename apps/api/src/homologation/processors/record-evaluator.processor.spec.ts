@@ -24,97 +24,106 @@ const makeData = (overrides: Partial<PostProcessJobData> = {}): PostProcessJobDa
 const makePrisma = (
   currentRecord: { id: string; timeMs: number } | null = null,
   existingForResult: { id: string } | null = null,
-) => ({
-  record: {
-    findUnique: jest.fn().mockResolvedValue(existingForResult),
-    findFirst: jest.fn().mockResolvedValue(currentRecord),
-    create: jest.fn().mockResolvedValue({}),
-    update: jest.fn().mockResolvedValue({}),
-    updateMany: jest.fn().mockResolvedValue({}),
-  },
-  result: {
-    update: jest.fn().mockResolvedValue({}),
-    updateMany: jest.fn().mockResolvedValue({}),
-  },
-  $transaction: jest.fn(),
-});
+) => {
+  const tx = {
+    record: {
+      findFirst: jest.fn().mockResolvedValue(currentRecord),
+      create: jest.fn().mockResolvedValue({ id: 'rec-new' }),
+      update: jest.fn().mockResolvedValue({}),
+    },
+    result: { update: jest.fn().mockResolvedValue({}) },
+    auditLog: { create: jest.fn().mockResolvedValue({}) },
+  };
+  return {
+    tx,
+    record: { findUnique: jest.fn().mockResolvedValue(existingForResult) },
+    $transaction: jest.fn().mockImplementation((fn: (t: typeof tx) => Promise<unknown>) => fn(tx)),
+  };
+};
 
-// Regla inviolable 4: la publicación de un récord requiere homologación humana.
-describe('RecordEvaluatorProcessor — nunca publica, solo crea candidatos', () => {
-  it('sin récord vigente: crea un candidato pending_homologation, no vigente', async () => {
+// Regla 4 (decisión del 13/11/2026): el récord se actualiza solo cuando un resultado
+// homologado supera al vigente. El Admin puede volverlo al anterior (records.service).
+describe('RecordEvaluatorProcessor — el récord se actualiza solo', () => {
+  it('sin récord vigente: publica el primero como vigente y marca el resultado', async () => {
     const prisma = makePrisma(null);
     await new RecordEvaluatorProcessor(prisma as never).process(makeData());
 
-    expect(prisma.record.create).toHaveBeenCalledTimes(1);
-    expect(prisma.record.create).toHaveBeenCalledWith({
+    expect(prisma.tx.record.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        status: 'pending_homologation',
-        isCurrent: false,
+        status: 'homologated',
+        isCurrent: true,
         previousRecordId: null,
         sourceResultId: 'result-1',
         timeMs: 60000,
         scope: 'provincial',
       }),
     });
+    expect(prisma.tx.record.update).not.toHaveBeenCalled();
+    expect(prisma.tx.result.update).toHaveBeenCalledWith({ where: { id: 'result-1' }, data: { isRecord: true } });
   });
 
-  it('supera al vigente: crea candidato y NO toca el récord vigente', async () => {
+  it('supera al vigente: el nuevo queda vigente, el anterior pasa a superseded y queda encadenado', async () => {
     const prisma = makePrisma({ id: 'rec-old', timeMs: 65000 });
     await new RecordEvaluatorProcessor(prisma as never).process(makeData({ finalTimeMs: 60000 }));
 
-    expect(prisma.record.create).toHaveBeenCalledWith({
+    expect(prisma.tx.record.update).toHaveBeenCalledWith({
+      where: { id: 'rec-old' },
+      data: { isCurrent: false, status: 'superseded' },
+    });
+    expect(prisma.tx.record.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ status: 'homologated', isCurrent: true, previousRecordId: 'rec-old' }),
+    });
+    // Primero se desactiva el vigente y después se crea el nuevo: nunca hay dos vigentes
+    expect(prisma.tx.record.update.mock.invocationCallOrder[0]).toBeLessThan(
+      prisma.tx.record.create.mock.invocationCallOrder[0] ?? 0,
+    );
+  });
+
+  it('el anterior no se borra: se conserva para poder volver atrás', async () => {
+    const prisma = makePrisma({ id: 'rec-old', timeMs: 65000 });
+    await new RecordEvaluatorProcessor(prisma as never).process(makeData());
+    expect(Object.keys(prisma.tx.record)).not.toContain('delete');
+  });
+
+  it('deja registro en auditoría de la actualización automática', async () => {
+    const prisma = makePrisma({ id: 'rec-old', timeMs: 65000 });
+    await new RecordEvaluatorProcessor(prisma as never).process(makeData({ finalTimeMs: 60000 }));
+
+    expect(prisma.tx.auditLog.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        status: 'pending_homologation',
-        isCurrent: false,
-        previousRecordId: 'rec-old',
+        action: 'RECORD_AUTO_PUBLISHED',
+        entityType: 'Record',
+        entityId: 'rec-new',
+        payload: expect.objectContaining({ timeMs: 60000, supersededRecordId: 'rec-old', supersededTimeMs: 65000 }),
       }),
     });
-    expect(prisma.record.update).not.toHaveBeenCalled();
-    expect(prisma.record.updateMany).not.toHaveBeenCalled();
   });
 
   it.each([
-    ['sin vigente', null],
-    ['superando al vigente', { id: 'rec-old', timeMs: 65000 }],
-  ])('%s: nunca escribe homologated / isCurrent / homologatedBy ni marca result.isRecord', async (_label, current) => {
-    const prisma = makePrisma(current);
-    await new RecordEvaluatorProcessor(prisma as never).process(makeData());
-
-    const created = (prisma.record.create.mock.calls[0] as [{ data: Record<string, unknown> }])[0].data;
-    expect(created.status).toBe('pending_homologation');
-    expect(created.isCurrent).toBe(false);
-    expect(created.homologatedBy).toBeUndefined();
-    expect(created.homologatedAt).toBeUndefined();
-    expect(prisma.result.update).not.toHaveBeenCalled();
-    expect(prisma.result.updateMany).not.toHaveBeenCalled();
-    expect(prisma.$transaction).not.toHaveBeenCalled();
-  });
-
-  it('no crea candidato si el tiempo es peor que el vigente', async () => {
-    const prisma = makePrisma({ id: 'rec-1', timeMs: 55000 });
+    ['peor que el vigente', 55000],
+    ['igual al vigente', 60000],
+  ])('no toca nada si el tiempo es %s', async (_label, currentTime) => {
+    const prisma = makePrisma({ id: 'rec-1', timeMs: currentTime });
     await new RecordEvaluatorProcessor(prisma as never).process(makeData({ finalTimeMs: 60000 }));
-    expect(prisma.record.create).not.toHaveBeenCalled();
+
+    expect(prisma.tx.record.create).not.toHaveBeenCalled();
+    expect(prisma.tx.record.update).not.toHaveBeenCalled();
+    expect(prisma.tx.result.update).not.toHaveBeenCalled();
   });
 
-  it('no crea candidato si el tiempo iguala al vigente', async () => {
-    const prisma = makePrisma({ id: 'rec-1', timeMs: 60000 });
-    await new RecordEvaluatorProcessor(prisma as never).process(makeData({ finalTimeMs: 60000 }));
-    expect(prisma.record.create).not.toHaveBeenCalled();
-  });
-
-  it('es idempotente: reprocesar un resultado ya evaluado no crea otro candidato', async () => {
+  it('es idempotente: reprocesar un resultado ya evaluado no hace nada', async () => {
     const prisma = makePrisma(null, { id: 'rec-existing' });
     await new RecordEvaluatorProcessor(prisma as never).process(makeData());
 
     expect(prisma.record.findUnique).toHaveBeenCalledWith(
       expect.objectContaining({ where: { sourceResultId: 'result-1' } }),
     );
-    expect(prisma.record.create).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('si otro job del mismo resultado ganó la carrera (P2002), no falla', async () => {
     const prisma = makePrisma(null);
-    prisma.record.create.mockRejectedValue(
+    prisma.tx.record.create.mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError('Unique constraint', { code: 'P2002', clientVersion: 'test' }),
     );
     await expect(new RecordEvaluatorProcessor(prisma as never).process(makeData())).resolves.toBeUndefined();
@@ -122,21 +131,21 @@ describe('RecordEvaluatorProcessor — nunca publica, solo crea candidatos', () 
 
   it('propaga cualquier otro error de la base', async () => {
     const prisma = makePrisma(null);
-    prisma.record.create.mockRejectedValue(new Error('db caída'));
+    prisma.tx.record.create.mockRejectedValue(new Error('db caída'));
     await expect(new RecordEvaluatorProcessor(prisma as never).process(makeData())).rejects.toThrow('db caída');
   });
 
   it.each([
     [25, 'P25'],
     [50, 'P50'],
-  ] as const)('piscina de %i m: busca el vigente y crea el candidato solo en %s', async (poolLength, prismaPool) => {
+  ] as const)('piscina de %i m: busca el vigente y crea el récord solo en %s', async (poolLength, prismaPool) => {
     const prisma = makePrisma(null);
     await new RecordEvaluatorProcessor(prisma as never).process(makeData({ poolLength }));
 
-    expect(prisma.record.findFirst).toHaveBeenCalledWith({
+    expect(prisma.tx.record.findFirst).toHaveBeenCalledWith({
       where: expect.objectContaining({ poolLength: prismaPool, scope: 'provincial', isCurrent: true }),
     });
-    expect(prisma.record.create).toHaveBeenCalledWith({
+    expect(prisma.tx.record.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ poolLength: prismaPool }),
     });
   });

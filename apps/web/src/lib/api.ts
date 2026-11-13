@@ -420,6 +420,8 @@ export interface RecordEntry {
   eventDefinition: { id: string; code: string; stroke: string; distance: number };
   category: { id: string; code: string; name: string };
   sourceResult?: { id: string; event: { tournament: { id: string; name: string; startDate: string } } };
+  /** Id del récord al que reemplazó (si lo hay): permite volver atrás desde el panel. */
+  previousRecordId?: string | null;
   /** Solo en candidatos (`/records/candidates`): récord vigente al momento de la detección. */
   previousRecord?: {
     id: string;

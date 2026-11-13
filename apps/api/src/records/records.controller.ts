@@ -55,6 +55,18 @@ export class RecordsController {
     return this.service.rejectCandidate(id, req.user.id, dto.reason);
   }
 
+  /** Volver al récord anterior: elimina el vigente (auditado) y reactiva el previo — solo Admin */
+  @Patch(':id/revert')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(SystemRole.SUPER_ADMIN, SystemRole.ADMIN)
+  revert(
+    @Param('id') id: string,
+    @Body() dto: RejectRecordDto,
+    @Request() req: { user: { id: string } },
+  ) {
+    return this.service.revertRecord(id, req.user.id, dto.reason);
+  }
+
   /** Editar manualmente el récord vigente (nuevo holder/tiempo/club/fecha/torneo) — solo Admin */
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)

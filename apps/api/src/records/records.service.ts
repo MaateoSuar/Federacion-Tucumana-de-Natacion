@@ -256,6 +256,92 @@ export class RecordsService {
     return { id: recordId, rejected: true };
   }
 
+  // ─── Volver al récord anterior (Admin) ─────────────────────────────────────
+  //
+  // Los récords se actualizan solos cuando un resultado homologado supera al vigente.
+  // Si ese resultado estaba mal (tiempo mal cargado, nadador equivocado), el Admin
+  // deshace el cambio: el récord erróneo se elimina (queda copia completa en
+  // audit_logs) y el anterior vuelve a ser el vigente. El resultado deja de figurar
+  // como récord. Solo se puede deshacer el récord VIGENTE.
+
+  async revertRecord(recordId: string, revertedBy: string, reason?: string) {
+    const wrong = await this.prisma.record.findUnique({ where: { id: recordId } });
+
+    if (!wrong) throw new NotFoundException('Récord no encontrado.');
+    if (wrong.scope === 'nacional') {
+      throw new BadRequestException('Los récords nacionales son solo de referencia y no se modifican.');
+    }
+    if (!wrong.isCurrent || wrong.status !== 'homologated') {
+      throw new BadRequestException('Solo se puede volver atrás el récord vigente.');
+    }
+    // Un récord histórico cargado de la tabla oficial (sin resultado de origen y sin
+    // récord anterior) no se puede "volver atrás": se quedaría la prueba sin récord.
+    if (!wrong.previousRecordId && !wrong.sourceResultId) {
+      throw new BadRequestException('Este récord no tiene uno anterior al cual volver.');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const previous = wrong.previousRecordId
+        ? await tx.record.findUnique({ where: { id: wrong.previousRecordId } })
+        : null;
+      // El anterior tiene que ser de la MISMA clave (misma prueba, categoría, género y pileta)
+      if (
+        previous &&
+        (previous.scope !== wrong.scope ||
+          previous.eventDefinitionId !== wrong.eventDefinitionId ||
+          previous.categoryId !== wrong.categoryId ||
+          previous.gender !== wrong.gender ||
+          previous.poolLength !== wrong.poolLength)
+      ) {
+        throw new BadRequestException('El récord anterior no corresponde a la misma prueba, categoría y pileta.');
+      }
+
+      await tx.auditLog.create({
+        data: {
+          userId: revertedBy,
+          action: 'RECORD_REVERTED',
+          entityType: 'Record',
+          entityId: recordId,
+          payload: {
+            reason: reason ?? null,
+            restoredRecordId: previous?.id ?? null,
+            removed: {
+              scope: wrong.scope,
+              eventDefinitionId: wrong.eventDefinitionId,
+              categoryId: wrong.categoryId,
+              gender: wrong.gender,
+              poolLength: wrong.poolLength,
+              timeMs: wrong.timeMs,
+              swimmerId: wrong.swimmerId,
+              clubId: wrong.clubId,
+              recordDate: wrong.recordDate.toISOString(),
+              tournamentName: wrong.tournamentName,
+              sourceResultId: wrong.sourceResultId,
+              previousRecordId: wrong.previousRecordId,
+              homologatedBy: wrong.homologatedBy,
+              homologatedAt: wrong.homologatedAt?.toISOString() ?? null,
+            },
+          },
+        },
+      });
+
+      if (wrong.sourceResultId) {
+        await tx.result.update({ where: { id: wrong.sourceResultId }, data: { isRecord: false } });
+      }
+      // Primero se elimina el erróneo y después se reactiva el anterior: nunca hay dos vigentes
+      await tx.record.delete({ where: { id: recordId } });
+      if (previous) {
+        await tx.record.update({
+          where: { id: previous.id },
+          data: { isCurrent: true, status: 'homologated' },
+        });
+      }
+
+      this.logger.log(`Record ${recordId} reverted by ${revertedBy}. Restored: ${previous?.id ?? 'none'}`);
+      return { id: recordId, reverted: true, restoredRecordId: previous?.id ?? null };
+    });
+  }
+
   // ─── Edición manual de un récord vigente (Admin) ──────────────────────────
   //
   // Se usa cuando un récord es superado por una marca que no llegó al sistema

@@ -120,6 +120,29 @@ export default function AdminRecordsPage() {
     }
   };
 
+  // Volver al récord anterior: para cuando un récord se actualizó solo con un resultado erróneo.
+  const [revertBusy, setRevertBusy] = useState<string | null>(null);
+  const revertRecord = async (record: RecordEntry) => {
+    const who = `${record.swimmer.lastName}, ${record.swimmer.firstName} (${formatTime(record.timeMs)})`;
+    const reason = window.prompt(
+      `Vas a volver al récord anterior y eliminar el de ${who}.\n\nEscribí el motivo (queda registrado en la auditoría):`,
+    );
+    if (reason === null) return; // canceló
+    setRevertBusy(record.id);
+    setError(null);
+    try {
+      await apiFetch(`/records/${record.id}/revert`, {
+        method: 'PATCH',
+        body: JSON.stringify(reason.trim() ? { reason: reason.trim() } : {}),
+      });
+      await load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setRevertBusy(null);
+    }
+  };
+
   const openEdit = (record: RecordEntry) => {
     setEditing(record);
     setForm(toFormState(clubs));
@@ -182,8 +205,9 @@ export default function AdminRecordsPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Récords</h1>
         <p className="text-sm text-gray-400 mt-0.5">
-          Editá el récord vigente cuando sea superado por una marca no cargada al sistema.
-          El récord anterior no se borra: queda en el historial y su lugar en el ranking se conserva.
+          Los récords se actualizan solos cuando un resultado homologado supera al vigente. Si alguno
+          se actualizó por error, usá &ldquo;Volver al anterior&rdquo;. Con &ldquo;Editar&rdquo; cargás una marca
+          que no pasó por el sistema; el récord anterior no se borra, queda en el historial.
         </p>
         {lastUpdated && (
           <p className="text-xs text-gray-400 mt-1">
@@ -305,13 +329,23 @@ export default function AdminRecordsPage() {
                                       <td className="px-3 py-2 text-gray-400 text-xs">
                                         {new Date(r.recordDate).toLocaleDateString('es-AR')}
                                       </td>
-                                      <td className="px-3 py-2 text-right">
+                                      <td className="px-3 py-2 text-right whitespace-nowrap">
                                         <button
                                           onClick={() => openEdit(r)}
                                           className="text-xs font-semibold text-aqua-600 hover:text-aqua-700"
                                         >
                                           Editar
                                         </button>
+                                        {(r.previousRecordId || r.sourceResult) && (
+                                          <button
+                                            onClick={() => void revertRecord(r)}
+                                            disabled={revertBusy !== null}
+                                            title="Elimina este récord y vuelve a dejar vigente el anterior"
+                                            className="ml-3 text-xs font-semibold text-red-600 hover:text-red-700 disabled:opacity-50"
+                                          >
+                                            {revertBusy === r.id ? 'Volviendo…' : 'Volver al anterior'}
+                                          </button>
+                                        )}
                                       </td>
                                     </tr>
                                   ))}
