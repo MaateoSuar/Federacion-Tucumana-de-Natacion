@@ -37,9 +37,31 @@ describe('genderFromCategoryLabel', () => {
 });
 
 describe('standardsMetByFileResult', () => {
-  it('prueba PROMOCIONAL: marca FED y también NAC si el tiempo alcanza', () => {
+  it('prueba PROMOCIONAL: solo FED, aunque el tiempo también alcance la nacional', () => {
     expect(labels({ eventLabel: '50m Estilo Libre PROMOCIONALES — Niñas 12-13', age: 12, finalTimeMs: 36000 })).toEqual(['FED']);
-    expect(labels({ eventLabel: '50m Estilo Libre PROMOCIONALES — Niñas 12-13', age: 12, finalTimeMs: 33500 })).toEqual(['NAC', 'FED']);
+    expect(labels({ eventLabel: '50m Estilo Libre PROMOCIONALES — Niñas 12-13', age: 12, finalTimeMs: 33500 })).toEqual(['FED']);
+  });
+
+  it('prueba ESCUELA: igual que promocional, solo FED', () => {
+    expect(labels({ eventLabel: '50m Estilo Libre ESCUELA — Niñas 12-13', age: 12, finalTimeMs: 33500 })).toEqual(['FED']);
+  });
+
+  it('promocional de una edad sin marca para federarse (Infantiles): no se marca nada', () => {
+    // Caso real: 100 m libre promocional, Niñas 10-11. Hay básica nacional para esa edad
+    // pero no para federarse: antes aparecía el chip NAC, que no corresponde.
+    const infantiles: StandardsTable = {
+      ...table,
+      standards: [...table.standards, std('nac', 'F', 10, 10, 90000, 'libre', 100), std('nac', 'F', 11, 11, 80000, 'libre', 100)],
+    };
+    const met = standardsMetByFileResult(
+      { eventLabel: '100m Estilo Libre PROMOCIONAL — Niñas 10-11', age: 11, finalTimeMs: 74360 },
+      infantiles,
+    );
+    expect(met).toEqual([]);
+  });
+
+  it('nivel no reconocido en el nombre: se marcan las que cumpla', () => {
+    expect(labels({ eventLabel: '50m Estilo Libre — Niñas 12-13', age: 12, finalTimeMs: 33500 })).toEqual(['NAC', 'FED']);
   });
 
   it('prueba FEDERADOS: ya es federado, solo se marca NAC', () => {

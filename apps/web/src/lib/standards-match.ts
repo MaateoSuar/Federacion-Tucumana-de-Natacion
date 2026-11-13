@@ -5,8 +5,11 @@ import { parsePruebaLabel } from './prueba-label';
  *
  * Es un dato ORIENTATIVO: esos resultados todavía no están homologados y el archivo
  * no trae la categoría oficial, solo la edad. La categoría se ubica por la edad.
- * Regla acordada con la federación (13/11/2026): quien nada una prueba "FEDERADOS"
- * ya está federado, así que no se le marca la básica para federarse, solo la nacional.
+ * Regla acordada (13/11/2026), según el nivel de la prueba:
+ *   - "FEDERADOS": ya está federado → solo se marca la básica NACIONAL.
+ *   - "PROMOCIONAL" / "ESCUELA": todavía no está federado → solo se marca la básica
+ *     PARA FEDERARSE (la nacional no le corresponde hasta federarse).
+ *   - Nivel no reconocido: se marcan las que cumpla.
  */
 
 export interface StandardsTable {
@@ -68,8 +71,8 @@ export function standardsMetByFileResult(result: FileResult, table: StandardsTab
 
   return table.sets.filter((set) => {
     if (!metSetIds.has(set.setId)) return false;
-    // En una prueba de federados no tiene sentido la básica "para federarse".
-    if (level === 'FEDERADOS' && set.purpose === 'federacion') return false;
+    if (level === 'FEDERADOS') return set.purpose !== 'federacion';
+    if (level === 'PROMOCIONAL' || level === 'ESCUELA') return set.purpose === 'federacion';
     return true;
   });
 }
