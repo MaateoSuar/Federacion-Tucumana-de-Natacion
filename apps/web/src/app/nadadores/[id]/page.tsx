@@ -12,6 +12,7 @@ import {
   fetchSwimmerProgression,
 } from '@/lib/api';
 import { SwimmerProgressionView } from '@/components/swimmer/SwimmerProgressionView';
+import { ImprovementCelebration } from '@/components/swimmer/ImprovementCelebration';
 
 export const revalidate = 300;
 
@@ -83,6 +84,8 @@ export default async function NadadorPage({ params }: { params: { id: string } }
 
           {/* Progresión: mejores marcas, último torneo con flecha, evolución y torneos */}
           {progression.events.length > 0 && <SwimmerProgressionView progression={progression} />}
+          {/* Felicitación por mejoras nuevas: solo la ve el nadador dueño del perfil */}
+          <ImprovementCelebration progression={progression} swimmerId={swimmer.id} firstName={swimmer.firstName} />
 
           {/* Historial de resultados */}
           {resultsPage.results.length > 0 && (

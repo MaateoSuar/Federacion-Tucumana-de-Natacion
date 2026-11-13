@@ -122,3 +122,45 @@ export function initialPool(progression: SwimmerProgression, remembered: string 
   if ((remembered === 'P25' || remembered === 'P50') && has(remembered)) return remembered;
   return has('P25') || !has('P50') ? 'P25' : 'P50';
 }
+
+// ─── Felicitación por bajar el tiempo ────────────────────────────────────────
+
+export interface Improvement {
+  /** Identifica el logro para no volver a mostrarlo: prueba + pileta + torneo + tiempo. */
+  key: string;
+  eventLabel: string;
+  pool: 'P25' | 'P50';
+  previousMs: number;
+  newMs: number;
+  /** Cuánto bajó respecto del torneo anterior (ms, siempre > 0). */
+  improvedByMs: number;
+  tournamentName: string;
+  date: string;
+}
+
+/**
+ * Mejoras para festejar: pruebas donde el ÚLTIMO torneo fue su mejor marca y bajó
+ * el tiempo respecto del torneo anterior. Solo sale de resultados homologados (es
+ * lo único que trae la progresión) y nunca compara 25 m con 50 m (cada prueba ya
+ * viene separada por pileta). `seen` son las claves que el nadador ya vio.
+ */
+export function findNewImprovements(progression: SwimmerProgression, seen: ReadonlySet<string>): Improvement[] {
+  const found: Improvement[] = [];
+  for (const e of progression.events) {
+    const last = e.last;
+    if (!last || !last.isPb || last.deltaVsPreviousMs === null || last.deltaVsPreviousMs >= 0) continue;
+    const key = `${e.eventDefinitionId}|${e.pool}|${last.tournamentId}|${last.timeMs}`;
+    if (seen.has(key)) continue;
+    found.push({
+      key,
+      eventLabel: eventLabel(e),
+      pool: e.pool,
+      previousMs: last.timeMs - last.deltaVsPreviousMs,
+      newMs: last.timeMs,
+      improvedByMs: -last.deltaVsPreviousMs,
+      tournamentName: last.tournamentName,
+      date: last.date,
+    });
+  }
+  return found.sort((a, b) => b.date.localeCompare(a.date) || b.improvedByMs - a.improvedByMs);
+}

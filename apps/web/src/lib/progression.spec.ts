@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ProgressionEvent, ProgressionHistoryEntry, SwimmerProgression } from './api';
-import { chartSeries, describeDelta, eventLabel, eventsForPool, initialPool, summarizePool } from './progression';
+import { chartSeries, describeDelta, eventLabel, eventsForPool, findNewImprovements, initialPool, summarizePool } from './progression';
 
 const hist = (date: string, timeMs: number, isPb = false, deltaVsPreviousMs: number | null = null): ProgressionHistoryEntry => ({
   tournamentId: `t-${date}`, tournamentName: `Torneo ${date}`, date, timeMs, deltaVsPreviousMs, deltaVsPbMs: null,
@@ -121,5 +121,77 @@ describe('initialPool', () => {
     expect(initialPool(both, null)).toBe('P25');
     expect(initialPool(both, 'basura')).toBe('P25');
     expect(initialPool({ swimmerId: 's', events: [], tournaments: [] }, null)).toBe('P25');
+  });
+});
+
+describe('findNewImprovements', () => {
+  const withLast = (
+    stroke: string,
+    pool: 'P25' | 'P50',
+    last: { timeMs: number; deltaVsPreviousMs: number | null; isPb: boolean; date?: string },
+  ): ProgressionEvent => ({
+    ...ev(stroke, 50, pool),
+    last: {
+      timeMs: last.timeMs, tournamentId: 't-last', tournamentName: 'Copa NOA 2026', date: last.date ?? '2026-10-03',
+      deltaVsPreviousMs: last.deltaVsPreviousMs, deltaVsPbMs: last.deltaVsPreviousMs, isPb: last.isPb,
+    },
+  });
+  const prog = (...events: ProgressionEvent[]): SwimmerProgression => ({ swimmerId: 's', events, tournaments: [] });
+
+  it('festeja cuando el último torneo fue mejor marca y bajó respecto del anterior', () => {
+    const [imp] = findNewImprovements(prog(withLast('libre', 'P25', { timeMs: 31420, deltaVsPreviousMs: -580, isPb: true })), new Set());
+
+    expect(imp).toMatchObject({
+      eventLabel: '50 m Libre', pool: 'P25', previousMs: 32000, newMs: 31420, improvedByMs: 580, tournamentName: 'Copa NOA 2026',
+    });
+  });
+
+  it('no festeja si subió el tiempo, si igualó o si bajó sin superar su mejor marca', () => {
+    const none = findNewImprovements(
+      prog(
+        withLast('libre', 'P25', { timeMs: 33000, deltaVsPreviousMs: 1250, isPb: false }),
+        withLast('pecho', 'P25', { timeMs: 33000, deltaVsPreviousMs: 0, isPb: false }),
+        withLast('espalda', 'P25', { timeMs: 33000, deltaVsPreviousMs: -200, isPb: false }),
+      ),
+      new Set(),
+    );
+    expect(none).toEqual([]);
+  });
+
+  it('la primera vez que nada una prueba no es una mejora (no hay torneo anterior)', () => {
+    expect(findNewImprovements(prog(withLast('libre', 'P25', { timeMs: 31000, deltaVsPreviousMs: null, isPb: true })), new Set())).toEqual([]);
+  });
+
+  it('no repite un logro que el nadador ya vio, pero sí muestra uno nuevo', () => {
+    const p = prog(withLast('libre', 'P25', { timeMs: 31420, deltaVsPreviousMs: -580, isPb: true }));
+    const [first] = findNewImprovements(p, new Set());
+    expect(findNewImprovements(p, new Set([first?.key ?? '']))).toEqual([]);
+
+    const better = prog(withLast('libre', 'P25', { timeMs: 31000, deltaVsPreviousMs: -420, isPb: true }));
+    expect(findNewImprovements(better, new Set([first?.key ?? '']))).toHaveLength(1);
+  });
+
+  it('25 m y 50 m son logros distintos de la misma prueba', () => {
+    const list = findNewImprovements(
+      prog(
+        withLast('libre', 'P25', { timeMs: 31420, deltaVsPreviousMs: -580, isPb: true }),
+        withLast('libre', 'P50', { timeMs: 32900, deltaVsPreviousMs: -300, isPb: true }),
+      ),
+      new Set(),
+    );
+    expect(list.map((i) => i.pool).sort()).toEqual(['P25', 'P50']);
+    expect(new Set(list.map((i) => i.key)).size).toBe(2);
+  });
+
+  it('ordena por torneo más reciente y, a igual fecha, por la mayor mejora', () => {
+    const list = findNewImprovements(
+      prog(
+        withLast('pecho', 'P25', { timeMs: 40000, deltaVsPreviousMs: -100, isPb: true, date: '2026-10-03' }),
+        withLast('libre', 'P25', { timeMs: 31000, deltaVsPreviousMs: -900, isPb: true, date: '2026-10-03' }),
+        withLast('espalda', 'P25', { timeMs: 36000, deltaVsPreviousMs: -2000, isPb: true, date: '2026-04-11' }),
+      ),
+      new Set(),
+    );
+    expect(list.map((i) => i.eventLabel)).toEqual(['50 m Libre', '50 m Pecho', '50 m Espalda']);
   });
 });

@@ -10,7 +10,8 @@ import { formatTime } from '@/lib/formatTime';
 import { useResultsSocket } from '@/hooks/useResultsSocket';
 import { matchesFuzzySearch } from '@/lib/search';
 import { buildPodium } from '@/lib/podium';
-import type { EventResultsResponse } from '@/lib/api';
+import { Podium } from '@/components/ui/Podium';
+import type { EventResultsResponse, RecordEntry } from '@/lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -28,6 +29,8 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
   const [data, setData] = useState<EventResultsResponse | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [error, setError] = useState(false);
+  // Récords vigentes de esta prueba (misma pileta y género), como referencia
+  const [records, setRecords] = useState<RecordEntry[]>([]);
   const [liveUpdate, setLiveUpdate] = useState(false);
   const [swimmerSearch, setSwimmerSearch] = useState('');
   const [matchIdx, setMatchIdx] = useState(0);
@@ -45,6 +48,18 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
   }, [params.id, params.eventId]);
 
   useEffect(() => { fetchResults(); }, [fetchResults]);
+
+  const eventDefId = data?.event.eventDefinition.id;
+  const eventPool = data?.event.tournament.poolLength;
+  const eventGender = data?.event.eventDefinition.gender;
+  useEffect(() => {
+    if (!eventDefId || !eventPool || !eventGender) return;
+    const qs = new URLSearchParams({ eventDefinitionId: eventDefId, poolLength: eventPool, gender: eventGender });
+    const get = (path: string) =>
+      fetch(`${API_BASE}${path}?${qs}`).then((r) => (r.ok ? (r.json() as Promise<RecordEntry[]>) : [])).catch(() => []);
+    // Provinciales + nacionales (los nacionales son solo referencia)
+    void Promise.all([get('/records'), get('/records/national')]).then(([prov, nat]) => setRecords([...prov, ...nat]));
+  }, [eventDefId, eventPool, eventGender]);
 
   useResultsSocket({
     tournamentId: params.id,
@@ -187,6 +202,28 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
           </div>
         </div>
 
+        {/* Récords vigentes de la prueba: referencia, no participan del orden */}
+        {records.length > 0 && (
+          <div className="mb-6 rounded-xl border border-amber-400/25 bg-amber-400/5 px-4 py-3">
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-amber-300">
+              Récords vigentes · {event.eventDefinition.distance} m {stroke} · {gender} · Piscina {pool}
+            </p>
+            <ul className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
+              {records.map((rec) => (
+                <li key={rec.id} className="flex items-baseline gap-1.5">
+                  <span className="text-xs text-pool-400">
+                    {rec.category.name}{rec.scope === 'nacional' ? ' (nacional)' : ''}
+                  </span>
+                  <span className="font-mono font-bold tabular-nums text-white">{formatTime(rec.timeMs)}</span>
+                  <Link href={`/nadadores/${rec.swimmer.id}`} className="text-xs text-pool-300 hover:text-aqua-300 transition-colors">
+                    {rec.swimmer.firstName} {rec.swimmer.lastName}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* Swimmer search — sticky para que la navegación 1/X acompañe el scroll */}
         <div className="sticky top-14 z-30 -mx-4 md:-mx-8 px-4 md:px-8 py-3 mb-6 bg-pool-950/95 backdrop-blur border-b border-pool-800/60 flex items-center gap-2">
           <div className="relative flex-1">
@@ -262,6 +299,9 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
                     </div>
                   )}
                 </div>
+
+                {/* Podio de la categoría (solo homologados) */}
+                <Podium entries={buildPodium(group.results, group.categoryId)} />
 
                 {/* OK results table */}
                 {group.results.length > 0 && (

@@ -263,7 +263,7 @@ export interface ResultEntry {
 export interface EventResultsResponse {
   event: {
     id: string;
-    eventDefinition: { code: string; stroke: string; distance: number; gender: string };
+    eventDefinition: { id?: string; code: string; stroke: string; distance: number; gender: string };
     category: { code: string; name: string };
     tournament: { id: string; name: string; poolLength: 'P25' | 'P50'; startDate: string; scope: string };
   };
