@@ -8,7 +8,10 @@ import { MedalIcon, positionClass } from '@/components/ui/MedalIcon';
 import { RecordBadge } from '@/components/ui/RecordBadge';
 import { formatTime } from '@/lib/formatTime';
 import { useResultsSocket } from '@/hooks/useResultsSocket';
-import type { EventResultsResponse } from '@/lib/api';
+import { matchesFuzzySearch } from '@/lib/search';
+import { buildPodium } from '@/lib/podium';
+import { Podium } from '@/components/ui/Podium';
+import type { EventResultsResponse, RecordEntry } from '@/lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -19,13 +22,15 @@ function getPoints(position: number): number | null {
 
 function matchesSearch(r: { swimmer: { lastName: string; firstName: string } }, q: string): boolean {
   if (!q) return false;
-  return `${r.swimmer.lastName} ${r.swimmer.firstName}`.toLowerCase().includes(q.toLowerCase());
+  return matchesFuzzySearch(`${r.swimmer.lastName} ${r.swimmer.firstName}`, q);
 }
 
 export default function PruebaPage({ params }: { params: { id: string; eventId: string } }) {
   const [data, setData] = useState<EventResultsResponse | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [error, setError] = useState(false);
+  // Récords vigentes de esta prueba (misma pileta y género), como referencia
+  const [records, setRecords] = useState<RecordEntry[]>([]);
   const [liveUpdate, setLiveUpdate] = useState(false);
   const [swimmerSearch, setSwimmerSearch] = useState('');
   const [matchIdx, setMatchIdx] = useState(0);
@@ -43,6 +48,18 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
   }, [params.id, params.eventId]);
 
   useEffect(() => { fetchResults(); }, [fetchResults]);
+
+  const eventDefId = data?.event.eventDefinition.id;
+  const eventPool = data?.event.tournament.poolLength;
+  const eventGender = data?.event.eventDefinition.gender;
+  useEffect(() => {
+    if (!eventDefId || !eventPool || !eventGender) return;
+    const qs = new URLSearchParams({ eventDefinitionId: eventDefId, poolLength: eventPool, gender: eventGender });
+    const get = (path: string) =>
+      fetch(`${API_BASE}${path}?${qs}`).then((r) => (r.ok ? (r.json() as Promise<RecordEntry[]>) : [])).catch(() => []);
+    // Provinciales + nacionales (los nacionales son solo referencia)
+    void Promise.all([get('/records'), get('/records/national')]).then(([prov, nat]) => setRecords([...prov, ...nat]));
+  }, [eventDefId, eventPool, eventGender]);
 
   useResultsSocket({
     tournamentId: params.id,
@@ -112,6 +129,8 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
   for (const r of dqResults) addToGroup(r, true);
   categoryGroups.sort((a, b) => a.orderNo - b.orderNo);
   const isMultiCategory = categoryGroups.length > 1;
+  // La columna de sembrado aparece solo si el torneo importado trae ese dato
+  const hasSeed = results.some((r) => r.seedTime != null);
 
   // Flatten all items for search navigation
   const allItems = categoryGroups.flatMap((g) => [...g.results, ...g.dqResults]);
@@ -185,8 +204,30 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
           </div>
         </div>
 
-        {/* Swimmer search */}
-        <div className="flex items-center gap-2 mb-6">
+        {/* Récords vigentes de la prueba: referencia, no participan del orden */}
+        {records.length > 0 && (
+          <div className="mb-6 rounded-xl border border-amber-400/25 bg-amber-400/5 px-4 py-3">
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-amber-300">
+              Récords vigentes · {event.eventDefinition.distance} m {stroke} · {gender} · Piscina {pool}
+            </p>
+            <ul className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
+              {records.map((rec) => (
+                <li key={rec.id} className="flex items-baseline gap-1.5">
+                  <span className="text-xs text-pool-400">
+                    {rec.category.name}{rec.scope === 'nacional' ? ' (nacional)' : ''}
+                  </span>
+                  <span className="font-mono font-bold tabular-nums text-white">{formatTime(rec.timeMs)}</span>
+                  <Link href={`/nadadores/${rec.swimmer.id}`} className="text-xs text-pool-300 hover:text-aqua-300 transition-colors">
+                    {rec.swimmer.firstName} {rec.swimmer.lastName}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Swimmer search — sticky para que la navegación 1/X acompañe el scroll */}
+        <div className="sticky top-14 z-30 -mx-4 md:-mx-8 px-4 md:px-8 py-3 mb-6 bg-pool-950/95 backdrop-blur border-b border-pool-800/60 flex items-center gap-2">
           <div className="relative flex-1">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-pool-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -238,11 +279,31 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
           <div className="space-y-6">
             {categoryGroups.map((group) => (
               <div key={group.categoryId}>
-                {isMultiCategory && (
-                  <h2 className="text-xs font-bold text-aqua-400 uppercase tracking-widest mb-2 px-1">
-                    {group.categoryName}
-                  </h2>
-                )}
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2 px-1">
+                  {isMultiCategory ? (
+                    <h2 className="text-xs font-bold text-aqua-400 uppercase tracking-widest">
+                      {group.categoryName}
+                    </h2>
+                  ) : <span />}
+                  {/* Imagen del podio para compartir: solo con resultados homologados */}
+                  {buildPodium(group.results, group.categoryId).length > 0 && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-pool-400">Descargar podio:</span>
+                      {([['square', 'Cuadrada'], ['story', 'Historia']] as const).map(([format, label]) => (
+                        <a
+                          key={format}
+                          href={`/torneos/${params.id}/prueba/${params.eventId}/podio?categoryId=${encodeURIComponent(group.categoryId)}&format=${format}&download=1`}
+                          className="rounded-lg border border-aqua-500/40 bg-aqua-500/10 px-2.5 py-1 font-semibold text-aqua-300 hover:bg-aqua-500/20 transition-colors"
+                        >
+                          {label}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Podio de la categoría (solo homologados) */}
+                <Podium entries={buildPodium(group.results, group.categoryId)} />
 
                 {/* OK results table */}
                 {group.results.length > 0 && (
@@ -253,7 +314,8 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
                           <th className="text-left px-4 py-3 w-10">#</th>
                           <th className="text-left px-4 py-3">Nadador/a</th>
                           <th className="text-left px-4 py-3 hidden sm:table-cell">Club</th>
-                          <th className="text-right px-4 py-3">Tiempo</th>
+                          {hasSeed && <th className="text-right px-4 py-3 hidden sm:table-cell">Sembrado</th>}
+                          <th className="text-right px-4 py-3">{hasSeed ? 'Final' : 'Tiempo'}</th>
                           <th className="text-right px-4 py-3 w-14">Pts</th>
                           <th className="w-8 px-2" />
                         </tr>
@@ -272,7 +334,7 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
                                 ref={setRowRef(r.id) as React.Ref<HTMLTableRowElement>}
                                 className={`group transition-colors cursor-pointer ${positionClass(pos)} ${
                                   isCurrent
-                                    ? 'bg-aqua-700/20 ring-1 ring-inset ring-aqua-500/40'
+                                    ? 'bg-yellow-400/20 ring-2 ring-inset ring-yellow-400 shadow-[inset_0_0_16px_rgba(250,204,21,0.25)]'
                                     : isMatch
                                     ? 'bg-aqua-900/20 hover:bg-aqua-900/30'
                                     : 'hover:bg-pool-800/40'
@@ -291,12 +353,26 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
                                     >
                                       {r.swimmer.lastName}, {r.swimmer.firstName}
                                     </Link>
-                                    {r.isPb && <span className="text-xs font-bold text-emerald-400 bg-emerald-400/10 px-1.5 py-0.5 rounded">PB</span>}
                                     {r.isRecord && <RecordBadge />}
                                   </div>
                                 </td>
                                 <td className="px-4 py-3 text-pool-300 hidden sm:table-cell">{r.club.shortName}</td>
-                                <td className="px-4 py-3 text-right font-mono font-bold text-white">
+                                {hasSeed && (
+                                  <td className="px-4 py-3 text-right font-mono text-pool-400 hidden sm:table-cell">
+                                    {r.seedTime != null ? formatTime(r.seedTime) : '—'}
+                                  </td>
+                                )}
+                                <td className="px-4 py-3 text-right font-mono font-bold text-white whitespace-nowrap">
+                                  {/* Flecha respecto del sembrado: nunca solo color, lleva título y texto oculto */}
+                                  {r.seedTime != null && r.finalTime != null && r.finalTime !== r.seedTime && (
+                                    <span
+                                      className={`mr-1.5 text-xs ${r.finalTime < r.seedTime ? 'text-green-400' : 'text-red-400'}`}
+                                      title={r.finalTime < r.seedTime ? 'Bajó respecto del sembrado' : 'Subió respecto del sembrado'}
+                                    >
+                                      <span aria-hidden="true">{r.finalTime < r.seedTime ? '▼' : '▲'}</span>
+                                      <span className="sr-only">{r.finalTime < r.seedTime ? 'Bajó el tiempo' : 'Subió el tiempo'}</span>
+                                    </span>
+                                  )}
                                   {r.finalTime != null ? formatTime(r.finalTime) : '—'}
                                 </td>
                                 <td className="px-4 py-3 text-right">
@@ -312,7 +388,7 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
                               </tr>
                               {isOpen && r.splits.length > 0 && (
                                 <tr key={`${r.id}-splits`} className="bg-pool-900/60">
-                                  <td colSpan={6} className="px-6 py-3">
+                                  <td colSpan={hasSeed ? 7 : 6} className="px-6 py-3">
                                     <div className="flex flex-wrap gap-3">
                                       {r.splits.map((s) => (
                                         <div key={s.distance} className="text-xs">
@@ -344,7 +420,7 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
                           ref={setRowRef(r.id)}
                           className={`flex items-center justify-between rounded-lg px-4 py-2.5 text-sm transition-colors ${
                             isCurrent
-                              ? 'bg-aqua-700/20 ring-1 ring-aqua-500/40'
+                              ? 'bg-yellow-400/20 ring-2 ring-yellow-400 shadow-[0_0_16px_rgba(250,204,21,0.25)]'
                               : isMatch
                               ? 'bg-aqua-900/15'
                               : 'bg-pool-800/20'

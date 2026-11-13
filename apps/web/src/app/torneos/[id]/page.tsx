@@ -1,10 +1,19 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { NavBar } from '@/components/NavBar';
-import { fetchTournament, fetchTournamentEvents } from '@/lib/api';
+import { fetchTournament, fetchTournamentEvents, fetchTournamentDayFiles, fetchStandardsTable } from '@/lib/api';
+import type { DayFile } from '@/lib/api';
 import { EventList } from './EventList';
+import { DayFilesPanel } from './DayFilesPanel';
 
 export const revalidate = 30;
+
+/** Cantidad de jornadas derivada de las fechas del torneo — mismo criterio que el panel admin. */
+function countDays(startDate: string, endDate: string): number {
+  const start = new Date(startDate).setHours(0, 0, 0, 0);
+  const end = new Date(endDate).setHours(0, 0, 0, 0);
+  return Math.max(1, Math.round((end - start) / 86_400_000) + 1);
+}
 
 export default async function TorneoPage({ params }: { params: { id: string } }) {
   try {
@@ -12,6 +21,18 @@ export default async function TorneoPage({ params }: { params: { id: string } })
       fetchTournament(params.id),
       fetchTournamentEvents(params.id),
     ]);
+
+    const eventsWithResults = events.filter((e) => e._count.results > 0);
+    const totalDays = countDays(tournament.startDate, tournament.endDate);
+    const dayFilesByDay = await Promise.all(
+      Array.from({ length: totalDays + 1 }, (_, d) => d) // 0 (General) .. totalDays
+        .map((d) => fetchTournamentDayFiles(params.id, d).catch(() => [] as DayFile[])),
+    );
+    const dayFiles = dayFilesByDay.flat();
+    // Marcas básicas de la pileta del torneo (si fallan, los resultados se ven igual, sin chips)
+    const standards = dayFiles.length > 0
+      ? await fetchStandardsTable(tournament.poolLength).catch(() => null)
+      : null;
 
     const startDate = new Date(tournament.startDate).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
     const endDate = new Date(tournament.endDate).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -35,11 +56,21 @@ export default async function TorneoPage({ params }: { params: { id: string } })
             </div>
           </div>
 
-          {/* Pruebas */}
-          <section>
-            <h2 className="text-lg font-bold text-white mb-4">Pruebas</h2>
-            <EventList events={events} tournamentId={params.id} />
-          </section>
+          {/* Sembrados y Resultados por jornada */}
+          {dayFiles.length > 0 && (
+            <div className="mb-10">
+              <DayFilesPanel dayFiles={dayFiles} totalDays={totalDays} standards={standards} />
+            </div>
+          )}
+
+          {/* Pruebas: solo las que tienen resultados cargados en el sistema. Un torneo que
+              solo tiene los archivos de sembrados/resultados no muestra una lista vacía. */}
+          {eventsWithResults.length > 0 && (
+            <section>
+              <h2 className="text-lg font-bold text-white mb-4">Pruebas</h2>
+              <EventList events={eventsWithResults} tournamentId={params.id} />
+            </section>
+          )}
         </div>
       </div>
     );

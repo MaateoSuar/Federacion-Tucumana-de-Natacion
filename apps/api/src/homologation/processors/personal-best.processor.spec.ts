@@ -15,6 +15,7 @@ const makeData = (overrides: Partial<PostProcessJobData> = {}): PostProcessJobDa
   eventId: 'event-1',
   place: 1,
   resultDate: '2026-05-01T00:00:00.000Z',
+  homologatedBy: 'admin-1',
   ...overrides,
 });
 

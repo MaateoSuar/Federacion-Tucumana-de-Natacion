@@ -1,12 +1,20 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { NormalizedClub } from '../../ingest/types/normalized-meet.types';
-import type { ClubMatchResult } from './types';
-import { normalizeText, similarity, FUZZY_CLUB_THRESHOLD } from './fuzzy';
+import type { ClubCandidate, ClubMatchResult } from './types';
+import { DEFAULT_MATCH_CONFIG, MATCH_CONFIG, type MatchConfig } from './match-config';
+import { scoreClubCandidate } from './club-scorer';
 
 @Injectable()
 export class ClubMatcher {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly config: MatchConfig;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() @Inject(MATCH_CONFIG) config?: MatchConfig,
+  ) {
+    this.config = config ?? DEFAULT_MATCH_CONFIG;
+  }
 
   async match(
     club: NormalizedClub,
@@ -33,11 +41,13 @@ export class ClubMatcher {
       };
     }
 
-    // ── 2. short_name exacto (case-insensitive) ──────────────────────────────
-    const byShortName = await this.prisma.club.findFirst({
-      where: { shortName: { equals: club.short_name, mode: 'insensitive' } },
-      select: { id: true },
-    });
+    // ── 2. short_name exacto (case-insensitive) — solo si no está vacío ────────
+    const byShortName = club.short_name?.trim()
+      ? await this.prisma.club.findFirst({
+          where: { shortName: { equals: club.short_name, mode: 'insensitive' } },
+          select: { id: true },
+        })
+      : null;
     if (byShortName) {
       return {
         clubRef: club.external_team_id,
@@ -65,34 +75,35 @@ export class ClubMatcher {
       };
     }
 
-    // ── 4. Fuzzy nombre ──────────────────────────────────────────────────────
+    // ── 4. Similitud por palabras, sin importar orden ni palabras genéricas ──
     const allClubs = await this.prisma.club.findMany({
       select: { id: true, name: true, shortName: true },
     });
 
-    const nameNorm = normalizeText(club.name);
-    let bestScore = 0;
-    let bestId: string | null = null;
+    const cfg = this.config.club;
+    const candidates: ClubCandidate[] = allClubs
+      .map((c) => {
+        const scored = scoreClubCandidate(
+          { name: club.name, shortName: club.short_name },
+          { name: c.name, shortName: c.shortName },
+          cfg,
+        );
+        return { clubId: c.id, displayName: c.name, score: scored.score, reasons: scored.reasons };
+      })
+      .filter((c) => c.score >= cfg.minCandidateScore)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, cfg.maxCandidates);
 
-    for (const c of allClubs) {
-      const score = Math.max(
-        similarity(nameNorm, normalizeText(c.name)),
-        similarity(nameNorm, normalizeText(c.shortName)),
-      );
-      if (score > bestScore) {
-        bestScore = score;
-        bestId = c.id;
-      }
-    }
-
-    if (bestScore >= FUZZY_CLUB_THRESHOLD && bestId) {
+    const best = candidates[0];
+    if (best) {
       return {
         clubRef: club.external_team_id,
         confidence: 'low',
         clubId: null,
         matchedBy: 'fuzzy',
         requiresConfirmation: true,
-        candidateClubId: bestId,
+        candidateClubId: best.clubId,
+        candidates,
         displayName: club.name,
       };
     }

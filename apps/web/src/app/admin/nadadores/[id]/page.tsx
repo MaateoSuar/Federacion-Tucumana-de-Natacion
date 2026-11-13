@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
 import ImageUpload from '@/components/ImageUpload';
+import { DatePicker } from '@/components/DatePicker';
 
 interface ClubRef { id: string; name: string; shortName: string; }
 
@@ -100,7 +101,9 @@ export default function NadadoresDetailPage() {
 
   const handleAssignClub = async (e: React.FormEvent) => {
     e.preventDefault();
-    setAssigning(true); setAssignError(null); setAssignSuccess(false);
+    setAssignError(null); setAssignSuccess(false);
+    if (!assignStartDate) { setAssignError('Seleccioná la fecha de inicio.'); return; }
+    setAssigning(true);
     try {
       const updated = await apiFetch<Swimmer>(`/swimmers/${id}/club-assignment`, {
         method: 'POST',
@@ -184,9 +187,9 @@ export default function NadadoresDetailPage() {
               <input id="documentId" name="documentId" value={swimmer.documentId ?? ''} onChange={handleChange} className="input" />
             </Field>
             <Field label="Fecha de nacimiento" htmlFor="birthDate">
-              <input id="birthDate" name="birthDate" type="date"
+              <DatePicker
                 value={swimmer.birthDate ? swimmer.birthDate.slice(0, 10) : ''}
-                onChange={handleChange} className="input" />
+                onChange={(v) => setSwimmer((p) => p ? { ...p, birthDate: v } : p)} />
             </Field>
             <Field label="Género *" htmlFor="gender">
               <select id="gender" name="gender" value={swimmer.gender} onChange={handleChange} className="input">
@@ -261,8 +264,7 @@ export default function NadadoresDetailPage() {
                 </select>
               </Field>
               <Field label="Fecha inicio" htmlFor="aStart">
-                <input id="aStart" type="date" value={assignStartDate}
-                  onChange={(e) => setAssignStartDate(e.target.value)} required className="input" />
+                <DatePicker value={assignStartDate} onChange={setAssignStartDate} />
               </Field>
             </div>
             <div className="flex justify-end">

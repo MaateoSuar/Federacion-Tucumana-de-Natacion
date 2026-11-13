@@ -1,3 +1,4 @@
+import type { StandardsTable } from './standards-match';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 function authHeader(): Record<string, string> {
@@ -6,9 +7,31 @@ function authHeader(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+async function tryRefresh(): Promise<boolean> {
+  try {
+    const rt = localStorage.getItem('ftn_refresh_token');
+    if (!rt) return false;
+    const res = await fetch(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${rt}` },
+    });
+    if (!res.ok) return false;
+    const { accessToken, refreshToken } = await res.json() as {
+      accessToken: string;
+      refreshToken: string;
+    };
+    localStorage.setItem('ftn_access_token', accessToken);
+    localStorage.setItem('ftn_refresh_token', refreshToken);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function apiFetch<T>(
   path: string,
   options?: RequestInit,
+  _retry = true,
 ): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: {
@@ -18,6 +41,14 @@ export async function apiFetch<T>(
     },
     ...options,
   });
+
+  if (res.status === 401 && _retry && typeof window !== 'undefined') {
+    const refreshed = await tryRefresh();
+    if (refreshed) return apiFetch<T>(path, options, false);
+    localStorage.removeItem('ftn_access_token');
+    localStorage.removeItem('ftn_refresh_token');
+  }
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     const message: string =
@@ -56,11 +87,20 @@ export function fetchEventResults(tournamentId: string, eventId: string) {
   return serverFetch<EventResultsResponse>(`/tournaments/${tournamentId}/events/${eventId}/results`, 20);
 }
 
+export function fetchTournamentDayFiles(tournamentId: string, day: number) {
+  return serverFetch<DayFile[]>(`/tournaments/${tournamentId}/days/${day}/files`, 20);
+}
+
 // ─── Rankings ────────────────────────────────────────────────────────────────
 
 export function fetchEventRanking(params: Record<string, string>) {
   const qs = '?' + new URLSearchParams(params).toString();
   return serverFetch<RankingEntry[]>(`/rankings/event${qs}`, 60);
+}
+
+/** Tabla de marcas básicas de una pileta, por edad (para los resultados de archivo). */
+export function fetchStandardsTable(poolLength: 'P25' | 'P50') {
+  return serverFetch<StandardsTable>(`/rankings/standards?poolLength=${poolLength}`, 300);
 }
 
 export function fetchClubRanking(params?: Record<string, string>) {
@@ -69,6 +109,13 @@ export function fetchClubRanking(params?: Record<string, string>) {
 }
 
 // ─── Nadadores ───────────────────────────────────────────────────────────────
+
+export function fetchSwimmers(params?: { search?: string; page?: number; limit?: number }) {
+  const qs = params ? '?' + new URLSearchParams(
+    Object.fromEntries(Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)]))
+  ).toString() : '';
+  return serverFetch<{ items: Swimmer[]; total: number; page: number; limit: number }>(`/swimmers${qs}`, 30);
+}
 
 export function fetchSwimmer(id: string) {
   return serverFetch<Swimmer>(`/swimmers/${id}`, 300);
@@ -114,6 +161,43 @@ export function fetchSwimmerTimeEvolution(id: string) {
 
 export function fetchSwimmerStatistics(id: string) {
   return serverFetch<SwimmerStatistics>(`/swimmers/${id}/statistics`, 300);
+}
+
+export interface ProgressionHistoryEntry {
+  tournamentId: string;
+  tournamentName: string;
+  date: string;
+  timeMs: number;
+  deltaVsPreviousMs: number | null;
+  deltaVsPbMs: number | null;
+  isPb: boolean;
+  categoryName: string;
+  clubName: string;
+  place: number | null;
+  medal: 'gold' | 'silver' | 'bronze' | null;
+}
+
+export interface ProgressionEvent {
+  eventDefinitionId: string;
+  label: string;
+  stroke: string;
+  distance: number;
+  pool: 'P25' | 'P50';
+  personalBest: { timeMs: number; tournamentId: string; tournamentName: string; date: string; worldAquaticsPoints: number | null } | null;
+  last: { timeMs: number; tournamentId: string; tournamentName: string; date: string; deltaVsPreviousMs: number | null; deltaVsPbMs: number | null; isPb: boolean } | null;
+  totalImprovementMs: number | null;
+  history: ProgressionHistoryEntry[];
+}
+
+export interface SwimmerProgression {
+  swimmerId: string;
+  events: ProgressionEvent[];
+  tournaments: Array<{ tournamentId: string; name: string; date: string; pool: 'P25' | 'P50'; events: number; pbs: number; medals: { gold: number; silver: number; bronze: number } }>;
+}
+
+export function fetchSwimmerProgression(id: string, pool?: 'P25' | 'P50') {
+  const qs = pool ? `?pool=${pool}` : '';
+  return serverFetch<SwimmerProgression>(`/swimmers/${id}/progression${qs}`, 60);
 }
 
 // ─── Récords ─────────────────────────────────────────────────────────────────
@@ -179,17 +263,54 @@ export interface ResultEntry {
   swimmer: { id: string; firstName: string; lastName: string; gender: string };
   club: { id: string; name: string; shortName: string };
   category: { id: string; name: string; orderNo: number };
+  /** Tiempo de sembrado (inscripción) en ms, si el archivo importado lo traía. */
+  seedTime?: number | null;
   splits: { distance: number; cumulativeTime: number }[];
 }
 
 export interface EventResultsResponse {
   event: {
     id: string;
-    eventDefinition: { code: string; stroke: string; distance: number; gender: string };
+    eventDefinition: { id?: string; code: string; stroke: string; distance: number; gender: string };
     category: { code: string; name: string };
     tournament: { id: string; name: string; poolLength: 'P25' | 'P50'; startDate: string; scope: string };
   };
   results: ResultEntry[];
+}
+
+export interface SembradoRow {
+  eventNo: number;
+  eventLabel: string;
+  heatNo: number;
+  lane: number;
+  swimmerName: string;
+  age: number | null;
+  club: string;
+  seedTimeMs: number | null;
+}
+
+export interface ResultadoRow {
+  eventNo: number;
+  eventLabel: string;
+  place: number | null;
+  swimmerName: string;
+  age: number | null;
+  club: string;
+  seedTimeMs: number | null;
+  finalTimeMs: number | null;
+  status: 'OK' | 'DSQ' | 'DNS' | 'DNF';
+}
+
+export interface DayFile {
+  id: string;
+  dayNumber: number;
+  type: 'sembrados' | 'resultados';
+  title: string;
+  fileUrl: string;
+  mimeType: string;
+  createdAt: string;
+  parsedRows: SembradoRow[] | ResultadoRow[] | null;
+  parseWarning: string | null;
 }
 
 export interface RankingEntry {
@@ -198,8 +319,26 @@ export interface RankingEntry {
   swimmerName: string;
   clubId: string;
   clubName: string;
+  categoryId: string;
+  categoryName: string;
   finalTime: number;
-  sourceResultId: string;
+  sourceResultId: string | null;
+  /** Fecha (ISO) del torneo o del récord donde hizo ese tiempo. */
+  achievedAt?: string;
+  /** Ids de los sets de marcas básicas que este tiempo cumple en su categoría. */
+  meets?: string[];
+}
+
+/** Set de marcas básicas aplicado al ranking por prueba (GET /rankings/event/standards). */
+export interface EventStandard {
+  setId: string;
+  code: string;
+  name: string;
+  shortLabel: string;
+  color: string;
+  /** Marca de la categoría filtrada; null si no hay categoría elegida o no tiene marca. */
+  timeMs: number | null;
+  qualifiedCount: number;
 }
 
 export interface ClubRankingEntry {
@@ -242,6 +381,7 @@ export interface SwimmerResult {
   status: string;
   isPb: boolean;
   isRecord: boolean;
+  homologated: boolean;
   event: {
     eventDefinition: { code: string; stroke: string; distance: number };
     tournament: { id: string; name: string; startDate: string; poolLength: 'P25' | 'P50' };
@@ -275,10 +415,22 @@ export interface RecordEntry {
   recordDate: string;
   status: string;
   isCurrent: boolean;
+  homologatedAt: string | null;
+  createdAt: string;
   swimmer: { id: string; firstName: string; lastName: string };
+  club: { id: string; name: string; shortName: string };
   eventDefinition: { id: string; code: string; stroke: string; distance: number };
   category: { id: string; code: string; name: string };
   sourceResult?: { id: string; event: { tournament: { id: string; name: string; startDate: string } } };
+  /** Id del récord al que reemplazó (si lo hay): permite volver atrás desde el panel. */
+  previousRecordId?: string | null;
+  /** Solo en candidatos (`/records/candidates`): récord vigente al momento de la detección. */
+  previousRecord?: {
+    id: string;
+    timeMs: number;
+    recordDate: string;
+    swimmer: { id: string; firstName: string; lastName: string };
+  } | null;
 }
 
 export interface EventDefinition {

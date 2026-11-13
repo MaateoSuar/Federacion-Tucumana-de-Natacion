@@ -37,6 +37,12 @@ export interface NormalizedSwimmer {
 }
 
 export interface NormalizedEvent {
+  /**
+   * Clave única de la prueba dentro del archivo (ver `buildEventKey`).
+   * Los resultados referencian a su prueba por esta clave.
+   */
+  event_key: string;
+  /** Número de prueba de Meet Manager. NO es único: se repite entre categorías y géneros. */
   event_no: number;
   stroke: NormalizedStroke;
   distance: number;
@@ -55,6 +61,9 @@ export interface NormalizedSplit {
 }
 
 export interface NormalizedResult {
+  /** `event_key` de la prueba a la que pertenece el resultado. */
+  event_key: string;
+  /** Número de prueba de Meet Manager (informativo; no identifica a la prueba). */
   event_ref: number;
   swimmer_ref: string;
   heat_no: number;

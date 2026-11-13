@@ -5,6 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { HomologationService } from '../homologation/homologation.service';
 import {
   TournamentStatus,
   TournamentType,
@@ -18,14 +19,35 @@ import { UpdateTournamentDto } from './dto/update-tournament.dto';
 import { AddEventDto } from './dto/add-event.dto';
 import { GenerateHeatsDto } from './dto/generate-heats.dto';
 import { UploadDocumentDto } from './dto/upload-document.dto';
+import { UploadDayFileDto } from './dto/upload-day-file.dto';
+import { parseSembradosPdf } from '../ingest/adapters/meet-manager-pdf/sembrados-pdf-parser';
+import type { SembradoEventMeta } from '../ingest/adapters/meet-manager-pdf/sembrados-pdf-parser';
+import { parseResultadosPdf } from '../ingest/adapters/meet-manager-pdf/resultados-pdf-parser';
 
-// Máquina de estados: estado actual → único estado destino válido
+// Mismo mapeo de códigos de stroke que usa el pipeline oficial (commit.processor.ts)
+const STROKE_CODE: Record<string, string> = {
+  libre: 'L',
+  espalda: 'E',
+  pecho: 'P',
+  mariposa: 'MA',
+  combinado: 'C',
+};
+
+// pdf-parse v1 exports a callable function as the default CJS export
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const pdfParse = require('pdf-parse') as (
+  dataBuffer: Buffer,
+) => Promise<{ text: string }>;
+
+// Máquina de estados: estado actual → único estado destino válido.
+// "finalizado" no tiene transición manual siguiente: al alcanzarlo se
+// homologa automáticamente (ver transition()) y el torneo queda en
+// "homologado" sin intervención humana adicional.
 const VALID_TRANSITIONS: Partial<Record<TournamentStatus, TournamentStatus>> = {
   [TournamentStatus.programado]: TournamentStatus.inscripciones_abiertas,
   [TournamentStatus.inscripciones_abiertas]: TournamentStatus.cerrado,
   [TournamentStatus.cerrado]: TournamentStatus.en_curso,
   [TournamentStatus.en_curso]: TournamentStatus.finalizado,
-  [TournamentStatus.finalizado]: TournamentStatus.homologado,
 };
 
 export interface TournamentFilters {
@@ -40,7 +62,10 @@ export interface TournamentFilters {
 
 @Injectable()
 export class TournamentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly homologationService: HomologationService,
+  ) {}
 
   // ─── Catálogos (para selectores de UI) ────────────────────────────────────
 
@@ -91,15 +116,26 @@ export class TournamentsService {
     const skip = (page - 1) * limit;
 
     const where: Prisma.TournamentWhereInput = {};
-    if (status) where.status = status;
+    // "Finalizado" agrupa también a los ya homologados — la homologación es
+    // automática al finalizar, no un estado que el usuario deba filtrar aparte.
+    if (status === TournamentStatus.finalizado) {
+      where.status = { in: [TournamentStatus.finalizado, TournamentStatus.homologado] };
+    } else if (status) {
+      where.status = status;
+    }
     if (type) where.type = type;
     if (scope) where.scope = scope;
     if (seasonId) where.seasonId = seasonId;
     if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { venue: { contains: search, mode: 'insensitive' } },
-      ];
+      // Cada palabra escrita debe aparecer en algún campo, sin importar el
+      // orden — evita que "Abierto Catamarca" falle por buscar la frase entera.
+      const tokens = search.trim().split(/\s+/).filter(Boolean);
+      where.AND = tokens.map((token) => ({
+        OR: [
+          { name: { contains: token, mode: 'insensitive' } },
+          { venue: { contains: token, mode: 'insensitive' } },
+        ],
+      }));
     }
 
     const [items, total] = await Promise.all([
@@ -166,7 +202,7 @@ export class TournamentsService {
 
   // ─── Máquina de estados ───────────────────────────────────────────────────
 
-  async transition(id: string, targetStatus: TournamentStatus) {
+  async transition(id: string, targetStatus: TournamentStatus, userId: string) {
     const tournament = await this.assertTournamentExists(id);
     const validNext = VALID_TRANSITIONS[tournament.status];
 
@@ -203,10 +239,19 @@ export class TournamentsService {
       }
     }
 
-    return this.prisma.tournament.update({
+    await this.prisma.tournament.update({
       where: { id },
       data: { status: targetStatus },
     });
+
+    // Al finalizar, se homologa automáticamente — no existe un paso manual
+    // separado: todo torneo finalizado se da por homologado, y esto dispara
+    // el pipeline de ranking/récords/mejores marcas para sus resultados.
+    if (targetStatus === TournamentStatus.finalizado) {
+      await this.homologationService.homologateTournament(id, userId);
+    }
+
+    return this.assertTournamentExists(id);
   }
 
   // ─── Pruebas (Events) ─────────────────────────────────────────────────────
@@ -277,6 +322,35 @@ export class TournamentsService {
     }
     await this.prisma.heat.deleteMany({ where: { eventId } });
     return this.prisma.event.delete({ where: { id: eventId } });
+  }
+
+  /**
+   * Mueve esta prueba y todas las que le siguen en orden (misma jornada actual)
+   * a la próxima jornada. Pensado para corregir el corte por día cuando un
+   * sembrado combinado de varias jornadas se subió entero a una sola.
+   */
+  async splitDayFromEvent(tournamentId: string, eventId: string) {
+    const tournament = await this.assertTournamentExists(tournamentId);
+    const event = await this.prisma.event.findFirst({ where: { id: eventId, tournamentId } });
+    if (!event) throw new NotFoundException(`Prueba ${eventId} no encontrada en este torneo`);
+
+    const start = new Date(tournament.startDate).setHours(0, 0, 0, 0);
+    const end = new Date(tournament.endDate).setHours(0, 0, 0, 0);
+    const totalDays = Math.max(1, Math.round((end - start) / 86_400_000) + 1);
+
+    const targetDay = event.dayNumber + 1;
+    if (targetDay > totalDays) {
+      throw new BadRequestException(
+        `Este torneo tiene ${totalDays} jornada${totalDays !== 1 ? 's' : ''} — no existe una Jornada ${targetDay}`,
+      );
+    }
+
+    const { count } = await this.prisma.event.updateMany({
+      where: { tournamentId, dayNumber: event.dayNumber, orderNo: { gte: event.orderNo } },
+      data: { dayNumber: targetDay },
+    });
+
+    return { movedCount: count, targetDay };
   }
 
   async getEvents(tournamentId: string) {
@@ -471,6 +545,170 @@ export class TournamentsService {
     });
     if (!doc) throw new NotFoundException(`Documento ${docId} no encontrado en este torneo`);
     return this.prisma.tournamentDocument.delete({ where: { id: docId } });
+  }
+
+  // ─── Archivos de sembrados/resultados por jornada ──────────────────────────
+  // Capa de referencia: solo guarda el archivo y, si es un PDF de sembrados
+  // reconocible, la tabla extraída para mostrar. Nunca crea/modifica torneos,
+  // registraciones ni resultados oficiales — ver sembrados-pdf-parser.ts.
+
+  async addDayFile(
+    tournamentId: string,
+    dayNumber: number,
+    fileBuffer: Buffer,
+    fileUrl: string,
+    mimeType: string,
+    dto: UploadDayFileDto,
+    uploadedBy: string,
+  ) {
+    await this.assertTournamentExists(tournamentId);
+
+    let parsedRows: Prisma.InputJsonValue | undefined;
+    let parseWarning: string | null = null;
+
+    if (dto.type === 'sembrados' && mimeType === 'application/pdf') {
+      try {
+        const { text } = await pdfParse(fileBuffer);
+        const result = parseSembradosPdf(text);
+        parsedRows = result.rows as unknown as Prisma.InputJsonValue;
+        parseWarning = result.warning;
+        if (result.events.length > 0) {
+          await this.createEventsFromSembrados(tournamentId, dayNumber, result.events);
+        }
+      } catch (err) {
+        parseWarning = `No se pudo leer el PDF: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    } else if (dto.type === 'resultados' && mimeType === 'application/pdf') {
+      try {
+        const { text } = await pdfParse(fileBuffer);
+        const result = parseResultadosPdf(text);
+        parsedRows = result.rows as unknown as Prisma.InputJsonValue;
+        parseWarning = result.warning;
+      } catch (err) {
+        parseWarning = `No se pudo leer el PDF: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    }
+
+    return this.prisma.tournamentDayFile.create({
+      data: {
+        tournamentId,
+        dayNumber,
+        type: dto.type,
+        title: dto.title,
+        fileUrl,
+        mimeType,
+        parsedRows,
+        parseWarning,
+        uploadedBy,
+      },
+    });
+  }
+
+  async listDayFiles(tournamentId: string, dayNumber: number) {
+    await this.assertTournamentExists(tournamentId);
+    return this.prisma.tournamentDayFile.findMany({
+      where: { tournamentId, dayNumber },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        uploader: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
+  }
+
+  async removeDayFile(tournamentId: string, fileId: string) {
+    const file = await this.prisma.tournamentDayFile.findFirst({
+      where: { id: fileId, tournamentId },
+    });
+    if (!file) throw new NotFoundException(`Archivo ${fileId} no encontrado en este torneo`);
+    return this.prisma.tournamentDayFile.delete({ where: { id: fileId } });
+  }
+
+  /**
+   * Crea las Pruebas (Event) reales del torneo a partir de los eventos detectados
+   * en un sembrado. Una Prueba por "Evento N" del PDF (no se separa por categoría
+   * individual de cada nadador). Idempotente: si la prueba ya existe para este
+   * torneo, se reutiliza — no se duplica ni se lanza error al resubir un archivo.
+   */
+  private async createEventsFromSembrados(
+    tournamentId: string,
+    dayNumber: number,
+    events: SembradoEventMeta[],
+  ) {
+    const categories = await this.prisma.category.findMany({
+      where: { isActive: true },
+      orderBy: { orderNo: 'asc' },
+    });
+
+    const absCategory = categories.find((c) => c.code === 'ABS');
+    let escuelaCategory = categories.find((c) => c.code === 'ESC');
+    if (!escuelaCategory) {
+      escuelaCategory = await this.prisma.category.create({
+        data: {
+          code: 'ESC',
+          name: 'Escuela',
+          minAge: null,
+          maxAge: null,
+          scope: 'provincial',
+          orderNo: 18,
+        },
+      });
+    }
+
+    for (const ev of events) {
+      if (!ev.stroke) continue; // no se pudo determinar el estilo (ej. relevos) — no se crea la prueba
+
+      let category: (typeof categories)[number] | undefined;
+      if (ev.competitionType === 'federados') {
+        category = absCategory;
+      } else if (ev.competitionType === 'escuela') {
+        category = escuelaCategory;
+      } else if (ev.competitionType === 'promocional') {
+        category =
+          categories.find((c) => c.minAge === ev.ageGroupMin && c.maxAge === ev.ageGroupMax) ??
+          categories.find(
+            (c) =>
+              ev.ageGroupMin !== null &&
+              (c.minAge === null || ev.ageGroupMin >= c.minAge) &&
+              (c.maxAge === null || ev.ageGroupMin <= c.maxAge),
+          ) ??
+          absCategory;
+      }
+      if (!category) continue;
+
+      const gender = ev.gender === 'F' ? 'F' : 'M';
+      const strokeCode = STROKE_CODE[ev.stroke] ?? ev.stroke;
+      const code = `${ev.distance}${strokeCode}_${gender}`;
+
+      let eventDef = await this.prisma.eventDefinition.findUnique({ where: { code } });
+      if (!eventDef) {
+        eventDef = await this.prisma.eventDefinition.create({
+          data: {
+            code,
+            stroke: ev.stroke,
+            distance: ev.distance,
+            gender,
+            isRelay: false,
+          },
+        });
+      }
+
+      const existing = await this.prisma.event.findFirst({
+        where: { tournamentId, eventDefinitionId: eventDef.id, categoryId: category.id },
+      });
+      if (existing) continue;
+
+      await this.prisma.event.create({
+        data: {
+          tournamentId,
+          eventDefinitionId: eventDef.id,
+          categoryId: category.id,
+          round: EventRound.serie_unica,
+          orderNo: ev.eventNo,
+          dayNumber,
+          status: EventStatus.pendiente,
+        },
+      });
+    }
   }
 
   // ─── Helpers privados ─────────────────────────────────────────────────────

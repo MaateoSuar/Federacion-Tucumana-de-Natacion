@@ -13,7 +13,9 @@ export interface PostProcessJobData {
   seasonId: string;
   finalTimeMs: number;
   tournamentId: string;
+  tournamentName?: string;
   eventId: string;
   place: number | null;
   resultDate: string; // ISO
+  homologatedBy: string;
 }

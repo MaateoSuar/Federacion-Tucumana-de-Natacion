@@ -1,16 +1,15 @@
 import Link from 'next/link';
 import { NavBar } from '@/components/NavBar';
 import { fetchTournaments } from '@/lib/api';
+import { PHASE_LABEL, tournamentPhase, type TournamentPhase } from '@/lib/tournament-phase';
 
 export const revalidate = 30;
 
-const STATUS_LABEL: Record<string, { label: string; className: string }> = {
-  programado:             { label: 'Programado',  className: 'bg-zinc-700/50 text-zinc-300' },
-  inscripciones_abiertas: { label: 'Inscripciones', className: 'bg-blue-500/20 text-blue-300' },
-  cerrado:                { label: 'Cerrado',     className: 'bg-amber-500/20 text-amber-300' },
-  en_curso:               { label: 'En curso',    className: 'bg-emerald-500/20 text-emerald-300 animate-pulse' },
-  finalizado:             { label: 'Finalizado',  className: 'bg-pool-600/40 text-pool-300' },
-  homologado:             { label: 'Homologado',  className: 'bg-aqua-500/20 text-aqua-300' },
+// Etiqueta por fecha del torneo (no por el estado interno, que se carga a mano)
+const PHASE_CLASS: Record<TournamentPhase, string> = {
+  proximo: 'bg-blue-500/20 text-blue-300',
+  en_curso: 'bg-emerald-500/20 text-emerald-300 motion-safe:animate-pulse',
+  finalizado: 'bg-pool-600/40 text-pool-300',
 };
 
 export default async function TorneosPage() {
@@ -38,7 +37,8 @@ export default async function TorneosPage() {
         ) : (
           <div className="space-y-3">
             {tournaments.map((t) => {
-              const st = STATUS_LABEL[t.status] ?? { label: t.status, className: 'bg-zinc-700/50 text-zinc-300' };
+              const phase = tournamentPhase(t.startDate, t.endDate);
+              const st = { label: PHASE_LABEL[phase], className: PHASE_CLASS[phase] };
               const date = new Date(t.startDate).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
               return (
                 <Link

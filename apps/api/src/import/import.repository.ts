@@ -92,6 +92,13 @@ export class ImportRepository {
     });
   }
 
+  saveMatchResults(jobId: string, matchResults: MatchResultsPayload) {
+    return this.prisma.meetManagerImport.update({
+      where: { importJobId: jobId },
+      data: { matchResults: matchResults as unknown as Prisma.InputJsonValue },
+    });
+  }
+
   saveMapping(jobId: string, mapping: Record<string, unknown>) {
     return this.prisma.meetManagerImport.update({
       where: { importJobId: jobId },

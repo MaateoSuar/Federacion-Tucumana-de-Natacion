@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { Fragment, useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { NavBar } from '@/components/NavBar';
 import { MedalIcon } from '@/components/ui/MedalIcon';
 import { formatTime } from '@/lib/formatTime';
 import type {
-  RankingEntry, ClubRankingEntry,
-  EventDefinition, Category, Season,
+  RankingEntry, ClubRankingEntry, EventStandard,
+  EventDefinition, Category, Season, Tournament,
 } from '@/lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -24,14 +24,53 @@ async function fetchJson<T>(url: string): Promise<T> {
 }
 
 type Tab = 'prueba' | 'club';
-type Mode = 'best_per_swimmer' | 'all_performances';
+
+// Valor del selector de período que habilita las fechas "desde / hasta"
+const RANGE_OPTION = '__range__';
+
+// Color de cada set de marcas básicas: token configurable (time_standard_sets.color) → clases.
+interface StandardStyle { text: string; line: string; chip: string; dot: string }
+const DEFAULT_STANDARD_STYLE: StandardStyle = {
+  text: 'text-aqua-300', line: 'border-aqua-400/70', chip: 'bg-aqua-500/15 text-aqua-300 border-aqua-400/40', dot: 'bg-aqua-400',
+};
+const STANDARD_STYLES: Record<string, StandardStyle> = {
+  sky: { text: 'text-sky-300', line: 'border-sky-400/70', chip: 'bg-sky-500/15 text-sky-300 border-sky-400/40', dot: 'bg-sky-400' },
+  emerald: { text: 'text-emerald-300', line: 'border-emerald-400/70', chip: 'bg-emerald-500/15 text-emerald-300 border-emerald-400/40', dot: 'bg-emerald-400' },
+  amber: { text: 'text-amber-300', line: 'border-amber-400/70', chip: 'bg-amber-500/15 text-amber-300 border-amber-400/40', dot: 'bg-amber-400' },
+  aqua: DEFAULT_STANDARD_STYLE,
+};
+const standardStyle = (color: string): StandardStyle => STANDARD_STYLES[color] ?? DEFAULT_STANDARD_STYLE;
+
+/** Línea de corte de una marca básica: quienes están arriba la cumplen. */
+function StandardCutRow({ standard }: { standard: EventStandard }) {
+  const st = standardStyle(standard.color);
+  const count = standard.qualifiedCount;
+  // Detalle al pasar el mouse: qué marca es, su tiempo y qué significa la línea.
+  const detail =
+    `${standard.name}${standard.timeMs !== null ? ` — ${formatTime(standard.timeMs)}` : ''}. ` +
+    `Quienes están por encima de esta línea cumplen la marca (${count}).`;
+  return (
+    <tr aria-label={`Línea de corte: ${standard.name}`} title={detail} className="cursor-help">
+      <td colSpan={6} className="px-4 py-1.5">
+        <div className="flex items-center gap-3">
+          <span className={`h-0 flex-1 border-t-2 border-dashed ${st.line}`} aria-hidden="true" />
+          <span className={`text-center text-[11px] font-bold uppercase tracking-wider ${st.text}`}>
+            ▲ {standard.name}
+            {standard.timeMs !== null && <> · <span className="font-mono">{formatTime(standard.timeMs)}</span></>}
+            <span className="block sm:inline"> · {count} {count === 1 ? 'nadador' : 'nadadores'}</span>
+          </span>
+          <span className={`h-0 flex-1 border-t-2 border-dashed ${st.line}`} aria-hidden="true" />
+        </div>
+      </td>
+    </tr>
+  );
+}
 
 // Key to identify a "base event" (distance + stroke), without gender
 function baseKey(e: EventDefinition) { return `${e.distance}-${e.stroke}`; }
 
 export default function RankingsPage() {
   const [tab, setTab] = useState<Tab>('prueba');
-  const [mode, setMode] = useState<Mode>('all_performances');
 
   // Catálogos
   const [eventDefs, setEventDefs] = useState<EventDefinition[]>([]);
@@ -45,7 +84,13 @@ export default function RankingsPage() {
   const [gender, setGender] = useState<'M' | 'F'>('M');
   const [categoryId, setCategoryId] = useState('');
   const [seasonId, setSeasonId] = useState('');
+  // Período elegido a mano (tiene prioridad sobre el año)
+  const [useRange, setUseRange] = useState(false);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [clubScope, setClubScope] = useState('');
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [tournamentId, setTournamentId] = useState('');
 
   // Unique base events (distance+stroke), excluding relays and <50m races, sorted
   const uniqueBaseEvents = useMemo<EventDefinition[]>(() => {
@@ -69,6 +114,20 @@ export default function RankingsPage() {
 
   // Resultados
   const [eventRankings, setEventRankings] = useState<RankingEntry[] | null>(null);
+  const [standards, setStandards] = useState<EventStandard[]>([]);
+  // Con categoría elegida cada set tiene una marca única: la línea de corte va después
+  // de la última fila que la cumple (las filas vienen ordenadas por tiempo).
+  const cutLines = useMemo(() => {
+    const lines = new Map<number, EventStandard[]>();
+    if (!eventRankings) return lines;
+    for (const s of standards) {
+      if (s.timeMs === null) continue;
+      const timeMs = s.timeMs;
+      const after = eventRankings.filter((r) => r.finalTime <= timeMs).length;
+      lines.set(after, [...(lines.get(after) ?? []), s]);
+    }
+    return lines;
+  }, [eventRankings, standards]);
   const [clubRankings, setClubRankings] = useState<ClubRankingEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -99,23 +158,31 @@ export default function RankingsPage() {
         poolLength,
         gender,
         categoryId,
-        mode,
-        ...(seasonId ? { seasonId } : {}),
+        ...(!useRange && seasonId ? { seasonId } : {}),
+        ...(useRange && dateFrom ? { from: dateFrom } : {}),
+        ...(useRange && dateTo ? { to: dateTo } : {}),
       });
       const data = await fetchJson<RankingEntry[]>(`${API_BASE}/rankings/event?${params}`);
       setEventRankings(data);
+      // Las marcas básicas son un agregado: si fallan, el ranking se muestra igual.
+      const stds = await fetchJson<EventStandard[]>(`${API_BASE}/rankings/event/standards?${params}`).catch(() => []);
+      setStandards(stds);
     } catch {
       setError('No se pudieron cargar los rankings.');
     } finally {
       setLoading(false);
     }
-  }, [eventDefId, poolLength, gender, categoryId, mode, seasonId]); // categoryId puede ser ''
+  }, [eventDefId, poolLength, gender, categoryId, seasonId, useRange, dateFrom, dateTo]); // categoryId puede ser ''
 
   const loadClubRankings = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const params = new URLSearchParams({ scope: 'provincial', ...(clubScope ? { seasonId: clubScope } : {}) });
+      const params = new URLSearchParams({
+        scope: 'provincial',
+        ...(clubScope ? { seasonId: clubScope } : {}),
+        ...(tournamentId ? { tournamentId } : {}),
+      });
       const data = await fetchJson<ClubRankingEntry[]>(`${API_BASE}/rankings/club?${params}`);
       setClubRankings(data);
     } catch {
@@ -123,15 +190,24 @@ export default function RankingsPage() {
     } finally {
       setLoading(false);
     }
-  }, [clubScope]);
+  }, [clubScope, tournamentId]);
 
   useEffect(() => {
     if (tab === 'prueba' && eventDefId) void loadEventRankings();
-  }, [tab, eventDefId, categoryId, poolLength, gender, mode, seasonId, loadEventRankings]);
+  }, [tab, eventDefId, categoryId, poolLength, gender, seasonId, loadEventRankings]);
 
   useEffect(() => {
     if (tab === 'club') loadClubRankings();
-  }, [tab, clubScope, loadClubRankings]);
+  }, [tab, clubScope, tournamentId, loadClubRankings]);
+
+  // Al elegir un año, cargar sus torneos para poder acotar el ranking a uno puntual
+  useEffect(() => {
+    setTournamentId('');
+    if (!clubScope) { setTournaments([]); return; }
+    fetchJson<{ items: Tournament[] }>(`${API_BASE}/tournaments?seasonId=${clubScope}&limit=200`)
+      .then((d) => setTournaments(d.items))
+      .catch(() => setTournaments([]));
+  }, [clubScope]);
 
   return (
     <div className="min-h-screen bg-pool-950 text-white">
@@ -180,35 +256,66 @@ export default function RankingsPage() {
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
-            <select value={seasonId} onChange={(e) => setSeasonId(e.target.value)} className="bg-pool-800 border border-pool-600 rounded-lg px-3 py-2 text-sm text-white">
-              <option value="">Histórico global</option>
+            <select
+              aria-label="Período"
+              value={useRange ? RANGE_OPTION : seasonId}
+              onChange={(e) => {
+                const v = e.target.value;
+                setUseRange(v === RANGE_OPTION);
+                setSeasonId(v === RANGE_OPTION ? '' : v);
+              }}
+              className="bg-pool-800 border border-pool-600 rounded-lg px-3 py-2 text-sm text-white"
+            >
+              <option value="">Histórico</option>
               {seasons.map((s) => (
-                <option key={s.id} value={s.id}>{s.year}</option>
+                <option key={s.id} value={s.id}>Año {s.year}</option>
               ))}
+              <option value={RANGE_OPTION}>Elegir fechas…</option>
             </select>
-            <div className="flex items-center gap-1 bg-pool-800/40 border border-pool-600/40 rounded-lg p-0.5">
-              {(['best_per_swimmer', 'all_performances'] as Mode[]).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setMode(m)}
-                  className={`flex-1 px-2 py-1.5 rounded text-xs font-semibold transition-all ${mode === m ? 'bg-pool-600 text-white' : 'text-pool-400 hover:text-white'}`}
-                >
-                  {m === 'best_per_swimmer' ? 'Mejor marca' : 'Todas'}
-                </button>
-              ))}
-            </div>
+            {useRange && (
+              <div className="col-span-2 flex flex-wrap items-center gap-2 text-sm text-pool-300">
+                <label className="flex items-center gap-2">
+                  Desde
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    max={dateTo || undefined}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="bg-pool-800 border border-pool-600 rounded-lg px-3 py-2 text-sm text-white [color-scheme:dark]"
+                  />
+                </label>
+                <label className="flex items-center gap-2">
+                  Hasta
+                  <input
+                    type="date"
+                    value={dateTo}
+                    min={dateFrom || undefined}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="bg-pool-800 border border-pool-600 rounded-lg px-3 py-2 text-sm text-white [color-scheme:dark]"
+                  />
+                </label>
+              </div>
+            )}
           </div>
         )}
 
         {/* Filtros — club */}
         {tab === 'club' && (
-          <div className="mb-6">
+          <div className="flex flex-wrap gap-3 mb-6">
             <select value={clubScope} onChange={(e) => setClubScope(e.target.value)} className="bg-pool-800 border border-pool-600 rounded-lg px-3 py-2 text-sm text-white">
               <option value="">Histórico global</option>
               {seasons.map((s) => (
                 <option key={s.id} value={s.id}>{s.year}</option>
               ))}
             </select>
+            {clubScope && (
+              <select value={tournamentId} onChange={(e) => setTournamentId(e.target.value)} className="bg-pool-800 border border-pool-600 rounded-lg px-3 py-2 text-sm text-white">
+                <option value="">Acumulado del año</option>
+                {tournaments.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            )}
           </div>
         )}
 
@@ -221,6 +328,7 @@ export default function RankingsPage() {
           eventRankings.length === 0
             ? <p className="text-pool-400 text-center py-16">Sin resultados para estos filtros.</p>
             : (
+              <>
               <div className="overflow-x-auto rounded-xl border border-pool-700/40">
                 <table className="w-full text-sm">
                   <thead>
@@ -228,25 +336,47 @@ export default function RankingsPage() {
                       <th className="text-left px-4 py-3 w-10">#</th>
                       <th className="text-left px-4 py-3">Nadador/a</th>
                       <th className="text-left px-4 py-3 hidden sm:table-cell">Club</th>
+                      <th className="text-left px-4 py-3">Categoría</th>
+                      <th className="text-left px-4 py-3 hidden md:table-cell">Fecha</th>
                       <th className="text-right px-4 py-3">Tiempo</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-pool-700/20">
-                    {eventRankings.map((r) => (
-                      <tr key={`${r.swimmerId}-${r.sourceResultId}`} className="hover:bg-pool-800/30 transition-colors">
+                    {(cutLines.get(0) ?? []).map((s) => <StandardCutRow key={s.setId} standard={s} />)}
+                    {eventRankings.map((r, idx) => (
+                      <Fragment key={`${r.swimmerId}-${r.categoryId}-${r.sourceResultId}`}>
+                      <tr className="hover:bg-pool-800/30 transition-colors">
                         <td className="px-4 py-3"><MedalIcon position={r.position} /></td>
                         <td className="px-4 py-3 font-medium text-white">
                           <Link href={`/nadadores/${r.swimmerId}`} className="hover:text-aqua-300 transition-colors">
                             {r.swimmerName}
                           </Link>
+                          {standards
+                            .filter((s) => r.meets?.includes(s.setId))
+                            .map((s) => (
+                              <span
+                                key={s.setId}
+                                title={`Cumple la ${s.name}`}
+                                className={`ml-2 inline-block rounded border px-1.5 py-0.5 align-middle text-[10px] font-bold tracking-wide ${standardStyle(s.color).chip}`}
+                              >
+                                {s.shortLabel}
+                              </span>
+                            ))}
                         </td>
                         <td className="px-4 py-3 text-pool-300 hidden sm:table-cell">{r.clubName}</td>
+                        <td className="px-4 py-3 text-pool-300 text-xs sm:text-sm">{r.categoryName}</td>
+                        <td className="px-4 py-3 text-pool-400 text-xs hidden md:table-cell tabular-nums">
+                          {r.achievedAt ? new Date(r.achievedAt).toLocaleDateString('es-AR', { timeZone: 'UTC' }) : '—'}
+                        </td>
                         <td className="px-4 py-3 text-right font-mono font-bold text-white">{formatTime(r.finalTime)}</td>
                       </tr>
+                      {(cutLines.get(idx + 1) ?? []).map((s) => <StandardCutRow key={s.setId} standard={s} />)}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
               </div>
+              </>
             )
         )}
 

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuth, roleRedirect } from '@/lib/auth';
 
@@ -24,7 +25,7 @@ export function NavBar() {
       <div className="max-w-6xl mx-auto px-4 md:px-8 flex items-center justify-between h-14">
         <Link href="/" className="flex items-center hover:opacity-80 transition-opacity">
           <div className="bg-white rounded-md px-2 py-0.5">
-            <img src="/LogoPNGSinLetras.png" alt="FTN" className="h-7 w-auto" />
+            <Image src="/LogoPNGSinLetras.png" alt="FTN" height={36} width={36} className="h-9 w-auto" />
           </div>
         </Link>
 

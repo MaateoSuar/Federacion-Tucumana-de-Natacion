@@ -18,6 +18,6 @@ export class RecordQueryDto {
   categoryId?: string;
 
   @IsOptional()
-  @IsEnum(['M', 'F'])
-  gender?: 'M' | 'F';
+  @IsEnum(['M', 'F', 'MIX'])
+  gender?: 'M' | 'F' | 'MIX';
 }

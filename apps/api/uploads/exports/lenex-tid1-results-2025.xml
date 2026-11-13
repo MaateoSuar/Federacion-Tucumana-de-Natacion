@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LENEX version="3.0">
+  <CONSTRUCTOR>
+    <CONTACT name="FTN Platform — Federación Tucumana de Natación"/>
+  </CONSTRUCTOR>
+  <MEETS>
+    <MEET course="LCM" name="Torneo Test" nation="ARG" city="Piscina FTN" startdate="2025-03-15" stopdate="2025-03-16">
+      <CLUBS/>
+      <SESSIONS>
+        <SESSION number="1" date="2025-03-15" course="LCM">
+          <EVENTS/>
+        </SESSION>
+      </SESSIONS>
+    </MEET>
+  </MEETS>
+</LENEX>

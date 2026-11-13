@@ -187,6 +187,70 @@ Se mantiene `external_id_map` (sistema_origen, external_id, swimmer_id) para que
 - Se registra el **conjunto de filas creadas** por el job → permite **rollback** de un import confirmado por error.
 - Tras commit, se emite el evento de dominio `MeetImported` que dispara el post-procesamiento.
 
+### 3.6 IDENTIDAD CANÓNICA — el problema central del sistema (anti-duplicados)
+
+> **Principio inviolable: el NOMBRE nunca es la identidad de un nadador.** Si un torneo trae "Mateo Suar" y otro "Mateeo Suar", el sistema NO puede crear dos personas: son el mismo atleta y su perfil, historial, récords y ranking deben quedar unificados. Toda la plataforma (perfiles, cuentas de nadadores y entrenadores, rankings, récords) depende de que cada persona tenga **una sola identidad estable**. Esto es prerrequisito, no un extra.
+
+#### 3.6.1 Qué es la identidad y qué no lo es
+- **Identidad = el `swimmer` canónico** (un registro con un ID interno inmutable). Es lo único que persiste.
+- **Clave fuerte de identidad = DNI/documento.** No cambia y, si se escribe mal, se corrige una sola vez. Es la meta a capturar para cada nadador.
+- **El nombre es solo un atributo mostrable**, no la llave. Puede venir escrito de mil formas; nunca se usa la ortografía exacta para decidir "quién es".
+
+#### 3.6.2 Cómo se evita que un error de tipeo cree un duplicado (5 capas)
+1. **Normalización canónica**: antes de comparar, el nombre se normaliza (trim, mayúsculas, sin tildes, orden apellido/nombre consistente, colapso de espacios). "Mateeo  Súar" y "MATEEO SUAR" se comparan igual.
+2. **Matching difuso con umbral**: "Mateeo Suar" vs "Mateo Suar" tienen distancia de edición mínima → el sistema **NO crea uno nuevo automáticamente**; lo marca en el PREVIEW como *"¿es la misma persona que X?"* para confirmación humana.
+3. **Alias de nombres (`swimmer_aliases`)**: cuando el admin confirma que "Mateeo Suar" = el swimmer canónico, esa variante se guarda como **alias**. La próxima vez que aparezca ese mismo error en cualquier PDF futuro, el sistema lo reconoce **automáticamente** y lo mapea al nadador correcto. *El error se aprende una sola vez.*
+4. **Fusión de duplicados (`merge`)**: si igual se colaron dos registros de la misma persona, un admin los **fusiona**: todo el historial (resultados, PB, récords, medallas) del duplicado se **reasigna al canónico** y el duplicado se elimina. Operación auditada y reversible.
+5. **Clave fuerte a futuro (DNI)**: una vez que un swimmer tiene DNI cargado, los imports futuros lo identifican sin ambigüedad, sin depender del nombre.
+
+#### 3.6.3 Estrategia "día de mañana" — consistencia en el origen
+La meta es que los meets futuros lleguen limpios y con clave fuerte. Cómo se logra progresivamente:
+- **Catálogo oficial de nadadores** curado por la FTN: cada nadador se da de alta una vez, con DNI, y ese es el registro canónico contra el que se matchea todo import.
+- **Cuentas de Club y Entrenador como fuente de verdad humana**: el club/entrenador carga y mantiene su plantel con DNI y nombre oficial. Son quienes mejor saben "quién es quién" y ayudan a mantener el catálogo sin duplicados.
+- **Cuenta del Nadador**: al registrarse, el propio atleta confirma su DNI y nombre, consolidando su identidad.
+- **Pedido a los clubes**: que en Meet Manager carguen el DNI en el campo de ID del atleta, para que aparezca en el export/PDF y el matching sea automático y exacto.
+- **Estandarización de nombres**: nombre oficial único por nadador; las variantes que lleguen en PDFs se absorben como alias, no como personas nuevas.
+
+#### 3.6.4 Mismo tratamiento para CLUBES
+- **Catálogo oficial de clubes** con nombre oficial + **alias/siglas** (`club_aliases`): "Monteros Natación", "Monteros Nat.", "C.N. Monteros" → todos alias del mismo club canónico.
+- Los clubes **no se crean por texto libre** en cada import: se matchean contra el catálogo oficial; los no reconocidos se confirman en el preview.
+
+#### 3.6.5 Impacto directo en cuentas (nadadores y entrenadores) — para la presentación
+- La **cuenta de nadador** se vincula al `swimmer` **canónico** (vía `AccountLinkRequest`). Si la identidad estuviera fragmentada en duplicados, el perfil mostraría historial incompleto. Por eso la identidad única es la base de que el perfil "funcione".
+- La **cuenta de entrenador** administra su plantel: al gestionar nadadores con DNI, curan la identidad en el origen y reducen el problema antes de que ocurra.
+- **Mensaje para la presentación:** *"El sistema garantiza una identidad única por nadador. Los errores de tipeo de los PDFs no rompen el perfil: se detectan y unifican, se aprenden como alias para no repetirse, y a futuro la clave es el DNI."*
+
+#### 3.6.6 Entidades que soportan esto (a incorporar al modelo)
+- `swimmer_aliases` — `id, swimmer_id (FK), alias_normalized, source (import|manual), created_by, created_at`. Variantes de nombre que apuntan al canónico.
+- `club_aliases` — `id, club_id (FK), alias_normalized, source, created_at`. Igual para clubes.
+- **Merge auditado** — no requiere tabla nueva obligatoria, pero cada fusión se registra en `audit_logs` (actor, swimmer absorbido, swimmer canónico, filas reasignadas).
+- (Ya existente) `external_id_map` — mapeo de IDs externos por sistema de origen.
+
+### 3.7 HISTORIAL DE CLUBES — detección automática de transferencias
+
+> Si un nadador aparece hace dos años compitiendo por el **Club X** y hoy aparece por el **Club Y**, el sistema lo detecta solo y arma su **"Historial de clubes"** en el perfil (ej: *Club X: 2022–2023 · Club Y: 2024–hoy*). El entrenador/nadador no tiene que cargarlo a mano.
+
+#### 3.7.1 De dónde sale (regla inviolable #2)
+- **El club se CONGELA en cada resultado** (`results.club_id`). El resultado de 2022 guarda "Club X" para siempre; el de 2024 guarda "Club Y". La verdad histórica **nunca se recalcula ni se reescribe**.
+- El **historial de clubes (`swimmer_club_history`) es DERIVADO** de la secuencia cronológica de resultados del nadador. No es un dato que se edita: es la línea de tiempo que surge de dónde compitió.
+
+#### 3.7.2 Cómo se detecta la transferencia (al importar/commitear)
+1. Tras matchear al nadador (identidad canónica, §3.6) y con el `club_id` del resultado ya conciliado contra el catálogo oficial (con `club_aliases`, para que "Monteros Nat." ≠ un club nuevo).
+2. Se ordenan los resultados del nadador por **fecha del torneo**.
+3. Cada tramo contiguo con el mismo club = un **período de pertenencia**. Un cambio de club entre resultados consecutivos = una **transferencia**.
+4. Se actualiza `swimmer_club_history`: se **cierra** el período anterior (`to_date`) y se **abre** el nuevo (`from_date`), y se refresca `swimmers.current_club_id` con el club del resultado **más reciente**.
+5. **Confirmación en el preview**: como un cambio de club también podría ser un club mal matcheado (alias equivocado), la transferencia detectada se **muestra en el preview** — *"Mateo Suar ahora aparece en Club Y (antes Club X). ¿Confirmar cambio de club?"* — antes de asentarla. Evita transferencias falsas por error de datos.
+
+#### 3.7.3 Entidad `swimmer_club_history` (precisada)
+`id, swimmer_id (FK), club_id (FK), from_date, to_date (nullable = actual), season_id, source (import|manual), first_seen_result_id, last_seen_result_id, created_at`
+- El período con `to_date = null` es la pertenencia **vigente**.
+- `first/last_seen_result_id` dan trazabilidad al resultado que abrió/cerró cada período.
+
+#### 3.7.4 En el perfil (nadador y entrenador)
+- **Club actual**: `swimmers.current_club_id` (el del período vigente).
+- **Historial de clubes / clubes anteriores**: los períodos de `swimmer_club_history` como línea de tiempo, con años y club.
+- Reglas de negocio ya conocidas (categoría, PB, récords, ranking) usan el **club congelado del resultado**, no el club actual — un récord logrado con el Club X sigue figurando con el Club X aunque hoy el nadador esté en el Club Y.
+
 ---
 
 ## 4. SISTEMA DE VISUALIZACIÓN MODERNA

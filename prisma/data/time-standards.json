@@ -1,0 +1,5265 @@
+{
+ "source": "BASICOS.xlsx",
+ "sets": [
+  {
+   "code": "NACIONAL",
+   "name": "Básica Nacional",
+   "shortLabel": "NAC",
+   "purpose": "nacional",
+   "color": "sky",
+   "orderNo": 1,
+   "source": null
+  },
+  {
+   "code": "FEDERARSE",
+   "name": "Básica para federarse",
+   "shortLabel": "FED",
+   "purpose": "federacion",
+   "color": "emerald",
+   "orderNo": 2,
+   "source": "FTN"
+  }
+ ],
+ "standards": [
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "F",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "00:38.51",
+   "timeMs": 38510
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "F",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "00:36.00",
+   "timeMs": 36000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "00:34.00",
+   "timeMs": 34000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "00:31.44",
+   "timeMs": 31440
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "00:30.41",
+   "timeMs": 30410
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "00:30.21",
+   "timeMs": 30210
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "00:29.55",
+   "timeMs": 29550
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "00:29.33",
+   "timeMs": 29330
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "00:29.33",
+   "timeMs": 29330
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "00:29.00",
+   "timeMs": 29000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "F",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "01:30.00",
+   "timeMs": 90000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "F",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "01:20.00",
+   "timeMs": 80000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "01:13.00",
+   "timeMs": 73000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "01:08.19",
+   "timeMs": 68190
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "01:06.34",
+   "timeMs": 66340
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "01:05.44",
+   "timeMs": 65440
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "01:05.21",
+   "timeMs": 65210
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "01:05.18",
+   "timeMs": 65180
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "01:05.18",
+   "timeMs": 65180
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "01:03.00",
+   "timeMs": 63000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "F",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "03:16.00",
+   "timeMs": 196000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "F",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "03:02.00",
+   "timeMs": 182000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "02:39.00",
+   "timeMs": 159000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "02:33.65",
+   "timeMs": 153650
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "02:26.09",
+   "timeMs": 146090
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "02:24.63",
+   "timeMs": 144630
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "02:23.03",
+   "timeMs": 143030
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "02:21.20",
+   "timeMs": 141200
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "02:21.20",
+   "timeMs": 141200
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "02:19.00",
+   "timeMs": 139000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "F",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "06:10.00",
+   "timeMs": 370000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "F",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "05:52.00",
+   "timeMs": 352000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "05:49.41",
+   "timeMs": 349410
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "05:29.84",
+   "timeMs": 329840
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "05:04.98",
+   "timeMs": 304980
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "04:59.28",
+   "timeMs": 299280
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "04:57.00",
+   "timeMs": 297000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "04:51.97",
+   "timeMs": 291970
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "04:51.97",
+   "timeMs": 291970
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "04:47.00",
+   "timeMs": 287000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 800,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "11:40.00",
+   "timeMs": 700000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 800,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "11:09.19",
+   "timeMs": 669190
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 800,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "10:45.51",
+   "timeMs": 645510
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 800,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "10:21.43",
+   "timeMs": 621430
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 800,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "10:17.00",
+   "timeMs": 617000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 800,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "10:10.00",
+   "timeMs": 610000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 800,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "10:10.00",
+   "timeMs": 610000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 800,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "10:00.00",
+   "timeMs": 600000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 1500,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "20:30.00",
+   "timeMs": 1230000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 1500,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "19:30.00",
+   "timeMs": 1170000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 1500,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "19:30.00",
+   "timeMs": 1170000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 1500,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "19:25.00",
+   "timeMs": 1165000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 1500,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "19:15.00",
+   "timeMs": 1155000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 1500,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "19:15.00",
+   "timeMs": 1155000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 1500,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "18:48.00",
+   "timeMs": 1128000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "F",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "00:46.51",
+   "timeMs": 46510
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "F",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "00:42.22",
+   "timeMs": 42220
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "00:41.00",
+   "timeMs": 41000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "00:39.00",
+   "timeMs": 39000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "00:36.46",
+   "timeMs": 36460
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "00:35.45",
+   "timeMs": 35450
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "00:34.34",
+   "timeMs": 34340
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "00:34.09",
+   "timeMs": 34090
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "00:34.09",
+   "timeMs": 34090
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "00:33.50",
+   "timeMs": 33500
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "F",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "01:50.00",
+   "timeMs": 110000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "F",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "01:45.00",
+   "timeMs": 105000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "01:30.00",
+   "timeMs": 90000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "01:22.29",
+   "timeMs": 82290
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "01:18.66",
+   "timeMs": 78660
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "01:15.75",
+   "timeMs": 75750
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "01:14.00",
+   "timeMs": 74000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "01:12.99",
+   "timeMs": 72990
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "01:12.99",
+   "timeMs": 72990
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "01:11.26",
+   "timeMs": 71260
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 200,
+   "gender": "F",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "03:32.00",
+   "timeMs": 212000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 200,
+   "gender": "F",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "03:22.00",
+   "timeMs": 202000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 200,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "03:15.62",
+   "timeMs": 195620
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 200,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "02:52.36",
+   "timeMs": 172360
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 200,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "02:51.73",
+   "timeMs": 171730
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 200,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "02:46.10",
+   "timeMs": 166100
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 200,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "02:43.00",
+   "timeMs": 163000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 200,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "02:39.05",
+   "timeMs": 159050
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 200,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "02:39.05",
+   "timeMs": 159050
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 200,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "02:35.00",
+   "timeMs": 155000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "F",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "00:55.77",
+   "timeMs": 55770
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "F",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "00:52.00",
+   "timeMs": 52000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "00:47.00",
+   "timeMs": 47000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "00:42.00",
+   "timeMs": 42000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "00:40.96",
+   "timeMs": 40960
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "00:39.96",
+   "timeMs": 39960
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "00:39.67",
+   "timeMs": 39670
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "00:39.64",
+   "timeMs": 39640
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "00:39.64",
+   "timeMs": 39640
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "00:37.00",
+   "timeMs": 37000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "F",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "01:52.00",
+   "timeMs": 112000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "F",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "01:46.71",
+   "timeMs": 106710
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "01:37.50",
+   "timeMs": 97500
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "01:34.43",
+   "timeMs": 94430
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "01:29.18",
+   "timeMs": 89180
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "01:26.50",
+   "timeMs": 86500
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "01:25.00",
+   "timeMs": 85000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "01:25.60",
+   "timeMs": 85600
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "01:25.60",
+   "timeMs": 85600
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "01:22.00",
+   "timeMs": 82000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 200,
+   "gender": "F",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "03:40.00",
+   "timeMs": 220000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 200,
+   "gender": "F",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "03:35.00",
+   "timeMs": 215000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 200,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "03:33.00",
+   "timeMs": 213000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 200,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "03:26.64",
+   "timeMs": 206640
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 200,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "03:12.49",
+   "timeMs": 192490
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 200,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "03:09.00",
+   "timeMs": 189000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 200,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "03:07.00",
+   "timeMs": 187000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 200,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "03:05.00",
+   "timeMs": 185000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 200,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "03:05.00",
+   "timeMs": 185000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 200,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "02:55.87",
+   "timeMs": 175870
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "F",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "00:50.02",
+   "timeMs": 50020
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "F",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "00:41.21",
+   "timeMs": 41210
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "00:36.00",
+   "timeMs": 36000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "00:34.00",
+   "timeMs": 34000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "00:32.91",
+   "timeMs": 32910
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "00:32.55",
+   "timeMs": 32550
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "00:31.17",
+   "timeMs": 31170
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "00:31.00",
+   "timeMs": 31000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "00:31.00",
+   "timeMs": 31000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "00:30.50",
+   "timeMs": 30500
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "F",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "01:50.00",
+   "timeMs": 110000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "F",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "01:43.55",
+   "timeMs": 103550
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "01:25.42",
+   "timeMs": 85420
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "01:19.50",
+   "timeMs": 79500
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "01:18.75",
+   "timeMs": 78750
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "01:15.71",
+   "timeMs": 75710
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "01:15.08",
+   "timeMs": 75080
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "01:12.00",
+   "timeMs": 72000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "01:12.00",
+   "timeMs": 72000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "01:09.00",
+   "timeMs": 69000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 200,
+   "gender": "F",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "03:40.00",
+   "timeMs": 220000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 200,
+   "gender": "F",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "03:28.00",
+   "timeMs": 208000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 200,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "03:23.63",
+   "timeMs": 203630
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 200,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "03:07.56",
+   "timeMs": 187560
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 200,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "03:05.68",
+   "timeMs": 185680
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 200,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "02:55.00",
+   "timeMs": 175000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 200,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "02:50.00",
+   "timeMs": 170000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 200,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "02:45.00",
+   "timeMs": 165000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 200,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "02:51.50",
+   "timeMs": 171500
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 200,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "02:35.31",
+   "timeMs": 155310
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 100,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "01:15.75",
+   "timeMs": 75750
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "F",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "03:55.00",
+   "timeMs": 235000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "F",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "03:26.64",
+   "timeMs": 206640
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "03:07.98",
+   "timeMs": 187980
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "02:56.61",
+   "timeMs": 176610
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "02:50.66",
+   "timeMs": 170660
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "02:46.36",
+   "timeMs": 166360
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "02:45.81",
+   "timeMs": 165810
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "02:43.81",
+   "timeMs": 163810
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "02:43.81",
+   "timeMs": 163810
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "02:39.18",
+   "timeMs": 159180
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 400,
+   "gender": "F",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "06:45.00",
+   "timeMs": 405000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 400,
+   "gender": "F",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "06:35.00",
+   "timeMs": 395000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 400,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "06:21.27",
+   "timeMs": 381270
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 400,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "06:08.78",
+   "timeMs": 368780
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 400,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "06:01.58",
+   "timeMs": 361580
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 400,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "05:58.00",
+   "timeMs": 358000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 400,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "05:50.00",
+   "timeMs": 350000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 400,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "05:45.00",
+   "timeMs": 345000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 400,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "05:45.00",
+   "timeMs": 345000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 400,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "05:35.39",
+   "timeMs": 335390
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "M",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "00:37.36",
+   "timeMs": 37360
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "M",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "00:35.93",
+   "timeMs": 35930
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "00:33.67",
+   "timeMs": 33670
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "00:30.43",
+   "timeMs": 30430
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "00:27.85",
+   "timeMs": 27850
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "00:27.56",
+   "timeMs": 27560
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "00:26.59",
+   "timeMs": 26590
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "00:25.32",
+   "timeMs": 25320
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "00:25.32",
+   "timeMs": 25320
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "00:25.00",
+   "timeMs": 25000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "M",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "01:30.30",
+   "timeMs": 90300
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "M",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "01:19.23",
+   "timeMs": 79230
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "01:12.55",
+   "timeMs": 72550
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "01:06.23",
+   "timeMs": 66230
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "01:01.36",
+   "timeMs": 61360
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "01:00.58",
+   "timeMs": 60580
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "00:58.30",
+   "timeMs": 58300
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "00:55.28",
+   "timeMs": 55280
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "00:55.28",
+   "timeMs": 55280
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "00:55.00",
+   "timeMs": 55000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "M",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "03:15.76",
+   "timeMs": 195760
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "M",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "03:00.00",
+   "timeMs": 180000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "02:38.24",
+   "timeMs": 158240
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "02:26.96",
+   "timeMs": 146960
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "02:16.34",
+   "timeMs": 136340
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "02:14.45",
+   "timeMs": 134450
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "02:08.25",
+   "timeMs": 128250
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "02:05.88",
+   "timeMs": 125880
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "02:05.88",
+   "timeMs": 125880
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "02:02.00",
+   "timeMs": 122000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "M",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "06:10.00",
+   "timeMs": 370000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "M",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "05:52.00",
+   "timeMs": 352000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "05:38.07",
+   "timeMs": 338070
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "05:13.12",
+   "timeMs": 313120
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "04:46.54",
+   "timeMs": 286540
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "04:41.81",
+   "timeMs": 281810
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "04:30.58",
+   "timeMs": 270580
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "04:23.00",
+   "timeMs": 263000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "04:23.00",
+   "timeMs": 263000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "04:20.00",
+   "timeMs": 260000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 800,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "11:00.00",
+   "timeMs": 660000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 800,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "10:45.00",
+   "timeMs": 645000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 800,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "09:42.00",
+   "timeMs": 582000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 800,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "09:25.00",
+   "timeMs": 565000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 800,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "09:10.00",
+   "timeMs": 550000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 800,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "09:00.00",
+   "timeMs": 540000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 800,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "09:00.00",
+   "timeMs": 540000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 800,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "08:52.00",
+   "timeMs": 532000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 1500,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "20:08.98",
+   "timeMs": 1208980
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 1500,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "18:56.09",
+   "timeMs": 1136090
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 1500,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "18:30.00",
+   "timeMs": 1110000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 1500,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "18:15.00",
+   "timeMs": 1095000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 1500,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "18:10.00",
+   "timeMs": 1090000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 1500,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "18:10.00",
+   "timeMs": 1090000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "libre",
+   "distance": 1500,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "17:20.00",
+   "timeMs": 1040000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "M",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "00:45.53",
+   "timeMs": 45530
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "M",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "00:43.54",
+   "timeMs": 43540
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "00:40.00",
+   "timeMs": 40000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "00:37.00",
+   "timeMs": 37000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "00:33.00",
+   "timeMs": 33000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "00:32.65",
+   "timeMs": 32650
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "00:31.33",
+   "timeMs": 31330
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "00:29.87",
+   "timeMs": 29870
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "00:29.87",
+   "timeMs": 29870
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "00:29.00",
+   "timeMs": 29000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "M",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "01:50.00",
+   "timeMs": 110000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "M",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "01:43.15",
+   "timeMs": 103150
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "01:29.05",
+   "timeMs": 89050
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "01:21.12",
+   "timeMs": 81120
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "01:11.06",
+   "timeMs": 71060
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "01:10.13",
+   "timeMs": 70130
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "01:08.09",
+   "timeMs": 68090
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "01:04.39",
+   "timeMs": 64390
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "01:04.39",
+   "timeMs": 64390
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "01:03.00",
+   "timeMs": 63000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 200,
+   "gender": "M",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "03:31.00",
+   "timeMs": 211000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 200,
+   "gender": "M",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "03:21.00",
+   "timeMs": 201000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 200,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "03:14.17",
+   "timeMs": 194170
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 200,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "02:49.72",
+   "timeMs": 169720
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 200,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "02:38.00",
+   "timeMs": 158000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 200,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "02:36.00",
+   "timeMs": 156000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 200,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "02:30.45",
+   "timeMs": 150450
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 200,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "02:25.19",
+   "timeMs": 145190
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 200,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "02:25.19",
+   "timeMs": 145190
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "espalda",
+   "distance": 200,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "02:18.00",
+   "timeMs": 138000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "M",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "00:55.13",
+   "timeMs": 55130
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "M",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "00:52.00",
+   "timeMs": 52000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "00:47.00",
+   "timeMs": 47000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "00:41.00",
+   "timeMs": 41000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "00:37.02",
+   "timeMs": 37020
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "00:36.90",
+   "timeMs": 36900
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "00:34.10",
+   "timeMs": 34100
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "00:32.60",
+   "timeMs": 32600
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "00:32.60",
+   "timeMs": 32600
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "00:32.00",
+   "timeMs": 32000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "M",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "01:52.00",
+   "timeMs": 112000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "M",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "01:46.71",
+   "timeMs": 106710
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "01:37.50",
+   "timeMs": 97500
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "01:33.34",
+   "timeMs": 93340
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "01:25.00",
+   "timeMs": 85000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "01:21.81",
+   "timeMs": 81810
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "01:17.10",
+   "timeMs": 77100
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "01:14.02",
+   "timeMs": 74020
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "01:14.02",
+   "timeMs": 74020
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "01:11.03",
+   "timeMs": 71030
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 200,
+   "gender": "M",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "03:40.00",
+   "timeMs": 220000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 200,
+   "gender": "M",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "03:35.00",
+   "timeMs": 215000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 200,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "03:29.72",
+   "timeMs": 209720
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 200,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "03:18.69",
+   "timeMs": 198690
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 200,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "03:00.00",
+   "timeMs": 180000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 200,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "02:56.02",
+   "timeMs": 176020
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 200,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "02:46.49",
+   "timeMs": 166490
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 200,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "02:43.51",
+   "timeMs": 163510
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 200,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "02:43.51",
+   "timeMs": 163510
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "pecho",
+   "distance": 200,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "02:38.52",
+   "timeMs": 158520
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "M",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "00:50.02",
+   "timeMs": 50020
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "M",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "00:41.21",
+   "timeMs": 41210
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "00:35.00",
+   "timeMs": 35000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "00:32.00",
+   "timeMs": 32000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "00:30.56",
+   "timeMs": 30560
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "00:29.13",
+   "timeMs": 29130
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "00:28.08",
+   "timeMs": 28080
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "00:27.05",
+   "timeMs": 27050
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "00:27.05",
+   "timeMs": 27050
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "00:27.00",
+   "timeMs": 27000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "M",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "01:50.00",
+   "timeMs": 110000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "M",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "01:43.55",
+   "timeMs": 103550
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "01:25.42",
+   "timeMs": 85420
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "01:17.87",
+   "timeMs": 77870
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "01:09.77",
+   "timeMs": 69770
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "01:05.73",
+   "timeMs": 65730
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "01:03.95",
+   "timeMs": 63950
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "01:02.05",
+   "timeMs": 62050
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "01:02.05",
+   "timeMs": 62050
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "01:01.00",
+   "timeMs": 61000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 200,
+   "gender": "M",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "03:35.00",
+   "timeMs": 215000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 200,
+   "gender": "M",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "03:25.00",
+   "timeMs": 205000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 200,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "03:17.62",
+   "timeMs": 197620
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 200,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "02:56.79",
+   "timeMs": 176790
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 200,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "02:40.90",
+   "timeMs": 160900
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 200,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "02:34.04",
+   "timeMs": 154040
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 200,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "02:30.25",
+   "timeMs": 150250
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 200,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "02:24.96",
+   "timeMs": 144960
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 200,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "02:24.96",
+   "timeMs": 144960
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "mariposa",
+   "distance": 200,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "02:22.00",
+   "timeMs": 142000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 100,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "01:07.39",
+   "timeMs": 67390
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "M",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "03:53.01",
+   "timeMs": 233010
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "M",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "03:26.64",
+   "timeMs": 206640
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "03:07.98",
+   "timeMs": 187980
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "02:55.87",
+   "timeMs": 175870
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "02:35.81",
+   "timeMs": 155810
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "02:32.17",
+   "timeMs": 152170
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "02:30.25",
+   "timeMs": 150250
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "02:25.48",
+   "timeMs": 145480
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "02:25.48",
+   "timeMs": 145480
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "02:22.00",
+   "timeMs": 142000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 400,
+   "gender": "M",
+   "category": "INF_1",
+   "pool": "P25",
+   "time": "06:45.00",
+   "timeMs": 405000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 400,
+   "gender": "M",
+   "category": "INF_2",
+   "pool": "P25",
+   "time": "06:35.00",
+   "timeMs": 395000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 400,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "06:21.27",
+   "timeMs": 381270
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 400,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "05:59.94",
+   "timeMs": 359940
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 400,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "05:35.00",
+   "timeMs": 335000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 400,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "05:30.00",
+   "timeMs": 330000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 400,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "05:25.12",
+   "timeMs": 325120
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 400,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "05:21.00",
+   "timeMs": 321000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 400,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "05:21.00",
+   "timeMs": 321000
+  },
+  {
+   "set": "NACIONAL",
+   "stroke": "combinado",
+   "distance": 400,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "05:10.00",
+   "timeMs": 310000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "00:36.50",
+   "timeMs": 36500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "00:37.50",
+   "timeMs": 37500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "00:34.00",
+   "timeMs": 34000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "00:35.50",
+   "timeMs": 35500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "00:31.50",
+   "timeMs": 31500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "00:34.00",
+   "timeMs": 34000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "00:30.00",
+   "timeMs": 30000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "00:32.50",
+   "timeMs": 32500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "00:29.00",
+   "timeMs": 29000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "00:29.00",
+   "timeMs": 29000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "00:29.00",
+   "timeMs": 29000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "00:29.00",
+   "timeMs": 29000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "00:31.50",
+   "timeMs": 31500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "00:31.50",
+   "timeMs": 31500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "00:31.50",
+   "timeMs": 31500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 50,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "00:31.50",
+   "timeMs": 31500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "01:18.00",
+   "timeMs": 78000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "01:20.00",
+   "timeMs": 80000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "01:14.00",
+   "timeMs": 74000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "01:16.50",
+   "timeMs": 76500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "01:08.00",
+   "timeMs": 68000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "01:13.50",
+   "timeMs": 73500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "01:05.00",
+   "timeMs": 65000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "01:11.00",
+   "timeMs": 71000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "01:04.00",
+   "timeMs": 64000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "01:04.00",
+   "timeMs": 64000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "01:04.00",
+   "timeMs": 64000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "01:04.00",
+   "timeMs": 64000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "01:08.50",
+   "timeMs": 68500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "01:08.50",
+   "timeMs": 68500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "01:08.50",
+   "timeMs": 68500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 100,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "01:08.50",
+   "timeMs": 68500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "02:54.00",
+   "timeMs": 174000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "02:56.00",
+   "timeMs": 176000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "02:38.00",
+   "timeMs": 158000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "02:43.00",
+   "timeMs": 163000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "02:26.00",
+   "timeMs": 146000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "02:37.00",
+   "timeMs": 157000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "02:21.00",
+   "timeMs": 141000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "02:32.00",
+   "timeMs": 152000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "02:18.00",
+   "timeMs": 138000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "02:18.00",
+   "timeMs": 138000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "02:18.00",
+   "timeMs": 138000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "02:18.00",
+   "timeMs": 138000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "02:29.50",
+   "timeMs": 149500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "02:29.50",
+   "timeMs": 149500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "02:29.50",
+   "timeMs": 149500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 200,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "02:29.50",
+   "timeMs": 149500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "05:59.00",
+   "timeMs": 359000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "06:03.00",
+   "timeMs": 363000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "05:35.00",
+   "timeMs": 335000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "05:50.00",
+   "timeMs": 350000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "05:15.00",
+   "timeMs": 315000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "05:30.00",
+   "timeMs": 330000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "05:00.00",
+   "timeMs": 300000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "05:19.00",
+   "timeMs": 319000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "04:50.00",
+   "timeMs": 290000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "04:50.00",
+   "timeMs": 290000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "04:50.00",
+   "timeMs": 290000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "04:50.00",
+   "timeMs": 290000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "05:10.00",
+   "timeMs": 310000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "05:10.00",
+   "timeMs": 310000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "05:10.00",
+   "timeMs": 310000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "libre",
+   "distance": 400,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "05:10.00",
+   "timeMs": 310000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "00:50.00",
+   "timeMs": 50000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "00:51.00",
+   "timeMs": 51000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "00:45.00",
+   "timeMs": 45000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "00:47.00",
+   "timeMs": 47000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "00:40.00",
+   "timeMs": 40000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "00:43.00",
+   "timeMs": 43000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "00:38.00",
+   "timeMs": 38000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "00:41.00",
+   "timeMs": 41000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "00:36.00",
+   "timeMs": 36000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "00:36.00",
+   "timeMs": 36000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "00:36.00",
+   "timeMs": 36000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "00:36.00",
+   "timeMs": 36000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "00:39.00",
+   "timeMs": 39000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "00:39.00",
+   "timeMs": 39000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "00:39.00",
+   "timeMs": 39000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 50,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "00:39.00",
+   "timeMs": 39000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "01:46.00",
+   "timeMs": 106000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "01:47.50",
+   "timeMs": 107500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "01:40.00",
+   "timeMs": 100000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "01:45.00",
+   "timeMs": 105000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "01:29.00",
+   "timeMs": 89000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "01:40.00",
+   "timeMs": 100000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "01:26.00",
+   "timeMs": 86000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "01:36.00",
+   "timeMs": 96000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "01:21.00",
+   "timeMs": 81000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "01:21.00",
+   "timeMs": 81000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "01:21.00",
+   "timeMs": 81000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "01:21.00",
+   "timeMs": 81000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "01:33.00",
+   "timeMs": 93000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "01:33.00",
+   "timeMs": 93000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "01:33.00",
+   "timeMs": 93000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "pecho",
+   "distance": 100,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "01:33.00",
+   "timeMs": 93000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "00:45.00",
+   "timeMs": 45000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "00:46.00",
+   "timeMs": 46000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "00:40.00",
+   "timeMs": 40000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "00:43.00",
+   "timeMs": 43000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "00:37.00",
+   "timeMs": 37000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "00:39.00",
+   "timeMs": 39000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "00:35.00",
+   "timeMs": 35000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "00:37.00",
+   "timeMs": 37000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "00:31.00",
+   "timeMs": 31000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "00:31.00",
+   "timeMs": 31000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "00:31.00",
+   "timeMs": 31000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "00:31.00",
+   "timeMs": 31000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "00:35.00",
+   "timeMs": 35000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "00:35.00",
+   "timeMs": 35000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "00:35.00",
+   "timeMs": 35000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 50,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "00:35.00",
+   "timeMs": 35000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "01:35.00",
+   "timeMs": 95000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "01:43.00",
+   "timeMs": 103000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "01:28.00",
+   "timeMs": 88000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "01:37.00",
+   "timeMs": 97000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "01:20.00",
+   "timeMs": 80000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "01:27.00",
+   "timeMs": 87000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "01:14.00",
+   "timeMs": 74000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "01:22.00",
+   "timeMs": 82000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "01:09.00",
+   "timeMs": 69000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "01:09.00",
+   "timeMs": 69000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "01:09.00",
+   "timeMs": 69000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "01:09.00",
+   "timeMs": 69000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "01:18.00",
+   "timeMs": 78000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "01:18.00",
+   "timeMs": 78000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "01:18.00",
+   "timeMs": 78000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "mariposa",
+   "distance": 100,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "01:18.00",
+   "timeMs": 78000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "00:46.50",
+   "timeMs": 46500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "00:47.50",
+   "timeMs": 47500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "00:43.50",
+   "timeMs": 43500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "00:44.00",
+   "timeMs": 44000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "00:37.00",
+   "timeMs": 37000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "00:39.00",
+   "timeMs": 39000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "00:35.00",
+   "timeMs": 35000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "00:37.00",
+   "timeMs": 37000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "00:33.00",
+   "timeMs": 33000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "00:33.00",
+   "timeMs": 33000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "00:33.00",
+   "timeMs": 33000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "00:33.00",
+   "timeMs": 33000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "00:36.00",
+   "timeMs": 36000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "00:36.00",
+   "timeMs": 36000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "00:36.00",
+   "timeMs": 36000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 50,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "00:36.00",
+   "timeMs": 36000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "01:35.00",
+   "timeMs": 95000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "01:36.50",
+   "timeMs": 96500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "01:31.00",
+   "timeMs": 91000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "01:35.00",
+   "timeMs": 95000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "01:22.00",
+   "timeMs": 82000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "01:28.00",
+   "timeMs": 88000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "01:18.00",
+   "timeMs": 78000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "01:23.00",
+   "timeMs": 83000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "01:12.00",
+   "timeMs": 72000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "01:12.00",
+   "timeMs": 72000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "01:12.00",
+   "timeMs": 72000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "01:12.00",
+   "timeMs": 72000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "01:19.50",
+   "timeMs": 79500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "01:19.50",
+   "timeMs": 79500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "01:19.50",
+   "timeMs": 79500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "espalda",
+   "distance": 100,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "01:19.50",
+   "timeMs": 79500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 100,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "01:31.00",
+   "timeMs": 91000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 100,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "01:36.00",
+   "timeMs": 96000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 100,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "01:27.00",
+   "timeMs": 87000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 100,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "01:30.00",
+   "timeMs": 90000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 100,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "01:20.00",
+   "timeMs": 80000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 100,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "01:26.00",
+   "timeMs": 86000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 100,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "01:17.00",
+   "timeMs": 77000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 100,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "01:23.50",
+   "timeMs": 83500
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "01:13.00",
+   "timeMs": 73000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "01:13.00",
+   "timeMs": 73000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 100,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "01:13.00",
+   "timeMs": 73000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 100,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "01:13.00",
+   "timeMs": 73000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "01:22.00",
+   "timeMs": 82000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "01:22.00",
+   "timeMs": 82000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 100,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "01:22.00",
+   "timeMs": 82000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 100,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "01:22.00",
+   "timeMs": 82000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "M",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "03:22.00",
+   "timeMs": 202000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "F",
+   "category": "MEN_1",
+   "pool": "P25",
+   "time": "03:25.00",
+   "timeMs": 205000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "M",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "03:05.00",
+   "timeMs": 185000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "F",
+   "category": "MEN_2",
+   "pool": "P25",
+   "time": "03:08.00",
+   "timeMs": 188000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "M",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "02:52.00",
+   "timeMs": 172000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "F",
+   "category": "CAD_1",
+   "pool": "P25",
+   "time": "03:02.00",
+   "timeMs": 182000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "M",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "02:48.00",
+   "timeMs": 168000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "F",
+   "category": "CAD_2",
+   "pool": "P25",
+   "time": "02:58.00",
+   "timeMs": 178000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "M",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "02:37.00",
+   "timeMs": 157000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "M",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "02:37.00",
+   "timeMs": 157000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "M",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "02:37.00",
+   "timeMs": 157000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "M",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "02:37.00",
+   "timeMs": 157000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "F",
+   "category": "JUV_1",
+   "pool": "P25",
+   "time": "02:50.00",
+   "timeMs": 170000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "F",
+   "category": "JUV_2",
+   "pool": "P25",
+   "time": "02:50.00",
+   "timeMs": 170000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "F",
+   "category": "JUN",
+   "pool": "P25",
+   "time": "02:50.00",
+   "timeMs": 170000
+  },
+  {
+   "set": "FEDERARSE",
+   "stroke": "combinado",
+   "distance": 200,
+   "gender": "F",
+   "category": "MAY",
+   "pool": "P25",
+   "time": "02:50.00",
+   "timeMs": 170000
+  }
+ ]
+}

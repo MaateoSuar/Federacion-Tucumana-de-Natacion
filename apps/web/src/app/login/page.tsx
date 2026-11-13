@@ -327,7 +327,7 @@ function AquaticBackground() {
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes aqWA { from{transform:translateX(0)} to{transform:translateX(-50%)} }
         @keyframes aqWB { from{transform:translateX(-50%)} to{transform:translateX(0)} }
-        @keyframes aqSwim { from{transform:translateX(108vw)} to{transform:translateX(-220px)} }
+        @keyframes aqSwim { from{transform:translateX(108vw)} to{transform:translateX(-340px)} }
         .aq-wa{animation:aqWA 9s linear infinite}
         .aq-wb{animation:aqWB 14s linear infinite}
         .aq-s1{animation:aqSwim 17s linear infinite}
@@ -416,31 +416,53 @@ function AquaticBackground() {
 }
 
 function SwimmerSVG({ opacity }: { opacity: number }) {
+  const c = '#90e0ef';
+  const cap = '#48cae4';
   return (
     <svg
-      width="160" height="52"
-      viewBox="-80 -26 160 52"
+      width="300" height="80"
+      viewBox="0 0 300 80"
       style={{ display: 'block', overflow: 'visible' }}
     >
-      <g opacity={opacity} fill="#90e0ef" stroke="#90e0ef" strokeLinecap="round" strokeLinejoin="round">
-        {/* Body */}
-        <ellipse cx="6" cy="1" rx="44" ry="9" />
-        {/* Head */}
-        <circle cx="-55" cy="-2" r="11" />
-        {/* Cap highlight */}
-        <ellipse cx="-57" cy="-6" rx="8" ry="5" fill="#48cae4" opacity={opacity * 0.6} />
-        {/* Lead arm — reaching into the water ahead */}
-        <path d="M -57,-4 Q -78,-24 -95,-16" fill="none" strokeWidth="6" />
-        {/* Trailing arm — recovery arc */}
-        <path d="M 40,2 Q 58,14 66,7" fill="none" strokeWidth="5" />
-        {/* Flutter kick — upper foot */}
-        <path d="M 46,3 Q 64,18 76,10" fill="none" strokeWidth="6" />
-        {/* Flutter kick — lower foot */}
-        <path d="M 47,-4 Q 65,-17 74,-23" fill="none" strokeWidth="5" />
-        {/* Wake bubbles */}
-        <circle cx="80"  cy="5"  r="2.5" fill="none" strokeWidth="1.2" opacity={opacity * 0.6} />
-        <circle cx="88"  cy="0"  r="1.8" fill="none" strokeWidth="1"   opacity={opacity * 0.4} />
-        <circle cx="84"  cy="12" r="1.5" fill="none" strokeWidth="1"   opacity={opacity * 0.35} />
+      <g opacity={opacity} stroke={c} fill="none" strokeLinecap="round" strokeLinejoin="round">
+        {/* Torso — ancho en hombros, estrecho en caderas */}
+        <path d="M 72,32 Q 128,38 178,42" strokeWidth="15" />
+
+        {/* Cabeza */}
+        <ellipse cx="48" cy="20" rx="16" ry="18" fill={c} stroke="none" />
+
+        {/* Gorra de natación (parte superior de la cabeza) */}
+        <path d="M 34,14 Q 48,2 64,12 L 58,21 Q 48,25 38,23 Z" fill={cap} stroke="none" opacity={0.8} />
+
+        {/* Antiparras */}
+        <ellipse cx="37" cy="23" rx="5" ry="4" stroke={cap} strokeWidth="1.8" />
+        <ellipse cx="48" cy="22" rx="5" ry="4" stroke={cap} strokeWidth="1.8" />
+        <path d="M 42,22 h3" stroke={cap} strokeWidth="1.8" />
+
+        {/* Cuello */}
+        <path d="M 60,27 Q 65,29 70,32" strokeWidth="9" />
+
+        {/* Brazo delantero — curva continua desde hombro hasta la entrada al agua */}
+        <path d="M 72,32 C 45,36 20,44 5,51" strokeWidth="9" />
+
+        {/* Brazo de recuperación — arco continuo por encima del agua */}
+        <path d="M 82,28 C 110,-8 140,2 152,14" strokeWidth="9" />
+
+        {/* Pierna A (kick hacia abajo) — muslo + pantorrilla */}
+        <path d="M 178,42 Q 210,51 222,55" strokeWidth="12" />
+        <path d="M 222,55 Q 248,61 262,53" strokeWidth="10" />
+
+        {/* Pierna B (kick hacia arriba) — muslo + pantorrilla */}
+        <path d="M 178,42 Q 210,31 222,27" strokeWidth="11" />
+        <path d="M 222,27 Q 246,18 262,12" strokeWidth="9" />
+
+        {/* Splash en la entrada de la mano */}
+        <path d="M 5,51 Q 0,47 -4,42 M 5,51 Q -1,55 -5,59" strokeWidth="2" opacity={0.4} />
+
+        {/* Burbujas de estela */}
+        <circle cx="268" cy="48" r="3.5" strokeWidth="1.3" opacity={0.5} />
+        <circle cx="276" cy="35" r="2.5" strokeWidth="1.1" opacity={0.4} />
+        <circle cx="272" cy="60" r="2"   strokeWidth="1"   opacity={0.35} />
       </g>
     </svg>
   );

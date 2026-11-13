@@ -108,10 +108,13 @@ export class ImportProcessor extends WorkerHost {
       );
 
       // Matching de nadadores
-      const swimmerResults = await Promise.all(
-        normalizedMeet.swimmers.map((swimmer) =>
-          this.athleteMatcher.match(swimmer, SOURCE_SYSTEM),
-        ),
+      const clubIdByRef: Record<string, string | null> = {};
+      for (const cr of clubResults) clubIdByRef[cr.clubRef] = cr.clubId;
+      const seasonYear = parseInt(normalizedMeet.meet.start_date.slice(0, 4), 10);
+      const swimmerResults = await this.athleteMatcher.matchAll(
+        normalizedMeet.swimmers,
+        SOURCE_SYSTEM,
+        { seasonYear: Number.isNaN(seasonYear) ? undefined : seasonYear, clubIdByRef },
       );
 
       const matchResults: MatchResultsPayload = {
@@ -132,10 +135,14 @@ export class ImportProcessor extends WorkerHost {
             suggested_action: 'Se creará como nuevo nadador al confirmar el import.',
           });
         } else if (sr.requiresConfirmation) {
+          const top = sr.candidates?.[0];
+          const hint = top
+            ? ` Posible coincidencia: "${top.displayName}" (${Math.round(top.score * 100)}%: ${top.reasons.join(', ')}).`
+            : '';
           issues.push({
             severity: 'WARNING',
             stage: 'match',
-            message: `Atleta requiere confirmación: "${sr.displayName}" — match ${sr.confidence} por ${sr.matchedBy}.`,
+            message: `Atleta requiere confirmación: "${sr.displayName}" — match ${sr.confidence} por ${sr.matchedBy}.${hint}`,
             suggested_action: 'Revisá en el preview antes de confirmar.',
           });
         }

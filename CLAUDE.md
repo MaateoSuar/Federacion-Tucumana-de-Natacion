@@ -58,7 +58,7 @@ Estas reglas se blindan con tests. Nunca modificarlas sin aprobación explícita
 
 3. **Edad deportiva = edad al 31 de diciembre del año de la competencia.** La función `resolveCategory(birthDate, seasonYear, scope)` usa esta regla. Parametrizable, pero el default es DEC_31.
 
-4. **Récords de 25 m y 50 m son independientes.** La clave de un récord es `(scope, event_definition_id, category_id, gender, pool_length)`. Solo se evalúan récords sobre resultados **homologados**. La publicación de un récord requiere **homologación humana** (detección automática → candidato pendiente → Admin aprueba). Nunca publicación automática.
+4. **Récords de 25 m y 50 m son independientes.** La clave de un récord es `(scope, event_definition_id, category_id, gender, pool_length)`. Solo se evalúan récords sobre resultados **homologados**. **Decisión del 13/11/2026 (reemplaza la homologación humana previa):** cuando un resultado homologado supera al récord vigente, el récord **se actualiza solo** (el nuevo queda vigente, el anterior pasa a `superseded`). Si fue un error, un Admin lo **vuelve al anterior** desde el panel de récords (`PATCH /records/:id/revert`). Toda actualización automática y toda vuelta atrás queda en `audit_logs`. El récord anterior nunca se borra al ser superado.
 
 5. **Importación idempotente.** Reimportar el mismo meet no duplica datos. Clave natural de idempotencia: `(external_meet_id | file_hash, event, swimmer, heat, lane)`. Usar upsert.
 
@@ -130,11 +130,32 @@ Seguir siempre este ciclo:
 
 ---
 
+## Agentes del proyecto (`.claude/agents/`)
+
+| Agente | Tipo | Cuándo usarlo |
+|--------|------|---------------|
+| `milestone-planner` | Flujo (solo lectura) | Al iniciar cualquier feature: produce el plan para aprobar (paso 1 de la metodología). |
+| `verifier` | Flujo (solo lectura) | Antes de cada commit y al cerrar un milestone: lint + typecheck + test (paso 4). |
+| `rules-guardian` | Flujo (solo lectura) | Antes de cada commit, junto con `verifier`: diff contra reglas inviolables y alcance. |
+| `ingest-specialist` | Dominio | Problemas de lectura de PDF/HY3/CSV de Meet Manager y normalización. |
+| `identity-matcher` | Dominio | Matching de nadadores/clubes escritos distinto entre archivos; duplicados. |
+| `data-quality-auditor` | Dominio (solo lectura) | Después de importaciones grandes: informe de nadadores/clubes duplicados y datos incompletos en la base. |
+| `security-reviewer` | Flujo (solo lectura) | Antes de deployar o al tocar auth, roles, endpoints de admin, subida de archivos o datos personales. |
+| `swim-platform-benchmarker` | Producto (solo lectura) | Antes de planear una feature: cómo la resuelven SwimCloud, SwimRankings, Meet Mobile, Swimify, World Aquatics, etc. |
+| `sports-ux-benchmarker` | Estética (solo lectura) | Antes de que `ui-designer` construya una pantalla: patrones de UI de apps deportivas de referencia. |
+| `swim-standards-expert` | Dominio (solo lectura) | Validar contra estándares: Lenex, HY3/SD3, puntos World Aquatics, reglas de récords y categorías. |
+| `ui-designer` | Estética | Crear o rediseñar pantallas de `apps/web` con la identidad visual FTN. |
+| `ui-reviewer` | Estética (solo lectura) | Auditoría visual/UX después de cambios de frontend. |
+
+Un commit se hace solo si `verifier` está en verde y `rules-guardian` da **OK**.
+
+---
+
 ## Qué NO hacer sin preguntar
 
 - **Cambiar el esquema de datos aprobado** (tablas, columnas, tipos, relaciones, índices) sin consultar.
 - **Tomar decisiones de negocio nuevas**: si algo no está en los documentos de spec, preguntar.
 - **Tocar archivos fuera del alcance del milestone en curso**: si se detecta algo para mejorar en otro lado, anotarlo al final del mensaje, nunca hacerlo directamente.
-- **Auto-aprobar récords o vinculaciones**: la homologación y el AccountLinkRequest siempre requieren acción humana.
+- **Auto-aprobar vinculaciones**: el AccountLinkRequest siempre requiere acción humana. (Los récords sí se actualizan solos desde el 13/11/2026: ver regla 4.)
 - **Comparar tiempos de piscinas distintas** o recalcular una categoría/club ya congelados en un resultado.
 - **Hardcodear** puntos de scoring, esquemas de categorías o cualquier parámetro que deba ser configurable.

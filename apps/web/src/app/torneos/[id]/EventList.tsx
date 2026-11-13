@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import type { TournamentEvent } from '@/lib/api';
+import { matchesFuzzySearch } from '@/lib/search';
 
 const STROKE_ES: Record<string, string> = {
   libre: 'Libre', espalda: 'Espalda', pecho: 'Pecho',
@@ -40,8 +41,7 @@ export function EventList({ events, tournamentId }: { events: TournamentEvent[];
 
   const filtered = useMemo(() => {
     if (!search.trim()) return groups;
-    const q = search.toLowerCase();
-    return groups.filter((g) => g.label.toLowerCase().includes(q));
+    return groups.filter((g) => matchesFuzzySearch(g.label, search));
   }, [groups, search]);
 
   return (
