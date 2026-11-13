@@ -312,6 +312,20 @@ describe('RankingsService', () => {
       expect(result[0]?.meets).toEqual([]);
     });
 
+    it('una fila que viene de la tabla de récords no lleva marcas básicas, aunque el tiempo las cumpla', async () => {
+      mockPrisma.result.findMany.mockResolvedValue([res('s2', 'MAY', 28000)]);
+      mockPrisma.record.findMany.mockResolvedValue([rec('recordista', 'MAY', 23870)]);
+      mockPrisma.timeStandard.findMany.mockResolvedValue([std('nac', 'NACIONAL', 1, 'MAY', 29000)]);
+
+      const result = await service.queryEventRanking(base);
+
+      expect(result.find((r) => r.swimmerId === 'recordista')?.meets).toEqual([]);
+      expect(result.find((r) => r.swimmerId === 's2')?.meets).toEqual(['nac']);
+      // Y tampoco cuenta en el total de quienes cumplen
+      const [set] = await service.queryEventStandards(base);
+      expect(set?.qualifiedCount).toBe(1);
+    });
+
     it('25 m y 50 m no se cruzan: las marcas se buscan solo para la pileta del ranking', async () => {
       await service.queryEventRanking({ ...base, poolLength: 'P50' });
 

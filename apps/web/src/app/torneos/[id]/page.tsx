@@ -22,6 +22,7 @@ export default async function TorneoPage({ params }: { params: { id: string } })
       fetchTournamentEvents(params.id),
     ]);
 
+    const eventsWithResults = events.filter((e) => e._count.results > 0);
     const totalDays = countDays(tournament.startDate, tournament.endDate);
     const dayFilesByDay = await Promise.all(
       Array.from({ length: totalDays + 1 }, (_, d) => d) // 0 (General) .. totalDays
@@ -58,11 +59,14 @@ export default async function TorneoPage({ params }: { params: { id: string } })
             </div>
           )}
 
-          {/* Pruebas */}
-          <section>
-            <h2 className="text-lg font-bold text-white mb-4">Pruebas</h2>
-            <EventList events={events} tournamentId={params.id} />
-          </section>
+          {/* Pruebas: solo las que tienen resultados cargados en el sistema. Un torneo que
+              solo tiene los archivos de sembrados/resultados no muestra una lista vacía. */}
+          {eventsWithResults.length > 0 && (
+            <section>
+              <h2 className="text-lg font-bold text-white mb-4">Pruebas</h2>
+              <EventList events={eventsWithResults} tournamentId={params.id} />
+            </section>
+          )}
         </div>
       </div>
     );

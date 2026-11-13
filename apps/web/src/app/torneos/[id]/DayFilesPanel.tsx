@@ -5,6 +5,10 @@ import { SwimmerNameLink } from '@/components/SwimmerNameLink';
 import type { DayFile, SembradoRow, ResultadoRow } from '@/lib/api';
 import { formatTime } from '@/lib/formatTime';
 import { matchesFuzzySearch } from '@/lib/search';
+import {
+  matchesPruebaFilter, pruebaFilterOptions, STROKE_LABEL,
+  type PruebaFilter, type PruebaStroke,
+} from '@/lib/prueba-label';
 import { MedalIcon, positionClass } from '@/components/ui/MedalIcon';
 
 // Mismo esquema de puntos que la página oficial de resultados por prueba — puesto 1º a 8º.
@@ -63,19 +67,65 @@ const RESULTADO_GRID = 'grid grid-cols-[3.25rem_1.6fr_0.9fr_5rem_5.5rem_3rem]';
 
 type FileType = 'sembrados' | 'resultados';
 
+const NO_PRUEBA_FILTER: PruebaFilter = { stroke: '', distance: '' };
+const SELECT_CLASS =
+  'bg-pool-800/60 border border-pool-700/50 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-aqua-500 transition-colors';
+
+/** Selectores de estilo y distancia, con las opciones que existen en el archivo. */
+function PruebaFilterBar({
+  labels, value, onChange,
+}: { labels: string[]; value: PruebaFilter; onChange: (next: PruebaFilter) => void }) {
+  const options = useMemo(() => pruebaFilterOptions(labels), [labels]);
+  if (options.strokes.length <= 1 && options.distances.length <= 1) return null;
+  const active = value.stroke !== '' || value.distance !== '';
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-2">
+      <select
+        aria-label="Estilo"
+        value={value.stroke}
+        onChange={(e) => onChange({ ...value, stroke: e.target.value as PruebaStroke | '' })}
+        className={SELECT_CLASS}
+      >
+        <option value="">Todos los estilos</option>
+        {options.strokes.map((st) => <option key={st} value={st}>{STROKE_LABEL[st]}</option>)}
+      </select>
+      <select
+        aria-label="Distancia"
+        value={value.distance}
+        onChange={(e) => onChange({ ...value, distance: e.target.value === '' ? '' : Number(e.target.value) })}
+        className={SELECT_CLASS}
+      >
+        <option value="">Todas las distancias</option>
+        {options.distances.map((d) => <option key={d} value={d}>{d} m</option>)}
+      </select>
+      {active && (
+        <button
+          type="button"
+          onClick={() => onChange(NO_PRUEBA_FILTER)}
+          className="text-xs font-semibold text-pool-400 hover:text-white transition-colors"
+        >
+          Limpiar filtros
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** Sembrados y Resultados por jornada — vista pública, sin login. */
 export function DayFilesPanel({ dayFiles, totalDays }: { dayFiles: DayFile[]; totalDays: number }) {
   const [fileType, setFileType] = useState<FileType>('sembrados');
   const [day, setDay] = useState<number | null>(null); // null = "Todas"
 
   const days = Array.from({ length: totalDays }, (_, i) => i + 1);
-  const hasGeneral = dayFiles.some((f) => f.dayNumber === 0);
+  // Si se subió el archivo "General" de este tipo (todo el torneo junto), se muestra solo
+  // ese: las Jornadas serían el mismo contenido repetido en partes.
+  const generalOnly = dayFiles.some((f) => f.type === fileType && f.dayNumber === 0);
 
   const filtered = useMemo(() => {
-    return dayFiles
-      .filter((f) => f.type === fileType)
-      .filter((f) => day === null || f.dayNumber === day);
-  }, [dayFiles, fileType, day]);
+    const ofType = dayFiles.filter((f) => f.type === fileType);
+    if (generalOnly) return ofType.filter((f) => f.dayNumber === 0);
+    return ofType.filter((f) => day === null || f.dayNumber === day);
+  }, [dayFiles, fileType, day, generalOnly]);
 
   if (dayFiles.length === 0) return null;
 
@@ -101,7 +151,7 @@ export function DayFilesPanel({ dayFiles, totalDays }: { dayFiles: DayFile[]; to
       </div>
 
       {/* Selector de jornada */}
-      {(totalDays > 1 || hasGeneral) && (
+      {totalDays > 1 && !generalOnly && (
         <div className="flex flex-wrap items-center gap-2 mb-5">
           <span className="text-pool-500 text-xs font-semibold mr-1">Jornada:</span>
           <button
@@ -112,16 +162,6 @@ export function DayFilesPanel({ dayFiles, totalDays }: { dayFiles: DayFile[]; to
           >
             Todas
           </button>
-          {hasGeneral && (
-            <button
-              onClick={() => setDay(0)}
-              className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
-                day === 0 ? 'bg-pool-500 text-white border-pool-500' : 'border-pool-700/50 text-pool-400 hover:text-white'
-              }`}
-            >
-              General
-            </button>
-          )}
           {days.map((d) => (
             <button
               key={d}
@@ -148,7 +188,7 @@ export function DayFilesPanel({ dayFiles, totalDays }: { dayFiles: DayFile[]; to
                 <div>
                   <p className="text-white text-sm font-semibold">{f.title}</p>
                   <p className="text-pool-500 text-xs">
-                    {totalDays > 1 && (f.dayNumber === 0 ? 'General' : `Jornada ${f.dayNumber}`)} ·{' '}
+                    {totalDays > 1 && !generalOnly && `Jornada ${f.dayNumber} · `}
                     {new Date(f.createdAt).toLocaleDateString('es-AR')}
                   </p>
                 </div>
@@ -176,6 +216,8 @@ export function DayFilesPanel({ dayFiles, totalDays }: { dayFiles: DayFile[]; to
 
 function SembradosTablePublic({ rows }: { rows: SembradoRow[] }) {
   const [search, setSearch] = useState('');
+  const [pruebaFilter, setPruebaFilter] = useState<PruebaFilter>(NO_PRUEBA_FILTER);
+  const labels = useMemo(() => Array.from(new Set(rows.map((r) => r.eventLabel))), [rows]);
   const [matchIndex, setMatchIndex] = useState(0);
   const rowRefs = useRef(new Map<string, HTMLDivElement>());
 
@@ -188,12 +230,13 @@ function SembradosTablePublic({ rows }: { rows: SembradoRow[] }) {
   }, [rows]);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return groups;
-    return groups.filter((g) => {
+    const byPrueba = groups.filter((g) => matchesPruebaFilter(g.eventLabel, pruebaFilter));
+    if (!search.trim()) return byPrueba;
+    return byPrueba.filter((g) => {
       const haystack = `Prueba ${g.eventNo} ${g.eventLabel} ${g.rows.map((r) => r.swimmerName).join(' ')}`;
       return matchesFuzzySearch(haystack, search);
     });
-  }, [groups, search]);
+  }, [groups, search, pruebaFilter]);
 
   // Coincidencias por nombre de nadador/a (para la navegación con flechas) — clave única por fila.
   const nameMatches = useMemo(() => {
@@ -225,6 +268,7 @@ function SembradosTablePublic({ rows }: { rows: SembradoRow[] }) {
       {/* Buscador */}
       {/* Sticky mientras se busca — así no hay que volver arriba para cambiar de coincidencia */}
       <div className="sticky top-14 z-20 bg-pool-950 pt-1 pb-2">
+        <PruebaFilterBar labels={labels} value={pruebaFilter} onChange={setPruebaFilter} />
         <div className="relative mb-3">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-pool-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -253,13 +297,15 @@ function SembradosTablePublic({ rows }: { rows: SembradoRow[] }) {
           onNext={() => setMatchIndex((i) => (i + 1) % nameMatches.length)}
         />
 
-        {search && (
+        {(search || pruebaFilter.stroke !== '' || pruebaFilter.distance !== '') && (
           <p className="text-pool-500 text-xs">{filtered.length} de {groups.length} pruebas</p>
         )}
       </div>
 
       {filtered.length === 0 ? (
-        <p className="text-pool-400 text-sm py-6 text-center">Sin resultados para &ldquo;{search}&rdquo;</p>
+        <p className="text-pool-400 text-sm py-6 text-center">
+          {search ? <>Sin resultados para &ldquo;{search}&rdquo;</> : 'No hay pruebas con esos filtros.'}
+        </p>
       ) : (
         <div className="space-y-3">
           {filtered.map(({ eventNo, eventLabel, rows: eventRows }) => {
@@ -385,6 +431,8 @@ function TimeDelta({ seedMs, finalMs }: { seedMs: number | null; finalMs: number
 /** Resultados divididos por prueba, con buscador (por prueba o por nadador) y detalle por categoría al hacer click. */
 function ResultadosListPublic({ rows }: { rows: ResultadoRow[] }) {
   const [search, setSearch] = useState('');
+  const [pruebaFilter, setPruebaFilter] = useState<PruebaFilter>(NO_PRUEBA_FILTER);
+  const labels = useMemo(() => Array.from(new Set(rows.map((r) => r.eventLabel))), [rows]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [matchIndex, setMatchIndex] = useState(0);
   const rowRefs = useRef(new Map<string, HTMLDivElement>());
@@ -445,12 +493,13 @@ function ResultadosListPublic({ rows }: { rows: ResultadoRow[] }) {
   }, [rows]);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return groups;
-    return groups.filter((g) => {
+    const byPrueba = groups.filter((g) => matchesPruebaFilter(g.title, pruebaFilter));
+    if (!search.trim()) return byPrueba;
+    return byPrueba.filter((g) => {
       const haystack = `${formatEventNos(g.eventNos)} ${g.title} ${g.allRows.map((r) => r.swimmerName).join(' ')}`;
       return matchesFuzzySearch(haystack, search);
     });
-  }, [groups, search]);
+  }, [groups, search, pruebaFilter]);
 
   // Coincidencias por nombre de nadador/a (para la navegación con flechas) — clave única por fila.
   const nameMatches = useMemo(() => {
@@ -494,6 +543,7 @@ function ResultadosListPublic({ rows }: { rows: ResultadoRow[] }) {
     <div>
       {/* Sticky mientras se busca — así no hay que volver arriba para cambiar de coincidencia */}
       <div className="sticky top-14 z-20 bg-pool-950 pt-1 pb-2">
+        <PruebaFilterBar labels={labels} value={pruebaFilter} onChange={setPruebaFilter} />
         <div className="relative mb-3">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-pool-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -522,13 +572,15 @@ function ResultadosListPublic({ rows }: { rows: ResultadoRow[] }) {
           onNext={() => setMatchIndex((i) => (i + 1) % nameMatches.length)}
         />
 
-        {search && (
+        {(search || pruebaFilter.stroke !== '' || pruebaFilter.distance !== '') && (
           <p className="text-pool-500 text-xs">{filtered.length} de {groups.length} pruebas</p>
         )}
       </div>
 
       {filtered.length === 0 ? (
-        <p className="text-pool-400 text-sm py-6 text-center">Sin resultados para &ldquo;{search}&rdquo;</p>
+        <p className="text-pool-400 text-sm py-6 text-center">
+          {search ? <>Sin resultados para &ldquo;{search}&rdquo;</> : 'No hay pruebas con esos filtros.'}
+        </p>
       ) : (
         <div className="space-y-3">
           {filtered.map(({ key: groupKey, title, eventNos, categories, allRows }) => {

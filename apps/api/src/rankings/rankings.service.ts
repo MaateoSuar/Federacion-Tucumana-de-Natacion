@@ -229,9 +229,13 @@ export class RankingsService {
       finalTime: c.finalTime,
       sourceResultId: c.sourceResultId,
       achievedAt: c.achievedAt.toISOString(),
-      meets: (standardsByCategory.get(c.categoryId) ?? [])
-        .filter((st) => c.finalTime <= st.timeMs)
-        .map((st) => st.setId),
+      // Las marcas básicas se indican solo sobre resultados de torneo. Una fila que viene
+      // de la tabla de récords (marca histórica) no lleva la indicación.
+      meets: c.fromResult
+        ? (standardsByCategory.get(c.categoryId) ?? [])
+            .filter((st) => c.finalTime <= st.timeMs)
+            .map((st) => st.setId)
+        : [],
     }));
 
     await this.redis.set(key, result, CACHE_TTL.EVENT_BEST);
