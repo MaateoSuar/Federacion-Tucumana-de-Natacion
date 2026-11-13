@@ -263,6 +263,8 @@ export interface ResultEntry {
   swimmer: { id: string; firstName: string; lastName: string; gender: string };
   club: { id: string; name: string; shortName: string };
   category: { id: string; name: string; orderNo: number };
+  /** Tiempo de sembrado (inscripción) en ms, si el archivo importado lo traía. */
+  seedTime?: number | null;
   splits: { distance: number; cumulativeTime: number }[];
 }
 

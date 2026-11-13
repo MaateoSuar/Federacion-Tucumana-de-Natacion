@@ -129,6 +129,8 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
   for (const r of dqResults) addToGroup(r, true);
   categoryGroups.sort((a, b) => a.orderNo - b.orderNo);
   const isMultiCategory = categoryGroups.length > 1;
+  // La columna de sembrado aparece solo si el torneo importado trae ese dato
+  const hasSeed = results.some((r) => r.seedTime != null);
 
   // Flatten all items for search navigation
   const allItems = categoryGroups.flatMap((g) => [...g.results, ...g.dqResults]);
@@ -312,7 +314,8 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
                           <th className="text-left px-4 py-3 w-10">#</th>
                           <th className="text-left px-4 py-3">Nadador/a</th>
                           <th className="text-left px-4 py-3 hidden sm:table-cell">Club</th>
-                          <th className="text-right px-4 py-3">Tiempo</th>
+                          {hasSeed && <th className="text-right px-4 py-3 hidden sm:table-cell">Sembrado</th>}
+                          <th className="text-right px-4 py-3">{hasSeed ? 'Final' : 'Tiempo'}</th>
                           <th className="text-right px-4 py-3 w-14">Pts</th>
                           <th className="w-8 px-2" />
                         </tr>
@@ -354,7 +357,22 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
                                   </div>
                                 </td>
                                 <td className="px-4 py-3 text-pool-300 hidden sm:table-cell">{r.club.shortName}</td>
-                                <td className="px-4 py-3 text-right font-mono font-bold text-white">
+                                {hasSeed && (
+                                  <td className="px-4 py-3 text-right font-mono text-pool-400 hidden sm:table-cell">
+                                    {r.seedTime != null ? formatTime(r.seedTime) : '—'}
+                                  </td>
+                                )}
+                                <td className="px-4 py-3 text-right font-mono font-bold text-white whitespace-nowrap">
+                                  {/* Flecha respecto del sembrado: nunca solo color, lleva título y texto oculto */}
+                                  {r.seedTime != null && r.finalTime != null && r.finalTime !== r.seedTime && (
+                                    <span
+                                      className={`mr-1.5 text-xs ${r.finalTime < r.seedTime ? 'text-green-400' : 'text-red-400'}`}
+                                      title={r.finalTime < r.seedTime ? 'Bajó respecto del sembrado' : 'Subió respecto del sembrado'}
+                                    >
+                                      <span aria-hidden="true">{r.finalTime < r.seedTime ? '▼' : '▲'}</span>
+                                      <span className="sr-only">{r.finalTime < r.seedTime ? 'Bajó el tiempo' : 'Subió el tiempo'}</span>
+                                    </span>
+                                  )}
                                   {r.finalTime != null ? formatTime(r.finalTime) : '—'}
                                 </td>
                                 <td className="px-4 py-3 text-right">
@@ -370,7 +388,7 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
                               </tr>
                               {isOpen && r.splits.length > 0 && (
                                 <tr key={`${r.id}-splits`} className="bg-pool-900/60">
-                                  <td colSpan={6} className="px-6 py-3">
+                                  <td colSpan={hasSeed ? 7 : 6} className="px-6 py-3">
                                     <div className="flex flex-wrap gap-3">
                                       {r.splits.map((s) => (
                                         <div key={s.distance} className="text-xs">

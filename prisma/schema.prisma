@@ -669,6 +669,9 @@ model Result {
   homologatedBy String?      @map("homologated_by")
   dsqCode       String?      @map("dsq_code") // código de descalificación
   reactionTime  Int?         @map("reaction_time") // ms
+  // Tiempo de sembrado (inscripción) con el que llegó a la prueba, si el archivo lo trae.
+  // Es solo informativo: permite mostrar si bajó o subió respecto de su marca previa.
+  seedTime      Int?         @map("seed_time") // ms
   source        ResultSource @default(manual)
   // Campos congelados al momento de inscripción/homologación — NUNCA recalcular
   categoryId    String       @map("category_id")

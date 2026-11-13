@@ -571,6 +571,7 @@ export class CommitProcessor {
                 status: result.status as ResultStatus,
                 dsqCode: result.dsq_code ?? null,
                 reactionTime: result.reaction_time_ms ?? null,
+                seedTime: result.seed_time_ms ?? null,
                 source: resultSource,
                 categoryId: catId,
                 clubId,

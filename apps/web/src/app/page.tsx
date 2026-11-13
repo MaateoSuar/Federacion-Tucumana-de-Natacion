@@ -1,15 +1,14 @@
 import Link from 'next/link';
 import { fetchTournaments } from '@/lib/api';
+import { PHASE_LABEL, tournamentPhase, type TournamentPhase } from '@/lib/tournament-phase';
 
 export const revalidate = 60;
 
-const STATUS_LABEL: Record<string, { label: string; color: string }> = {
-  homologado:             { label: 'Finalizado',    color: 'bg-slate-500/20 text-slate-300 border-slate-500/30'   },
-  finalizado:             { label: 'Finalizado',    color: 'bg-slate-500/20 text-slate-300 border-slate-500/30'   },
-  en_curso:               { label: 'En curso',      color: 'bg-green-500/20 text-green-300 border-green-500/30'   },
-  inscripciones_abiertas: { label: 'Inscripciones abiertas', color: 'bg-aqua-500/20 text-aqua-300 border-aqua-500/30' },
-  programado:             { label: 'Programado',    color: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30' },
-  cerrado:                { label: 'Cerrado',       color: 'bg-red-500/20 text-red-300 border-red-500/30'         },
+// Etiqueta por fecha del torneo (no por el estado interno, que se carga a mano)
+const PHASE_COLOR: Record<TournamentPhase, string> = {
+  proximo: 'bg-aqua-500/20 text-aqua-300 border-aqua-500/30',
+  en_curso: 'bg-green-500/20 text-green-300 border-green-500/30',
+  finalizado: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
 };
 
 function formatDate(iso: string) {
@@ -17,7 +16,7 @@ function formatDate(iso: string) {
 }
 
 export default async function HomePage() {
-  let recentTournaments: { id: string; name: string; startDate: string; poolLength: string; status: string; hostClub?: { shortName: string }; _count?: { events: number } }[] = [];
+  let recentTournaments: { id: string; name: string; startDate: string; endDate?: string; poolLength: string; status: string; hostClub?: { shortName: string }; _count?: { events: number } }[] = [];
 
   try {
     const data = await fetchTournaments({ limit: '6', page: '1' });
@@ -122,7 +121,8 @@ export default async function HomePage() {
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {recentTournaments.map((t) => {
-                const st = STATUS_LABEL[t.status] ?? { label: t.status, color: 'bg-slate-500/20 text-slate-300 border-slate-500/30' };
+                const phase = tournamentPhase(t.startDate, t.endDate);
+                const st = { label: PHASE_LABEL[phase], color: PHASE_COLOR[phase] };
                 return (
                   <Link
                     key={t.id}

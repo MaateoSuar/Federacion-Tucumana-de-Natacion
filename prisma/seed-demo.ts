@@ -48,6 +48,8 @@ const TOURNAMENT_1 = {
 
 interface ResultRow {
   swimmerKey: string;
+  /** Tiempo de sembrado (ms): con el que se inscribió. Opcional. */
+  seedMs?: number;
   timeMs: number | null;
   status: ResultStatus;
   place: number | null;
@@ -117,8 +119,8 @@ const EVENTS_2: EventConfig[] = [
     eventCode: '50L_M',
     categoryCode: 'CAD_1',
     results: [
-      { swimmerKey: 'Lucas Díaz',         timeMs: 26870, status: 'OK', place: 1, isPb: true  }, // bajó 0.58
-      { swimmerKey: 'Agustín López',      timeMs: 29240, status: 'OK', place: 2, isPb: false }, // subió 0.33
+      { swimmerKey: 'Lucas Díaz',         seedMs: 27450, timeMs: 26870, status: 'OK', place: 1, isPb: true  }, // bajó 0.58
+      { swimmerKey: 'Agustín López',      seedMs: 28910, timeMs: 29240, status: 'OK', place: 2, isPb: false }, // subió 0.33
       { swimmerKey: 'Sebastián Martínez', timeMs: 29900, status: 'OK', place: 3, isPb: true  }, // primera vez
     ],
   },
@@ -126,8 +128,8 @@ const EVENTS_2: EventConfig[] = [
     eventCode: '50L_F',
     categoryCode: 'CAD_1',
     results: [
-      { swimmerKey: 'Valentina García',  timeMs: 29240, status: 'OK', place: 1, isPb: true  }, // bajó 0.58
-      { swimmerKey: 'Julieta Morales',   timeMs: 31100, status: 'OK', place: 2, isPb: true  }, // bajó 0.45
+      { swimmerKey: 'Valentina García',  seedMs: 29820, timeMs: 29240, status: 'OK', place: 1, isPb: true  }, // bajó 0.58
+      { swimmerKey: 'Julieta Morales',   seedMs: 31550, timeMs: 31100, status: 'OK', place: 2, isPb: true  }, // bajó 0.45
       { swimmerKey: 'Milagros Castillo', timeMs: 33400, status: 'OK', place: 3, isPb: true  }, // primera vez
     ],
   },
@@ -135,15 +137,15 @@ const EVENTS_2: EventConfig[] = [
     eventCode: '100L_M',
     categoryCode: 'JUV_1',
     results: [
-      { swimmerKey: 'Tomás Pérez',        timeMs: 59980, status: 'OK', place: 1, isPb: false }, // subió 0.64
-      { swimmerKey: 'Sebastián Martínez', timeMs: 61500, status: 'OK', place: 2, isPb: true  }, // bajó 0.68
+      { swimmerKey: 'Tomás Pérez',        seedMs: 59340, timeMs: 59980, status: 'OK', place: 1, isPb: false }, // subió 0.64
+      { swimmerKey: 'Sebastián Martínez', seedMs: 62180, timeMs: 61500, status: 'OK', place: 2, isPb: true  }, // bajó 0.68
     ],
   },
   {
     eventCode: '100L_F',
     categoryCode: 'JUV_1',
     results: [
-      { swimmerKey: 'Camila Torres',     timeMs: 64950, status: 'OK', place: 1, isPb: true  }, // bajó 0.77
+      { swimmerKey: 'Camila Torres',     seedMs: 65720, timeMs: 64950, status: 'OK', place: 1, isPb: true  }, // bajó 0.77
       { swimmerKey: 'Florencia Herrera', timeMs: 66300, status: 'OK', place: 2, isPb: true  }, // primera vez
     ],
   },
@@ -151,8 +153,8 @@ const EVENTS_2: EventConfig[] = [
     eventCode: '100MA_M',
     categoryCode: 'JUV_2',
     results: [
-      { swimmerKey: 'Santiago Rodríguez', timeMs: 60720, status: 'OK', place: 1, isPb: true  }, // bajó 0.73
-      { swimmerKey: 'Facundo Acosta',     timeMs: 65300, status: 'OK', place: 2, isPb: false }, // subió 0.41
+      { swimmerKey: 'Santiago Rodríguez', seedMs: 61450, timeMs: 60720, status: 'OK', place: 1, isPb: true  }, // bajó 0.73
+      { swimmerKey: 'Facundo Acosta',     seedMs: 64890, timeMs: 65300, status: 'OK', place: 2, isPb: false }, // subió 0.41
     ],
   },
 ];
@@ -388,6 +390,7 @@ async function main() {
               eventId:       event.id,
               swimmerId,
               finalTime:     r.timeMs,
+              seedTime:      r.seedMs ?? null,
               place:         r.place,
               status:        r.status,
               isPb:          r.isPb,

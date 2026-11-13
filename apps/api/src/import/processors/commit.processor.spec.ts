@@ -362,6 +362,17 @@ describe('CommitProcessor — cada resultado en su prueba (M2b)', () => {
     expect(times).not.toContain(99_999);
   });
 
+  it('guarda el tiempo de sembrado del archivo (ms enteros) y null si no lo trae', async () => {
+    const meet = makeMeet('csv');
+    const first = meet.results[0];
+    if (first) first.seed_time_ms = 36120;
+    const { processor, tx } = setup(meet, resolved());
+    await processor.commit('job-1');
+
+    const seeds = (tx.result.create.mock.calls as Array<[{ data: { seedTime: number | null } }]>).map(([a]) => a.data.seedTime);
+    expect(seeds).toEqual([36120, null, null]);
+  });
+
   it('rechaza un payload analizado con el lector viejo (sin event_key)', async () => {
     const meet = makeMeet('csv');
     for (const r of meet.results) delete (r as { event_key?: string }).event_key;
