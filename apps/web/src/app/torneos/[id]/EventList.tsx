@@ -16,10 +16,16 @@ interface EventGroup {
   ev: TournamentEvent;
   totalResults: number;
   label: string;
+  categories: string[];
 }
+
+const SELECT_CLASS =
+  'bg-pool-800/60 border border-pool-700/50 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-aqua-500 transition-colors';
 
 export function EventList({ events, tournamentId }: { events: TournamentEvent[]; tournamentId: string }) {
   const [search, setSearch] = useState('');
+  const [stroke, setStroke] = useState('');
+  const [category, setCategory] = useState('');
 
   // Collapse events with the same eventDefinition into one row
   const groups = useMemo<EventGroup[]>(() => {
@@ -31,18 +37,33 @@ export function EventList({ events, tournamentId }: { events: TournamentEvent[];
       const label = `${ev.eventDefinition.distance} m ${stroke} — ${gender}`;
       const existing = seen.get(key);
       if (!existing) {
-        seen.set(key, { eventDefId: key, ev, totalResults: ev._count.results, label });
+        seen.set(key, { eventDefId: key, ev, totalResults: ev._count.results, label, categories: [ev.category.name] });
       } else {
         existing.totalResults += ev._count.results;
+        if (!existing.categories.includes(ev.category.name)) existing.categories.push(ev.category.name);
       }
     }
     return [...seen.values()];
   }, [events]);
 
+  const strokes = useMemo(
+    () => Array.from(new Set(groups.map((g) => g.ev.eventDefinition.stroke))),
+    [groups],
+  );
+  const categories = useMemo(
+    () => Array.from(new Set(groups.flatMap((g) => g.categories))),
+    [groups],
+  );
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return groups;
-    return groups.filter((g) => matchesFuzzySearch(g.label, search));
-  }, [groups, search]);
+    return groups.filter((g) =>
+      (!stroke || g.ev.eventDefinition.stroke === stroke) &&
+      (!category || g.categories.includes(category)) &&
+      (!search.trim() || matchesFuzzySearch(g.label, search)),
+    );
+  }, [groups, search, stroke, category]);
+
+  const filtersActive = search !== '' || stroke !== '' || category !== '';
 
   return (
     <div>
@@ -68,8 +89,28 @@ export function EventList({ events, tournamentId }: { events: TournamentEvent[];
         )}
       </div>
 
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        {strokes.length > 1 && (
+          <select aria-label="Estilo" value={stroke} onChange={(e) => setStroke(e.target.value)} className={SELECT_CLASS}>
+            <option value="">Todos los estilos</option>
+            {strokes.map((st) => <option key={st} value={st}>{STROKE_ES[st] ?? st}</option>)}
+          </select>
+        )}
+        {categories.length > 1 && (
+          <select aria-label="Categoría" value={category} onChange={(e) => setCategory(e.target.value)} className={SELECT_CLASS}>
+            <option value="">Todas las categorías</option>
+            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        )}
+        {(stroke || category) && (
+          <button type="button" onClick={() => { setStroke(''); setCategory(''); }} className="text-xs font-semibold text-pool-400 hover:text-white transition-colors">
+            Limpiar filtros
+          </button>
+        )}
+      </div>
+
       {/* Count */}
-      {search && (
+      {filtersActive && (
         <p className="text-pool-500 text-xs mb-3">
           {filtered.length} de {groups.length} pruebas
         </p>

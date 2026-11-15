@@ -34,6 +34,7 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
   const [liveUpdate, setLiveUpdate] = useState(false);
   const [swimmerSearch, setSwimmerSearch] = useState('');
   const [matchIdx, setMatchIdx] = useState(0);
+  const [categoryFilter, setCategoryFilter] = useState('');
   const rowRefs = useRef<Map<string, HTMLElement>>(new Map());
 
   const fetchResults = useCallback(() => {
@@ -129,11 +130,12 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
   for (const r of dqResults) addToGroup(r, true);
   categoryGroups.sort((a, b) => a.orderNo - b.orderNo);
   const isMultiCategory = categoryGroups.length > 1;
+  const visibleGroups = categoryFilter ? categoryGroups.filter((g) => g.categoryId === categoryFilter) : categoryGroups;
   // La columna de sembrado aparece solo si el torneo importado trae ese dato
   const hasSeed = results.some((r) => r.seedTime != null);
 
   // Flatten all items for search navigation
-  const allItems = categoryGroups.flatMap((g) => [...g.results, ...g.dqResults]);
+  const allItems = visibleGroups.flatMap((g) => [...g.results, ...g.dqResults]);
   const q = swimmerSearch.trim();
   const matches = q ? allItems.filter((r) => matchesSearch(r, q)) : [];
   const safeIdx = matches.length > 0 ? Math.min(matchIdx, matches.length - 1) : 0;
@@ -248,6 +250,17 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
               </button>
             )}
           </div>
+          {isMultiCategory && (
+            <select
+              aria-label="Categoría"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="shrink-0 bg-pool-800/60 border border-pool-700/50 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-aqua-500 transition-colors"
+            >
+              <option value="">Todas las categorías</option>
+              {categoryGroups.map((g) => <option key={g.categoryId} value={g.categoryId}>{g.categoryName}</option>)}
+            </select>
+          )}
           {/* Match counter + prev/next */}
           {q && (
             <div className="flex items-center gap-0.5 shrink-0">
@@ -277,7 +290,7 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
           <p className="text-pool-400 text-center py-10">Sin resultados disponibles.</p>
         ) : (
           <div className="space-y-6">
-            {categoryGroups.map((group) => (
+            {visibleGroups.map((group) => (
               <div key={group.categoryId}>
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-2 px-1">
                   {isMultiCategory ? (

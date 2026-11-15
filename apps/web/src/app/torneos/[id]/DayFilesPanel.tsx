@@ -6,7 +6,7 @@ import type { DayFile, SembradoRow, ResultadoRow } from '@/lib/api';
 import { formatTime } from '@/lib/formatTime';
 import { matchesFuzzySearch } from '@/lib/search';
 import {
-  matchesPruebaFilter, pruebaFilterOptions, STROKE_LABEL,
+  matchesPruebaFilter, pruebaFilterOptions, STROKE_LABEL, categoryOfLabel, categoryOptions,
   type PruebaFilter, type PruebaStroke,
 } from '@/lib/prueba-label';
 import { standardsMetByFileResult, type StandardsTable } from '@/lib/standards-match';
@@ -74,42 +74,86 @@ const NO_PRUEBA_FILTER: PruebaFilter = { stroke: '', distance: '' };
 const SELECT_CLASS =
   'bg-pool-800/60 border border-pool-700/50 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-aqua-500 transition-colors';
 
-/** Selectores de estilo y distancia, con las opciones que existen en el archivo. */
+/** Buscador + selectores de estilo, distancia y categoría, con las opciones que existen en el archivo. */
 function PruebaFilterBar({
-  labels, value, onChange,
-}: { labels: string[]; value: PruebaFilter; onChange: (next: PruebaFilter) => void }) {
+  labels, value, onChange, category, onCategory, search, onSearch, placeholder,
+}: {
+  labels: string[]; value: PruebaFilter; onChange: (next: PruebaFilter) => void;
+  category: string; onCategory: (next: string) => void;
+  search: string; onSearch: (next: string) => void; placeholder: string;
+}) {
   const options = useMemo(() => pruebaFilterOptions(labels), [labels]);
-  if (options.strokes.length <= 1 && options.distances.length <= 1) return null;
-  const active = value.stroke !== '' || value.distance !== '';
+  const categories = useMemo(() => categoryOptions(labels), [labels]);
+  const active = value.stroke !== '' || value.distance !== '' || category !== '' || search !== '';
   return (
-    <div className="mb-3 flex flex-wrap items-center gap-2">
-      <select
-        aria-label="Estilo"
-        value={value.stroke}
-        onChange={(e) => onChange({ ...value, stroke: e.target.value as PruebaStroke | '' })}
-        className={SELECT_CLASS}
-      >
-        <option value="">Todos los estilos</option>
-        {options.strokes.map((st) => <option key={st} value={st}>{STROKE_LABEL[st]}</option>)}
-      </select>
-      <select
-        aria-label="Distancia"
-        value={value.distance}
-        onChange={(e) => onChange({ ...value, distance: e.target.value === '' ? '' : Number(e.target.value) })}
-        className={SELECT_CLASS}
-      >
-        <option value="">Todas las distancias</option>
-        {options.distances.map((d) => <option key={d} value={d}>{d} m</option>)}
-      </select>
-      {active && (
-        <button
-          type="button"
-          onClick={() => onChange(NO_PRUEBA_FILTER)}
-          className="text-xs font-semibold text-pool-400 hover:text-white transition-colors"
-        >
-          Limpiar filtros
-        </button>
-      )}
+    <div className="mb-3 rounded-2xl border border-pool-700/50 bg-pool-900/60 p-3 space-y-2.5">
+      <div className="relative">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-pool-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          type="text"
+          aria-label="Buscar por prueba o nadador/a"
+          placeholder={placeholder}
+          value={search}
+          onChange={(e) => onSearch(e.target.value)}
+          className="w-full bg-pool-800/60 border border-pool-700/50 rounded-xl pl-9 pr-9 py-2.5 text-sm text-white placeholder-pool-500 focus:outline-none focus:border-aqua-500 transition-colors"
+        />
+        {search && (
+          <button
+            type="button"
+            aria-label="Borrar búsqueda"
+            onClick={() => onSearch('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-pool-500 hover:text-white transition-colors"
+          >
+            ×
+          </button>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {options.strokes.length > 1 && (
+          <select
+            aria-label="Estilo"
+            value={value.stroke}
+            onChange={(e) => onChange({ ...value, stroke: e.target.value as PruebaStroke | '' })}
+            className={`${SELECT_CLASS} flex-1 min-w-[9rem]`}
+          >
+            <option value="">Todos los estilos</option>
+            {options.strokes.map((st) => <option key={st} value={st}>{STROKE_LABEL[st]}</option>)}
+          </select>
+        )}
+        {options.distances.length > 1 && (
+          <select
+            aria-label="Distancia"
+            value={value.distance}
+            onChange={(e) => onChange({ ...value, distance: e.target.value === '' ? '' : Number(e.target.value) })}
+            className={`${SELECT_CLASS} flex-1 min-w-[9rem]`}
+          >
+            <option value="">Todas las distancias</option>
+            {options.distances.map((d) => <option key={d} value={d}>{d} m</option>)}
+          </select>
+        )}
+        {categories.length > 1 && (
+          <select
+            aria-label="Categoría"
+            value={category}
+            onChange={(e) => onCategory(e.target.value)}
+            className={`${SELECT_CLASS} flex-1 min-w-[9rem]`}
+          >
+            <option value="">Todas las categorías</option>
+            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        )}
+        {active && (
+          <button
+            type="button"
+            onClick={() => { onChange(NO_PRUEBA_FILTER); onCategory(''); onSearch(''); }}
+            className="text-xs font-semibold text-aqua-300 hover:text-white transition-colors px-2"
+          >
+            Limpiar filtros
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -222,26 +266,28 @@ export function DayFilesPanel({
 function SembradosTablePublic({ rows }: { rows: SembradoRow[] }) {
   const [search, setSearch] = useState('');
   const [pruebaFilter, setPruebaFilter] = useState<PruebaFilter>(NO_PRUEBA_FILTER);
+  const [category, setCategory] = useState('');
   const labels = useMemo(() => Array.from(new Set(rows.map((r) => r.eventLabel))), [rows]);
   const [matchIndex, setMatchIndex] = useState(0);
   const rowRefs = useRef(new Map<string, HTMLDivElement>());
 
-  const groups = useMemo(() => {
-    const events = Array.from(new Set(rows.map((r) => r.eventNo))).sort((a, b) => a - b);
-    return events.map((eventNo) => {
-      const eventRows = rows.filter((r) => r.eventNo === eventNo);
-      return { eventNo, eventLabel: eventRows[0]?.eventLabel ?? '', rows: eventRows };
-    });
-  }, [rows]);
+  const totalGroups = useMemo(() => new Set(rows.map((r) => r.eventNo)).size, [rows]);
 
+  // Mientras se escribe: si el texto coincide con la prueba se muestra completa;
+  // si no, solo quedan las filas de los nadadores que coinciden.
   const filtered = useMemo(() => {
-    const byPrueba = groups.filter((g) => matchesPruebaFilter(g.eventLabel, pruebaFilter));
-    if (!search.trim()) return byPrueba;
-    return byPrueba.filter((g) => {
-      const haystack = `Prueba ${g.eventNo} ${g.eventLabel} ${g.rows.map((r) => r.swimmerName).join(' ')}`;
-      return matchesFuzzySearch(haystack, search);
+    const events = Array.from(new Set(rows.map((r) => r.eventNo))).sort((a, b) => a - b);
+    const q = search.trim();
+    return events.flatMap((eventNo) => {
+      const allRows = rows.filter((r) => r.eventNo === eventNo);
+      const eventLabel = allRows[0]?.eventLabel ?? '';
+      if (category && categoryOfLabel(eventLabel) !== category) return [];
+      if (!matchesPruebaFilter(eventLabel, pruebaFilter)) return [];
+      const pruebaHit = q !== '' && matchesFuzzySearch(`Prueba ${eventNo} ${eventLabel}`, q);
+      const eventRows = !q || pruebaHit ? allRows : allRows.filter((r) => matchesFuzzySearch(r.swimmerName, q));
+      return eventRows.length > 0 ? [{ eventNo, eventLabel, rows: eventRows }] : [];
     });
-  }, [groups, search, pruebaFilter]);
+  }, [rows, category, pruebaFilter, search]);
 
   // Coincidencias por nombre de nadador/a (para la navegación con flechas) — clave única por fila.
   const nameMatches = useMemo(() => {
@@ -270,30 +316,13 @@ function SembradosTablePublic({ rows }: { rows: SembradoRow[] }) {
 
   return (
     <div>
-      {/* Buscador */}
-      {/* Sticky mientras se busca — así no hay que volver arriba para cambiar de coincidencia */}
       <div className="sticky top-14 z-20 bg-pool-950 pt-1 pb-2">
-        <PruebaFilterBar labels={labels} value={pruebaFilter} onChange={setPruebaFilter} />
-        <div className="relative mb-3">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-pool-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            type="text"
-            placeholder="Buscar por prueba o nadador/a..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-pool-800/60 border border-pool-700/50 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-pool-500 focus:outline-none focus:border-aqua-500 transition-colors"
-          />
-          {search && (
-            <button
-              onClick={() => setSearch('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-pool-500 hover:text-white transition-colors"
-            >
-              ×
-            </button>
-          )}
-        </div>
+        <PruebaFilterBar
+          labels={labels} value={pruebaFilter} onChange={setPruebaFilter}
+          category={category} onCategory={setCategory}
+          search={search} onSearch={setSearch}
+          placeholder="Buscar nadador/a o prueba (ej: Perez, 100 libre)..."
+        />
 
         <SwimmerMatchNav
           index={matchIndex % Math.max(nameMatches.length, 1)}
@@ -302,8 +331,8 @@ function SembradosTablePublic({ rows }: { rows: SembradoRow[] }) {
           onNext={() => setMatchIndex((i) => (i + 1) % nameMatches.length)}
         />
 
-        {(search || pruebaFilter.stroke !== '' || pruebaFilter.distance !== '') && (
-          <p className="text-pool-500 text-xs">{filtered.length} de {groups.length} pruebas</p>
+        {(search || pruebaFilter.stroke !== '' || pruebaFilter.distance !== '' || category !== '') && (
+          <p className="text-pool-500 text-xs">{filtered.length} de {totalGroups} pruebas</p>
         )}
       </div>
 
@@ -445,6 +474,7 @@ const STANDARD_CHIP_DEFAULT = 'bg-aqua-500/15 text-aqua-300 border-aqua-400/40';
 function ResultadosListPublic({ rows, standards }: { rows: ResultadoRow[]; standards: StandardsTable | null }) {
   const [search, setSearch] = useState('');
   const [pruebaFilter, setPruebaFilter] = useState<PruebaFilter>(NO_PRUEBA_FILTER);
+  const [category, setCategory] = useState('');
   const labels = useMemo(() => Array.from(new Set(rows.map((r) => r.eventLabel))), [rows]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [matchIndex, setMatchIndex] = useState(0);
@@ -505,14 +535,25 @@ function ResultadosListPublic({ rows, standards }: { rows: ResultadoRow[]; stand
     });
   }, [rows]);
 
-  const filtered = useMemo(() => {
-    const byPrueba = groups.filter((g) => matchesPruebaFilter(g.title, pruebaFilter));
-    if (!search.trim()) return byPrueba;
-    return byPrueba.filter((g) => {
-      const haystack = `${formatEventNos(g.eventNos)} ${g.title} ${g.allRows.map((r) => r.swimmerName).join(' ')}`;
-      return matchesFuzzySearch(haystack, search);
+  // Categoría y búsqueda se aplican sobre las filas ya ordenadas, así el puesto mostrado
+  // sigue siendo el real de la categoría aunque se oculten otros nadadores. Si el texto
+  // coincide con la prueba se muestra completa; si no, solo los nadadores que coinciden.
+  const filtered = useMemo<ResultadoPruebaGroup[]>(() => {
+    const q = search.trim();
+    return groups.flatMap((g) => {
+      if (!matchesPruebaFilter(g.title, pruebaFilter)) return [];
+      const pruebaHit = q !== '' && matchesFuzzySearch(`${formatEventNos(g.eventNos)} ${g.title}`, q);
+      const categories = g.categories
+        .filter((c) => !category || c.category === category)
+        .map((c) => ({
+          ...c,
+          rows: !q || pruebaHit ? c.rows : c.rows.filter(({ row }) => matchesFuzzySearch(row.swimmerName, q)),
+        }))
+        .filter((c) => c.rows.length > 0);
+      if (categories.length === 0) return [];
+      return [{ ...g, categories, allRows: categories.flatMap((c) => c.rows.map(({ row }) => row)) }];
     });
-  }, [groups, search, pruebaFilter]);
+  }, [groups, category, pruebaFilter, search]);
 
   // Coincidencias por nombre de nadador/a (para la navegación con flechas) — clave única por fila.
   const nameMatches = useMemo(() => {
@@ -556,27 +597,12 @@ function ResultadosListPublic({ rows, standards }: { rows: ResultadoRow[]; stand
     <div>
       {/* Sticky mientras se busca — así no hay que volver arriba para cambiar de coincidencia */}
       <div className="sticky top-14 z-20 bg-pool-950 pt-1 pb-2">
-        <PruebaFilterBar labels={labels} value={pruebaFilter} onChange={setPruebaFilter} />
-        <div className="relative mb-3">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-pool-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            type="text"
-            placeholder="Buscar por prueba o nadador/a..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-pool-800/60 border border-pool-700/50 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-pool-500 focus:outline-none focus:border-aqua-500 transition-colors"
-          />
-          {search && (
-            <button
-              onClick={() => setSearch('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-pool-500 hover:text-white transition-colors"
-            >
-              ×
-            </button>
-          )}
-        </div>
+        <PruebaFilterBar
+          labels={labels} value={pruebaFilter} onChange={setPruebaFilter}
+          category={category} onCategory={setCategory}
+          search={search} onSearch={setSearch}
+          placeholder="Buscar nadador/a o prueba (ej: Perez, 100 libre)..."
+        />
 
         <SwimmerMatchNav
           index={matchIndex % Math.max(nameMatches.length, 1)}
@@ -585,7 +611,7 @@ function ResultadosListPublic({ rows, standards }: { rows: ResultadoRow[]; stand
           onNext={() => setMatchIndex((i) => (i + 1) % nameMatches.length)}
         />
 
-        {(search || pruebaFilter.stroke !== '' || pruebaFilter.distance !== '') && (
+        {(search || pruebaFilter.stroke !== '' || pruebaFilter.distance !== '' || category !== '') && (
           <p className="text-pool-500 text-xs">{filtered.length} de {groups.length} pruebas</p>
         )}
       </div>

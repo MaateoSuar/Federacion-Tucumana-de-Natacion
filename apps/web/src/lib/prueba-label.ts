@@ -54,6 +54,22 @@ export function matchesPruebaFilter(label: string, filter: PruebaFilter): boolea
   return true;
 }
 
+/** Categoría de una prueba ("… — Niñas 12-13" → "Niñas 12-13"); '' si el nombre no la trae. */
+export function categoryOfLabel(label: string): string {
+  const idx = label.indexOf(' — ');
+  return idx === -1 ? '' : label.slice(idx + 3).trim();
+}
+
+/** Categorías que aparecen en los nombres de prueba, sin repetir y en orden de aparición. */
+export function categoryOptions(labels: string[]): string[] {
+  const out: string[] = [];
+  for (const label of labels) {
+    const c = categoryOfLabel(label);
+    if (c && !out.includes(c)) out.push(c);
+  }
+  return out;
+}
+
 /** Estilos y distancias que realmente aparecen en el archivo, en orden natural. */
 export function pruebaFilterOptions(labels: string[]): { strokes: PruebaStroke[]; distances: number[] } {
   const strokes = new Set<PruebaStroke>();

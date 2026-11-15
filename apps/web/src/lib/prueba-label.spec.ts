@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { matchesPruebaFilter, parsePruebaLabel, pruebaFilterOptions } from './prueba-label';
+import { categoryOfLabel, categoryOptions, matchesPruebaFilter, parsePruebaLabel, pruebaFilterOptions } from './prueba-label';
 
 // Nombres reales del archivo "Tucumán NOA y Prov Urueña 06-2026" (Meet Manager).
 describe('parsePruebaLabel', () => {
@@ -50,6 +50,9 @@ describe('matchesPruebaFilter', () => {
 
   it('con un filtro activo, lo que no se pudo leer queda afuera', () => {
     expect(matchesPruebaFilter('Relevo especial', { stroke: 'libre', distance: '' })).toBe(false);
+    expect(categoryOfLabel('50m Libre FEDERADOS — Niñas 12-13')).toBe('Niñas 12-13');
+    expect(categoryOfLabel('50m Libre FEDERADOS')).toBe('');
+    expect(categoryOptions(['a — X', 'b — X', 'c — Y', 'd'])).toEqual(['X', 'Y']);
   });
 });
 
