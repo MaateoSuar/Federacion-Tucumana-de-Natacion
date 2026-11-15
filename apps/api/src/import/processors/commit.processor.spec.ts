@@ -329,6 +329,28 @@ describe('CommitProcessor — cada resultado en su prueba (M2b)', () => {
     expect(tx.heat.create).toHaveBeenCalledTimes(2);
   });
 
+  it('separa por nivel: federados, promocional y escuela son pruebas distintas aunque compartan estilo y distancia', async () => {
+    const meet = makeMeet('pdf');
+    const base = meet.events[0]!;
+    meet.events = [
+      { ...base, event_key: 'ev-fed', event_no: 1, competition_type: 'FEDERADOS' },
+      { ...base, event_key: 'ev-pro', event_no: 2, competition_type: 'PROMOCIONALES' },
+      { ...base, event_key: 'ev-esc', event_no: 3, competition_type: 'ESCUELA' },
+    ];
+    meet.results = [
+      { ...meet.results[0]!, event_key: 'ev-fed', event_ref: 1 },
+      { ...meet.results[1]!, event_key: 'ev-pro', event_ref: 2 },
+      { ...meet.results[2]!, event_key: 'ev-esc', event_ref: 3 },
+    ];
+    const { processor, tx } = setup(meet, makeMatches({ mateo: link('sw-mateo'), club: link('club-azu') }));
+    await processor.commit('job-1');
+
+    const created = (tx.event.create.mock.calls as Array<[{ data: { level: string | null } }]>).map(([a]) => a.data.level);
+    expect(created).toEqual(['FEDERADOS', 'PROMOCIONAL', 'ESCUELA']);
+    const lookups = (tx.event.findFirst.mock.calls as Array<[{ where: { level: string | null } }]>).map(([a]) => a.where.level);
+    expect(lookups).toEqual(['FEDERADOS', 'PROMOCIONAL', 'ESCUELA']);
+  });
+
   it('no inserta un resultado si el nadador es del otro género que la prueba, y lo deja registrado', async () => {
     // El Admin vinculó a "Mateo" con una nadadora existente (F): su nado en la prueba de varones no entra.
     const matches = resolved();

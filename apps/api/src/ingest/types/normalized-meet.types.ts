@@ -13,6 +13,7 @@ export type NormalizedRound = 'F' | 'S' | 'P' | 'T';
 export type CompetitionType =
   | 'FEDERADOS'
   | 'INFANTILES'
+  | 'ESCUELA'
   | 'PROMOCIONALES'
   | 'TOMA_DE_TIEMPOS'
   | 'DESCONOCIDO';

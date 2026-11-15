@@ -461,7 +461,7 @@ export class TournamentsService {
     // so results from all age categories are merged into one view
     const siblingIds = (
       await this.prisma.event.findMany({
-        where: { tournamentId, eventDefinitionId: event.eventDefinitionId },
+        where: { tournamentId, eventDefinitionId: event.eventDefinitionId, level: event.level },
         select: { id: true },
       })
     ).map((e) => e.id);

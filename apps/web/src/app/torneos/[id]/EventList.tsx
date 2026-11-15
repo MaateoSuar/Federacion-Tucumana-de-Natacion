@@ -17,7 +17,10 @@ interface EventGroup {
   totalResults: number;
   label: string;
   categories: string[];
+  level: string;
 }
+
+const LEVEL_ES: Record<string, string> = { FEDERADOS: 'Federados', PROMOCIONAL: 'Promocional', ESCUELA: 'Escuela' };
 
 const SELECT_CLASS =
   'bg-pool-800/60 border border-pool-700/50 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-aqua-500 transition-colors';
@@ -26,18 +29,20 @@ export function EventList({ events, tournamentId }: { events: TournamentEvent[];
   const [search, setSearch] = useState('');
   const [stroke, setStroke] = useState('');
   const [category, setCategory] = useState('');
+  const [level, setLevel] = useState('');
 
   // Collapse events with the same eventDefinition into one row
   const groups = useMemo<EventGroup[]>(() => {
     const seen = new Map<string, EventGroup>();
     for (const ev of events) {
-      const key = ev.eventDefinition.id;
+      const key = `${ev.eventDefinition.id}|${ev.level ?? ''}`;
       const stroke = STROKE_ES[ev.eventDefinition.stroke] ?? ev.eventDefinition.stroke;
       const gender = ev.eventDefinition.gender === 'M' ? 'Hombres' : 'Mujeres';
-      const label = `${ev.eventDefinition.distance} m ${stroke} — ${gender}`;
+      const levelName = ev.level ? ` · ${LEVEL_ES[ev.level] ?? ev.level}` : '';
+      const label = `${ev.eventDefinition.distance} m ${stroke} — ${gender}${levelName}`;
       const existing = seen.get(key);
       if (!existing) {
-        seen.set(key, { eventDefId: key, ev, totalResults: ev._count.results, label, categories: [ev.category.name] });
+        seen.set(key, { eventDefId: key, ev, totalResults: ev._count.results, label, categories: [ev.category.name], level: ev.level ?? '' });
       } else {
         existing.totalResults += ev._count.results;
         if (!existing.categories.includes(ev.category.name)) existing.categories.push(ev.category.name);
@@ -50,6 +55,10 @@ export function EventList({ events, tournamentId }: { events: TournamentEvent[];
     () => Array.from(new Set(groups.map((g) => g.ev.eventDefinition.stroke))),
     [groups],
   );
+  const levels = useMemo(
+    () => Array.from(new Set(groups.map((g) => g.level).filter((l) => l !== ''))),
+    [groups],
+  );
   const categories = useMemo(
     () => Array.from(new Set(groups.flatMap((g) => g.categories))),
     [groups],
@@ -59,11 +68,12 @@ export function EventList({ events, tournamentId }: { events: TournamentEvent[];
     return groups.filter((g) =>
       (!stroke || g.ev.eventDefinition.stroke === stroke) &&
       (!category || g.categories.includes(category)) &&
+      (!level || g.level === level) &&
       (!search.trim() || matchesFuzzySearch(g.label, search)),
     );
-  }, [groups, search, stroke, category]);
+  }, [groups, search, stroke, category, level]);
 
-  const filtersActive = search !== '' || stroke !== '' || category !== '';
+  const filtersActive = search !== '' || stroke !== '' || category !== '' || level !== '';
 
   return (
     <div>
@@ -96,14 +106,20 @@ export function EventList({ events, tournamentId }: { events: TournamentEvent[];
             {strokes.map((st) => <option key={st} value={st}>{STROKE_ES[st] ?? st}</option>)}
           </select>
         )}
+        {levels.length > 1 && (
+          <select aria-label="Nivel" value={level} onChange={(e) => setLevel(e.target.value)} className={SELECT_CLASS}>
+            <option value="">Todos los niveles</option>
+            {levels.map((l) => <option key={l} value={l}>{LEVEL_ES[l] ?? l}</option>)}
+          </select>
+        )}
         {categories.length > 1 && (
           <select aria-label="Categoría" value={category} onChange={(e) => setCategory(e.target.value)} className={SELECT_CLASS}>
             <option value="">Todas las categorías</option>
             {categories.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         )}
-        {(stroke || category) && (
-          <button type="button" onClick={() => { setStroke(''); setCategory(''); }} className="text-xs font-semibold text-pool-400 hover:text-white transition-colors">
+        {(stroke || category || level) && (
+          <button type="button" onClick={() => { setStroke(''); setCategory(''); setLevel(''); }} className="text-xs font-semibold text-pool-400 hover:text-white transition-colors">
             Limpiar filtros
           </button>
         )}

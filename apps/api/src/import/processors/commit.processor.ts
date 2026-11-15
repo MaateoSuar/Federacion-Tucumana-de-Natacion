@@ -13,6 +13,7 @@ import type {
   NormalizedMeet,
   NormalizedStroke,
   NormalizedRound,
+  CompetitionType,
 } from '../../ingest/types/normalized-meet.types';
 import type { MatchResolution, MatchResultsPayload } from '../matching/types';
 import { countPendingDecisions } from '../matching/pending-decisions';
@@ -112,6 +113,13 @@ const STROKE_CODE: Record<NormalizedStroke, string> = {
   pecho: 'P',
   mariposa: 'MA',
   combinado: 'C',
+};
+
+/** Nivel de la prueba en la base. Los tipos sin nivel claro (toma de tiempos, desconocido) quedan sin nivel. */
+const LEVEL_MAP: Partial<Record<CompetitionType, string>> = {
+  FEDERADOS: 'FEDERADOS',
+  PROMOCIONALES: 'PROMOCIONAL',
+  ESCUELA: 'ESCUELA',
 };
 
 const ROUND_MAP: Record<NormalizedRound, EventRound> = {
@@ -481,9 +489,10 @@ export class CommitProcessor {
             });
           }
 
-          // Deduplicate: if this eventDefinition already has an event in this tournament, reuse it
+          // Deduplicate: si esa prueba y nivel ya tienen un evento en este torneo, se reutiliza
+          const level = LEVEL_MAP[event.competition_type] ?? null;
           const existingDbEvent = await tx.event.findFirst({
-            where: { tournamentId: tournament.id, eventDefinitionId: eventDef.id },
+            where: { tournamentId: tournament.id, eventDefinitionId: eventDef.id, level },
             select: { id: true },
           });
           let createdEvent: { id: string };
@@ -497,6 +506,7 @@ export class CommitProcessor {
                 categoryId: fallbackCategory.id,
                 round: ROUND_MAP[event.round] ?? 'serie_unica',
                 orderNo: event.event_no,
+                level,
                 status: 'finalizado',
               },
             });

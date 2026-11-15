@@ -187,6 +187,11 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
           <div>
             <h1 className="text-2xl font-black text-white">
               {event.eventDefinition.distance} m {stroke}
+              {event.level && (
+                <span className="ml-3 align-middle rounded-lg border border-aqua-500/40 bg-aqua-500/10 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-aqua-300">
+                  {LEVEL_ES[event.level] ?? event.level}
+                </span>
+              )}
             </h1>
             <p className="text-pool-300 text-sm mt-1">
               {isMultiCategory
@@ -479,6 +484,8 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
     </div>
   );
 }
+
+const LEVEL_ES: Record<string, string> = { FEDERADOS: 'Federados', PROMOCIONAL: 'Promocional', ESCUELA: 'Escuela' };
 
 const STROKE_ES: Record<string, string> = {
   libre: 'Libre', espalda: 'Espalda', pecho: 'Pecho',

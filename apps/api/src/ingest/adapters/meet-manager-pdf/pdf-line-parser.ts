@@ -50,6 +50,8 @@ const COMPETITION_TYPE_MAP: Record<string, CompetitionType> = {
   federados: 'FEDERADOS',
   infantiles: 'INFANTILES',
   promocionales: 'PROMOCIONALES',
+  promocional: 'PROMOCIONALES',
+  escuela: 'ESCUELA',
   'toma de tiempos': 'TOMA_DE_TIEMPOS',
 };
 

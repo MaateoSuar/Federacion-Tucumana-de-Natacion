@@ -246,6 +246,8 @@ export interface TournamentEvent {
   orderNo: number;
   status: string;
   round: string;
+  /** FEDERADOS, PROMOCIONAL o ESCUELA; null en torneos anteriores a la separación por nivel. */
+  level?: string | null;
   eventDefinition: { id: string; code: string; stroke: string; distance: number; gender: string };
   category: { id: string; code: string; name: string };
   _count: { registrations: number; results: number };
@@ -271,6 +273,7 @@ export interface ResultEntry {
 export interface EventResultsResponse {
   event: {
     id: string;
+    level?: string | null;
     eventDefinition: { id?: string; code: string; stroke: string; distance: number; gender: string };
     category: { code: string; name: string };
     tournament: { id: string; name: string; poolLength: 'P25' | 'P50'; startDate: string; scope: string };

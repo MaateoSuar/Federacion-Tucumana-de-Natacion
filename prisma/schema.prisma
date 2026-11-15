@@ -592,6 +592,8 @@ model Event {
   orderNo           Int         @map("order_no")
   dayNumber         Int         @default(1) @map("day_number")
   status            EventStatus @default(pendiente)
+  /// Nivel de la prueba (FEDERADOS, PROMOCIONAL, ESCUELA). null = torneos anteriores, sin separar por nivel.
+  level             String?
 
   tournament      Tournament           @relation(fields: [tournamentId], references: [id])
   eventDefinition EventDefinition      @relation(fields: [eventDefinitionId], references: [id])
