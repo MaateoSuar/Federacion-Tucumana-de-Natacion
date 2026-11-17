@@ -32,11 +32,13 @@ enum PoolLength {
 // Ámbito deportivo — usado en récords, rankings, categorías
 enum Scope {
   provincial
+  noa
   nacional
 }
 
 enum CategoryScope {
   provincial
+  noa
   nacional
 }
 
@@ -326,6 +328,8 @@ model Club {
   name         String
   shortName    String     @map("short_name")
   locality     String
+  /// Provincia del club (para saber si puede batir récords provinciales o del NOA). null = sin asignar.
+  province     String?
   logoUrl      String?    @map("logo_url")
   foundedYear  Int?       @map("founded_year")
   contactEmail String?    @map("contact_email")
