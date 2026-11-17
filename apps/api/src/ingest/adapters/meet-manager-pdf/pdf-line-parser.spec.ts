@@ -171,3 +171,170 @@ describe('parseDataLine — formato CL (punto decimal, tiempo separado por espac
     expect(parseDataLine('  1211RODRIGUEZ, MATEO NS', range)).toMatchObject({ name: 'RODRIGUEZ, MATEO', finalTimeRaw: 'NS' });
   });
 });
+
+// ─── L-1: torneos 2024-2026 del Drive (25 y 50 m, puesto al frente o al final) ───────────────
+
+const pageHeader = (title: string): string[] => [
+  "Natatorio \"Cenard\" - Site LicenseHY-TEK's MEET MANAGER 8.0 - 19:53 PM  15/6/2024  Página 1",
+  title,
+  'Resultados',
+];
+
+describe('parseLines — largo de pileta leído del archivo', () => {
+  it('"CL Metro" (50 m) fija el largo de la pileta del torneo; "CC Metro" es 25 m', () => {
+    const cl = parseLines(
+      [
+        ...pageHeader('CAMPEONATO NACIONAL OPEN - 22/11/2024 a 24/11/2024'),
+        'Evento 1  Mujeres Categoría Mayores 800 CL Metro Estilo Libre',
+        'EdadNombreEquipoTiempo de Finales Puntos',
+        'Acv',
+        ' 191Urgelles, Martina9:06,149',
+      ],
+      'nacional.pdf',
+    );
+    expect(cl.course).toBe(50);
+    expect(cl.meetHeader?.course).toBe(50);
+    expect(cl.events[0]).toMatchObject({ course: 50, distance: 800, age_group: 'Categoría Mayores' });
+    expect(cl.results[0]).toMatchObject({ final_time_ms: 546140, place: 1 });
+
+    const cc = parseLines(
+      [
+        ...pageHeader('Torneo - 22/11/2024 a 24/11/2024'),
+        'Evento 1  Niñas 12-13 100 CC Metro Estilo Libre FEDERADOS',
+        'Club Azucena',
+        ' 121Perez, Ana1:05,3091:04,00',
+      ],
+      'cc.pdf',
+    );
+    expect(cc.course).toBe(25);
+  });
+
+  it('si el archivo mezcla 25 y 50 m no se decide: queda un aviso', () => {
+    const mixed = parseLines(
+      [
+        ...pageHeader('Torneo - 22/11/2024 a 24/11/2024'),
+        'Evento 1  Niñas 12-13 100 CC Metro Estilo Libre FEDERADOS',
+        'Club Azucena',
+        ' 121Perez, Ana1:05,3091:04,00',
+        'Evento 2  Niñas 12-13 100 CL Metro Estilo Libre FEDERADOS',
+        'Club Azucena',
+        ' 121Perez, Ana1:05,3091:04,00',
+      ],
+      'mixto.pdf',
+    );
+    expect(mixed.course).toBeNull();
+    expect(mixed.issues.some((i) => i.message.includes('mezcla pruebas de 25 m y de 50 m'))).toBe(true);
+  });
+
+  it('el encabezado del torneo acepta un solo día', () => {
+    const one = parseLines(
+      [
+        "Fesalna HY-TEK's MEET MANAGER 8.0 - 17/4/2026  Página 1",
+        'COPA INDEPENDENCIA DE SIRIA 2026 - 18/4/2026',
+        'Resultados',
+      ],
+      'x.pdf',
+    );
+    expect(one.meetHeader).toMatchObject({ name: 'COPA INDEPENDENCIA DE SIRIA 2026', start_date: '2026-04-18', end_date: '2026-04-18' });
+  });
+});
+
+describe('parseLines — puesto al final de la fila (Tucumán y Salta)', () => {
+  it('lee edad, puesto, final y sembrado; el puesto y el sembrado de la línea siguiente se asignan a su fila', () => {
+    const parsed = parseLines(
+      [
+        'Evento 2  Niños 12-13 200 CC Metro CI Federados',
+        'EdadNombreEquipoTiempo de FinalesTiempo para SembradoPuntos',
+        'Club Azucena',
+        ' 13Solorazano Sancho, Juan Cruz2:34,57202:46,16',
+        '1',
+        'Club Azucena',
+        ' 12Hild Manino, Benicio2:58,22172:57,092',
+        'Escuela Normal Manuel Belgrano',
+        ' 13Ayunta Aybar, Mateo Agustin3:21,50',
+        ' 3:24,43',
+      ],
+      'x.pdf',
+    );
+    expect(parsed.issues.filter((i) => i.severity === 'ERROR')).toEqual([]);
+    expect(parsed.results.map((r) => [r.place, r.final_time_ms, r.seed_time_ms])).toEqual([
+      [1, 154570, 166160],
+      [2, 178220, 177090],
+      [undefined, 201500, 204430],
+    ]);
+    expect(parsed.swimmers.map((s) => s.age)).toEqual([13, 12, 13]);
+  });
+
+  it('puntos + sembrado pegados en la línea siguiente ("161:26.31") ya no son una fila rota', () => {
+    const parsed = parseLines(
+      [
+        'Evento 1  Hombres 16-18 100 CL Metro Estilo de Pecho FEDERADOS',
+        'Madre de Ciudades',
+        ' 163Arguello, Lautaro1:23.86',
+        '161:26.31',
+      ],
+      'x.pdf',
+    );
+    expect(parsed.issues.filter((i) => i.severity === 'ERROR')).toEqual([]);
+    expect(parsed.results[0]).toMatchObject({ place: 3, final_time_ms: 83860, seed_time_ms: 86310 });
+  });
+
+  it('un nombre que termina en "x" no se descarta como si fuera una posta', () => {
+    const parsed = parseLines(
+      [
+        'Evento 9  Hombres 12-13 50 CC Metro Estilo Libre FEDERADOS',
+        'Club Azucena',
+        ' 138Heredia, Felix38,76139,04',
+      ],
+      'x.pdf',
+    );
+    expect(parsed.results).toHaveLength(1);
+    expect(parsed.swimmers[0]).toMatchObject({ last_name: 'Heredia', first_name: 'Felix' });
+  });
+});
+
+describe('parseLines — Eliminatorias y Finales de la misma prueba', () => {
+  it('la preliminar es otra prueba (ronda P) para no pisar el puesto y el tiempo de la final', () => {
+    const parsed = parseLines(
+      [
+        'Evento 1  Niños 12-13 100 CC Metro Estilo de Espalda',
+        'EdadNombreEquipoTiempo de FinalesTiempo de Elim',
+        'Final - A',
+        'Madre de Ciudades',
+        ' 127Cordoba Vizcarra, Maximo1:05.81 1:05.75',
+        ' ',
+        'Evento 1  Niños 12-13 100 CC Metro Estilo de Espalda',
+        'EdadNombreEquipoTiempo de ElimTiempo para Sembrado',
+        'Eliminatorias',
+        'Madre de Ciudades',
+        ' 121Cordoba Vizcarra, Maximo1:05.75q 1:09.23',
+      ],
+      'x.pdf',
+    );
+    expect(parsed.events.map((e) => [e.round, e.event_key.endsWith('|P')])).toEqual([
+      ['F', false],
+      ['P', true],
+    ]);
+    const [final, prelim] = parsed.results;
+    expect(final).toMatchObject({ place: 7, final_time_ms: 65810 });
+    expect(prelim).toMatchObject({ place: 1, final_time_ms: 65750 });
+    expect(final?.event_key).not.toBe(prelim?.event_key);
+  });
+});
+
+describe('parseLines — sigla de club antes de la edad ("Edad   EquipoNombre")', () => {
+  it('usa la sigla como club', () => {
+    const parsed = parseLines(
+      [
+        'Evento 1  Niñas 12-13 50 CC Metro Estilo Libre FEDERADO',
+        'Edad   EquipoNombreTiempo de Finales',
+        'FANJ 13Chavez Puch, Emma Victoria131.05  20',
+        'GYT 12Diaz, Paula Martina232.20  17',
+      ],
+      'x.pdf',
+    );
+    expect(parsed.issues.filter((i) => i.severity === 'ERROR')).toEqual([]);
+    expect(parsed.clubs.map((c) => c.name)).toEqual(['FANJ', 'GYT']);
+    expect(parsed.results.map((r) => [r.place, r.final_time_ms])).toEqual([[1, 31050], [2, 32200]]);
+  });
+});

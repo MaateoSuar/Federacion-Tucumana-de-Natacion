@@ -192,9 +192,11 @@ describe('MeetManagerPdfAdapter — fixture real catamarca-2026.pdf', () => {
     expect(keys.size).toBe(meet.events.length);
   });
 
-  it('hay exactamente 1.283 nados y cada uno apunta a una prueba existente', () => {
+  it('hay exactamente 1.288 nados y cada uno apunta a una prueba existente', () => {
     const keys = new Set(meet.events.map((e) => e.event_key));
-    expect(meet.results).toHaveLength(1283);
+    // Antes 1.283: las 5 filas de "Heredia, Felix" (apellido/nombre con "x" pegada al tiempo) se
+    // descartaban en silencio al confundirse con una posta. El lector de resultados también lee 1.288.
+    expect(meet.results).toHaveLength(1288);
     for (const r of meet.results) {
       expect(keys.has(r.event_key)).toBe(true);
     }
