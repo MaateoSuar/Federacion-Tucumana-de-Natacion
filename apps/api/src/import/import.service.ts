@@ -11,9 +11,9 @@ import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { ImportRepository } from './import.repository';
-import { CommitProcessor } from './processors/commit.processor';
+import { CommitProcessor, type CommitOptions } from './processors/commit.processor';
 import { IMPORT_QUEUE, PROCESS_JOB } from './import.queue';
-import type { ProcessImportJobData } from './processors/import.processor';
+import type { MeetOverrides, ProcessImportJobData } from './processors/import.processor';
 import type { PreviewResponseDto, SwimmerMatchGroups, ClubMatchGroups } from './dto/preview-response.dto';
 import type { NormalizedMeet } from '../ingest/types/normalized-meet.types';
 import type { ImportIssue } from '../ingest/types/import-issue.types';
@@ -35,7 +35,11 @@ export class ImportService {
     if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
   }
 
-  async upload(file: Express.Multer.File, uploadedBy: string): Promise<{ jobId: string; existing: boolean }> {
+  async upload(
+    file: Express.Multer.File,
+    uploadedBy: string,
+    meetOverrides?: MeetOverrides,
+  ): Promise<{ jobId: string; existing: boolean }> {
     const fileHash = createHash('sha256').update(file.buffer).digest('hex');
 
     const existing = await this.repo.findByHash(fileHash);
@@ -59,6 +63,7 @@ export class ImportService {
     await this.importQueue.add(PROCESS_JOB, {
       jobId: job.id,
       filePath,
+      ...(meetOverrides ? { meetOverrides } : {}),
     } satisfies ProcessImportJobData);
 
     this.logger.log(`Import job ${job.id} created and enqueued`);
@@ -159,8 +164,14 @@ export class ImportService {
     return this.getPreview(jobId);
   }
 
-  async commit(jobId: string, committedBy?: string): Promise<{ tournamentId: string }> {
-    const tournamentId = await this.commitProcessor.commit(jobId, committedBy);
+  async commit(
+    jobId: string,
+    committedBy?: string,
+    options?: CommitOptions,
+  ): Promise<{ tournamentId: string }> {
+    const tournamentId = options
+      ? await this.commitProcessor.commit(jobId, committedBy, options)
+      : await this.commitProcessor.commit(jobId, committedBy);
     return { tournamentId };
   }
 

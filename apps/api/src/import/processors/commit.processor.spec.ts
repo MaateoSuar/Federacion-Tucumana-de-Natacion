@@ -96,14 +96,15 @@ function setup(
     tournament: { create: jest.fn().mockResolvedValue({ id: 't-1' }), delete: jest.fn() },
     eventDefinition: { findUnique: jest.fn().mockResolvedValue({ id: 'ed-1' }), create: jest.fn() },
     event: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'ev-1' }), deleteMany: jest.fn() },
-    heat: { create: jest.fn().mockImplementation(() => Promise.resolve({ id: `h-${++seq}` })), deleteMany: jest.fn() },
-    result: { create: jest.fn().mockImplementation(() => Promise.resolve({ id: `r-${++seq}` })), deleteMany: jest.fn() },
+    heat: { findUnique: jest.fn().mockResolvedValue(null), create: jest.fn().mockImplementation(() => Promise.resolve({ id: `h-${++seq}` })), deleteMany: jest.fn() },
+    result: { create: jest.fn().mockImplementation(() => Promise.resolve({ id: `r-${++seq}` })), findMany: jest.fn().mockResolvedValue([]), deleteMany: jest.fn() },
     split: { create: jest.fn(), deleteMany: jest.fn() },
-    importJob: { update: jest.fn() },
+    importJob: { update: jest.fn(), count: jest.fn().mockResolvedValue(0) },
     meetManagerImport: { update: jest.fn() },
   };
   const prisma = {
     category: { findMany: jest.fn().mockResolvedValue([{ id: 'cat-1', minAge: null, maxAge: null }]) },
+    tournament: { findUnique: jest.fn().mockResolvedValue(null) },
     season: { findUnique: jest.fn().mockResolvedValue({ id: 'season-1' }) },
     $transaction: jest.fn().mockImplementation((fn: (t: typeof tx) => Promise<unknown>) => fn(tx)),
   };
@@ -437,5 +438,139 @@ describe('CommitProcessor — rollback', () => {
     expect(tx.externalIdMap.deleteMany).toHaveBeenCalledWith({
       where: { sourceSystem: 'meet_manager', externalId: { in: [MATEO] } },
     });
+  });
+});
+
+// ─── D-2: jornadas dentro de un torneo existente ──────────────────────────────
+
+describe('CommitProcessor — importar dentro de un torneo existente (jornadas)', () => {
+  const existingTournament = { id: 't-exist', poolLength: 'P25', startDate: new Date('2026-05-01'), seasonId: 'season-x' };
+
+  it('sin opciones crea un torneo provincial, como siempre', async () => {
+    const { processor, tx } = setup(makeMeet('csv'), resolved());
+    await processor.commit('job-1');
+    expect(tx.tournament.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ name: 'Torneo', poolLength: 'P25', type: 'provincial', scope: 'provincial', seasonId: 'season-1' }),
+    });
+  });
+
+  it('crea el torneo con el nombre, las fechas, el tipo y el alcance indicados', async () => {
+    const { processor, tx, prisma } = setup(makeMeet('csv'), resolved());
+    await processor.commit('job-1', 'sys', {
+      tournament: { name: 'Copa NOA', startDate: '2025-08-01', endDate: '2025-08-03', scope: 'noa', type: 'provincial' },
+    });
+    const data = (tx.tournament.create.mock.calls[0] as [{ data: Record<string, unknown> }])[0].data;
+    expect(data).toMatchObject({ name: 'Copa NOA', scope: 'noa', type: 'provincial' });
+    expect((data.startDate as Date).toISOString()).toBe('2025-08-01T00:00:00.000Z');
+    expect((data.endDate as Date).toISOString()).toBe('2025-08-03T00:00:00.000Z');
+    expect(prisma.season.findUnique).toHaveBeenCalledWith({ where: { year: 2025 } });
+  });
+
+  it('con tournamentId no crea otro torneo, reutiliza series y marca que no lo creó', async () => {
+    const { processor, tx, prisma } = setup(makeMeet('csv'), resolved());
+    prisma.tournament.findUnique.mockResolvedValue(existingTournament);
+    tx.heat.findUnique.mockResolvedValue({ id: 'h-existente' });
+    await processor.commit('job-1', 'sys', { tournamentId: 't-exist' });
+
+    expect(tx.tournament.create).not.toHaveBeenCalled();
+    expect(tx.heat.create).not.toHaveBeenCalled();
+    const heatIds = (tx.result.create.mock.calls as Array<[{ data: { heatId: string } }]>).map(([a]) => a.data.heatId);
+    expect(new Set(heatIds)).toEqual(new Set(['h-existente']));
+    const jobUpdate = (tx.importJob.update.mock.calls[0] as [{ data: { tournamentId: string } }])[0];
+    expect(jobUpdate.data.tournamentId).toBe('t-exist');
+    const mapping = (tx.meetManagerImport.update.mock.calls[0] as [{ data: { mapping: { tournamentCreated: boolean; newHeatIds: string[] } } }])[0].data.mapping;
+    expect(mapping.tournamentCreated).toBe(false);
+    expect(mapping.newHeatIds).toEqual([]);
+  });
+
+  it('registra las series nuevas que crea dentro de un torneo existente', async () => {
+    const { processor, tx, prisma } = setup(makeMeet('csv'), resolved());
+    prisma.tournament.findUnique.mockResolvedValue(existingTournament);
+    await processor.commit('job-1', 'sys', { tournamentId: 't-exist' });
+    const mapping = (tx.meetManagerImport.update.mock.calls[0] as [{ data: { mapping: { newHeatIds: string[] } } }])[0].data.mapping;
+    expect(mapping.newHeatIds).toHaveLength(1);
+  });
+
+  it('rechaza un archivo de pileta distinta a la del torneo (25 m y 50 m no se mezclan)', async () => {
+    const { processor, tx, prisma } = setup(makeMeet('csv'), resolved());
+    prisma.tournament.findUnique.mockResolvedValue({ ...existingTournament, poolLength: 'P50' });
+    await expect(processor.commit('job-1', 'sys', { tournamentId: 't-exist' })).rejects.toThrow('no se mezclan');
+    expect(tx.result.create).not.toHaveBeenCalled();
+  });
+
+  it('rechaza un torneo inexistente', async () => {
+    const { processor } = setup(makeMeet('csv'), resolved());
+    await expect(processor.commit('job-1', 'sys', { tournamentId: 'nope' })).rejects.toThrow('no existe');
+  });
+
+  it('no duplica nados que el torneo ya tiene (mismo evento, nadador, serie y carril)', async () => {
+    const { processor, tx, prisma } = setup(makeMeet('csv'), resolved());
+    prisma.tournament.findUnique.mockResolvedValue(existingTournament);
+    tx.event.findFirst.mockResolvedValue({ id: 'ev-1' });
+    tx.result.findMany.mockResolvedValue([
+      { eventId: 'ev-1', swimmerId: 'sw-mateo', lane: 1, heat: { heatNumber: 1 } },
+      { eventId: 'ev-1', swimmerId: 'sw-juan', lane: 2, heat: { heatNumber: 1 } },
+    ]);
+    await processor.commit('job-1', 'sys', { tournamentId: 't-exist' });
+
+    expect(tx.result.create).toHaveBeenCalledTimes(1);
+    const mapping = (tx.meetManagerImport.update.mock.calls[0] as [{ data: { mapping: { skippedResults: Array<{ reason: string }> } } }])[0].data.mapping;
+    expect(mapping.skippedResults.map((s) => s.reason)).toEqual(['already_in_tournament', 'already_in_tournament']);
+  });
+
+  it('la clasificatoria y la final del mismo nadador (misma serie y carril) se guardan las dos', async () => {
+    const meet = makeMeet('csv');
+    const base = meet.events[0]!;
+    meet.events = [
+      { ...base, event_key: 'ev-m', round: 'F' },
+      { ...base, event_key: 'ev-m|P', round: 'P' },
+    ];
+    const first = meet.results[0]!;
+    meet.results = [
+      { ...first, event_key: 'ev-m', swimmer_ref: MATEO, heat_no: 1, lane_no: 4 },
+      { ...first, event_key: 'ev-m|P', swimmer_ref: MATEO, heat_no: 1, lane_no: 4, source_line: 99 },
+    ];
+    const { processor, tx } = setup(meet, resolved());
+    await processor.commit('job-1');
+    expect(tx.result.create).toHaveBeenCalledTimes(2);
+  });
+
+  it('homologation "skip" no homologa; "await" espera a que se encole', async () => {
+    const homologate = jest.fn().mockResolvedValue({ homologated: 3, skipped: 0 });
+    const build = () => {
+      const s = setup(makeMeet('csv'), resolved());
+      const processor = new CommitProcessor(s.prisma as never, s.repo as never, s.athleteMatcher as never, s.clubMatcher as never, null, { homologateTournament: homologate } as never);
+      return processor;
+    };
+    await build().commit('job-1', 'sys', { homologation: 'skip' });
+    expect(homologate).not.toHaveBeenCalled();
+    await build().commit('job-1', 'sys', { homologation: 'await' });
+    expect(homologate).toHaveBeenCalledWith('t-1', 'sys');
+  });
+
+  it('rollback de un import dentro de un torneo existente no borra el torneo y quita solo sus series', async () => {
+    const { processor, tx, repo } = setup(makeMeet('csv'), makeMatches());
+    repo.findById.mockResolvedValue({
+      id: 'job-2',
+      status: 'confirmed',
+      meetManagerImport: {
+        mapping: { tournamentId: 't-exist', tournamentCreated: false, newHeatIds: ['h-9'], newSwimmerIds: [], newClubIds: [], newEventIds: [], resultIds: ['r-1'], learnedExternalIds: [] },
+      },
+    });
+    await processor.rollback('job-2');
+    expect(tx.tournament.delete).not.toHaveBeenCalled();
+    expect(tx.heat.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['h-9'] } } });
+  });
+
+  it('rollback no borra un torneo del que cuelgan otros imports', async () => {
+    const { processor, tx, repo } = setup(makeMeet('csv'), makeMatches());
+    tx.importJob.count.mockResolvedValue(1);
+    repo.findById.mockResolvedValue({
+      id: 'job-1',
+      status: 'confirmed',
+      meetManagerImport: { mapping: { tournamentId: 't-1', newSwimmerIds: [], newClubIds: [], newEventIds: [], resultIds: [], learnedExternalIds: [] } },
+    });
+    await processor.rollback('job-1');
+    expect(tx.tournament.delete).not.toHaveBeenCalled();
   });
 });

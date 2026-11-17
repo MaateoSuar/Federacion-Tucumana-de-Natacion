@@ -294,6 +294,47 @@ describe('parseLines — puesto al final de la fila (Tucumán y Salta)', () => {
 });
 
 describe('parseLines — Eliminatorias y Finales de la misma prueba', () => {
+  it('reconoce la preliminar aunque el bloque de marcas y récords antes de la tabla sea largo (>14 líneas)', () => {
+    const records = [
+      'SUDAMERICANO:2:11.24S',
+      'Argentino Ab:2:13.46A',
+      '30/03/2016',
+      'ARGBARDACH VIRGINIA',
+      'Nacional Cad:2:17.98C',
+      '16/09/2023',
+      'ARGHEIN AGOSTINA ARIADNA',
+      'Nacional Jun:2:18.22Y',
+      '12/12/2013',
+      'CARPBARDACH VIRGINIA',
+      'Nacional Juv:2:17.41J',
+      '29/04/2009',
+      'CARPBARDACH VIRGINIA',
+      'JOA JUEGOS A2:11.47',
+      'JOB JUEGOS B2:12.13',
+      'MA MUNDIAL BUDAPEST A2:12.98',
+      'TBM TIEMPO BASICO MAYOR2:39.18',
+    ];
+    const parsed = parseLines(
+      [
+        'Evento 3  Mujeres Categoría Mayores 200 CL Metro CI',
+        'EdadNombreEquipoTiempo de FinalesTiempo para Sembrado',
+        'Finales',
+        'Club Azucena',
+        ' 19Portela Walter, Magdalena2:20.96 2:22.84',
+        'Evento 3  Mujeres Categoría Mayores 200 CL Metro CI',
+        ...records,
+        'EdadNombreEquipoTiempo de ElimTiempo para Sembrado',
+        'Eliminatorias',
+        'Club Azucena',
+        ' 19Portela Walter, Magdalena2:22.84qTBM 1',
+      ],
+      'x.pdf',
+    );
+    expect(parsed.events.map((e) => e.round)).toEqual(['F', 'P']);
+    expect(parsed.results).toHaveLength(2);
+    expect(parsed.results.map((r) => r.event_key.endsWith('|P'))).toEqual([false, true]);
+  });
+
   it('la preliminar es otra prueba (ronda P) para no pisar el puesto y el tiempo de la final', () => {
     const parsed = parseLines(
       [

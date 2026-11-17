@@ -15,9 +15,19 @@ import type { MatchResultsPayload } from '../matching/types';
 import type { FormatAdapter } from '../../ingest/types/format-adapter.interface';
 import { readFileSync } from 'fs';
 
+/** Datos del torneo que mandan sobre lo que dice el encabezado del archivo (que a veces falta). */
+export interface MeetOverrides {
+  name?: string;
+  /** YYYY-MM-DD */
+  startDate?: string;
+  /** YYYY-MM-DD */
+  endDate?: string;
+}
+
 export interface ProcessImportJobData {
   jobId: string;
   filePath: string;
+  meetOverrides?: MeetOverrides;
 }
 
 const SOURCE_SYSTEM = 'meet_manager';
@@ -43,7 +53,7 @@ export class ImportProcessor extends WorkerHost {
   }
 
   async process(job: Job<ProcessImportJobData>): Promise<void> {
-    const { jobId, filePath } = job.data;
+    const { jobId, filePath, meetOverrides } = job.data;
     this.logger.log(`Processing import job ${jobId}`);
 
     try {
@@ -83,6 +93,9 @@ export class ImportProcessor extends WorkerHost {
       }
 
       const normalizedMeet = await adapter.parse(fileBuffer, filePath);
+      if (meetOverrides?.name) normalizedMeet.meet.name = meetOverrides.name;
+      if (meetOverrides?.startDate) normalizedMeet.meet.start_date = meetOverrides.startDate;
+      if (meetOverrides?.endDate) normalizedMeet.meet.end_date = meetOverrides.endDate;
 
       // ─── 2. VALIDATE ────────────────────────────────────────────
       await this.repo.updateStatus(jobId, 'validating');

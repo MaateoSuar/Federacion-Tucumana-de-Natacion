@@ -177,9 +177,16 @@ function roundFromSectionText(text: string): SectionRound | null {
   return null;
 }
 
+/**
+ * Cuántas líneas se miran después del encabezado de la prueba. El bloque de marcas y récords
+ * (Sudamericano, Argentino, Nacional por categoría, Juegos, tiempos básicos…) puede ocupar más de
+ * 20 líneas antes de la tabla; la búsqueda igual corta en el próximo "Evento", así que no cruza pruebas.
+ */
+const ROUND_LOOKAHEAD_LINES = 60;
+
 /** Mira las líneas que siguen al encabezado de la prueba para saber si el bloque es Eliminatorias o Finales. */
 function lookaheadRound(lines: string[], from: number): SectionRound {
-  for (let j = from; j < Math.min(from + 14, lines.length); j++) {
+  for (let j = from; j < Math.min(from + ROUND_LOOKAHEAD_LINES, lines.length); j++) {
     const t = (lines[j] ?? '').trim();
     if (/^Evento\s+\d+/i.test(t) || /\(Evento\s+\d+/.test(t)) break;
     const fromSection = roundFromSectionText(t);

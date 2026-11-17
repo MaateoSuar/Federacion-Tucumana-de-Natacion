@@ -27,6 +27,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { ImportService } from './import.service';
 import { ResolveMatchesDto } from './dto/resolve-matches.dto';
+import { CommitImportDto } from './dto/commit-import.dto';
 
 // HY3 y SD3 se aceptarán cuando haya adaptador (ver TRASPASO-SONNET.md M7/M8)
 const ALLOWED_EXTENSIONS = new Set(['.pdf', '.csv', '.xlsx', '.xls']);
@@ -99,8 +100,16 @@ export class ImportController {
 
   @Post(':id/commit')
   @ApiOperation({ summary: 'Confirmar el import — persiste en tablas oficiales' })
-  commit(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.importService.commit(id, user.id);
+  commit(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto?: CommitImportDto,
+  ) {
+    return this.importService.commit(
+      id,
+      user.id,
+      dto?.tournamentId ? { tournamentId: dto.tournamentId } : undefined,
+    );
   }
 
   @Post(':id/rollback')

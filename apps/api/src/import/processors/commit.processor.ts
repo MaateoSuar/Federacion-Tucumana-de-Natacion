@@ -5,6 +5,8 @@ import {
   ResultSource,
   EventRound,
   Prisma,
+  Scope,
+  TournamentType,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ImportRepository } from '../import.repository';
@@ -22,8 +24,37 @@ import { ClubMatcher } from '../matching/club-matcher';
 import { HomologationService } from '../../homologation/homologation.service';
 import { resultIdempotencyKey } from '../matching/duplicate-detector';
 
+/** Cómo se encola la homologación del torneo tras confirmar. */
+export type HomologationMode = 'background' | 'await' | 'skip';
+
+/**
+ * Opciones del commit. Sin opciones, el comportamiento es el de siempre: un torneo nuevo
+ * provincial con los datos del encabezado del archivo.
+ */
+export interface CommitOptions {
+  /** Importar dentro de este torneo existente (jornadas) en vez de crear uno nuevo. */
+  tournamentId?: string;
+  /** Datos del torneo a crear; se ignoran si hay `tournamentId`. Fechas en `YYYY-MM-DD`. */
+  tournament?: {
+    name?: string;
+    venue?: string;
+    startDate?: string;
+    endDate?: string;
+    scope?: Scope;
+    type?: TournamentType;
+  };
+  /** Por defecto 'background' (no bloquea). 'skip' deja los resultados sin homologar. */
+  homologation?: HomologationMode;
+  /** Tiempo máximo de la transacción (ms). Por defecto 30 s. */
+  transactionTimeoutMs?: number;
+}
+
 interface RollbackPayload {
   tournamentId: string | null;
+  /** false = el import se hizo dentro de un torneo existente (no se borra al revertir). */
+  tournamentCreated?: boolean;
+  /** Series creadas por este import dentro de pruebas que ya existían. */
+  newHeatIds?: string[];
   newSwimmerIds: string[];
   newClubIds: string[];
   newEventIds: string[];
@@ -38,7 +69,7 @@ interface SkippedResult {
   source_line: number;
   event_key: string;
   swimmer_ref: string;
-  reason: 'gender_mismatch' | 'duplicate_in_file';
+  reason: 'gender_mismatch' | 'duplicate_in_file' | 'already_in_tournament';
   detail: string;
 }
 
@@ -216,7 +247,7 @@ export class CommitProcessor {
     return refreshed;
   }
 
-  async commit(jobId: string, committedBy?: string): Promise<string> {
+  async commit(jobId: string, committedBy?: string, options: CommitOptions = {}): Promise<string> {
     const job = await this.repo.findById(jobId);
     if (!job) throw new BadRequestException('Job no encontrado.');
     if (job.status !== 'preview') {
@@ -253,6 +284,8 @@ export class CommitProcessor {
 
     const rollback: RollbackPayload = {
       tournamentId: null,
+      tournamentCreated: true,
+      newHeatIds: [],
       newSwimmerIds: [],
       newClubIds: [],
       newEventIds: [],
@@ -261,10 +294,35 @@ export class CommitProcessor {
       skippedResults: [],
     };
 
+    // Torneo existente (jornadas): se importa adentro; la pileta tiene que coincidir (25 m y 50 m no se mezclan).
+    const meetPool = normalizedMeet.meet.course === 25 ? 'P25' : 'P50';
+    const target = options.tournamentId
+      ? await this.prisma.tournament.findUnique({ where: { id: options.tournamentId } })
+      : null;
+    if (options.tournamentId && !target) {
+      throw new BadRequestException('El torneo elegido para importar no existe.');
+    }
+    if (target && target.poolLength !== meetPool) {
+      throw new BadRequestException(
+        `El archivo es de pileta ${meetPool === 'P25' ? '25 m' : '50 m'} y el torneo es de ` +
+          `${target.poolLength === 'P25' ? '25 m' : '50 m'}: no se mezclan.`,
+      );
+    }
+    const override = options.tournament ?? {};
+
     // B-06: start_date puede estar vacío en CSV/Excel; usar año actual como fallback
-    const parsedStartDate = normalizedMeet.meet.start_date
-      ? new Date(normalizedMeet.meet.start_date)
-      : new Date();
+    const parsedStartDate = target
+      ? target.startDate
+      : override.startDate
+        ? new Date(override.startDate)
+        : normalizedMeet.meet.start_date
+          ? new Date(normalizedMeet.meet.start_date)
+          : new Date();
+    const parsedEndDate = override.endDate
+      ? new Date(override.endDate)
+      : normalizedMeet.meet.end_date
+        ? new Date(normalizedMeet.meet.end_date)
+        : parsedStartDate;
     const tournamentYear = parsedStartDate.getUTCFullYear();
 
     // Load categories once outside the transaction (read-only lookup)
@@ -274,15 +332,21 @@ export class CommitProcessor {
     });
 
     // Find or create the season (outside tx — idempotent)
-    let season = await this.prisma.season.findUnique({ where: { year: tournamentYear } });
-    if (!season) {
-      season = await this.prisma.season.create({
-        data: {
-          year: tournamentYear,
-          startDate: new Date(`${tournamentYear}-01-01`),
-          endDate: new Date(`${tournamentYear}-12-31`),
-        },
-      });
+    let seasonId: string;
+    if (target) {
+      seasonId = target.seasonId;
+    } else {
+      let season = await this.prisma.season.findUnique({ where: { year: tournamentYear } });
+      if (!season) {
+        season = await this.prisma.season.create({
+          data: {
+            year: tournamentYear,
+            startDate: new Date(`${tournamentYear}-01-01`),
+            endDate: new Date(`${tournamentYear}-12-31`),
+          },
+        });
+      }
+      seasonId = season.id;
     }
 
     // Fallback category: the one with no maxAge (Mayores) or first active
@@ -443,20 +507,27 @@ export class CommitProcessor {
         if (auditEntries.length > 0) await tx.auditLog.createMany({ data: auditEntries });
 
         // ── Tournament ───────────────────────────────────────────
-        const tournament = await tx.tournament.create({
-          data: {
-            name: normalizedMeet.meet.name,
-            venue: normalizedMeet.meet.venue,
-            poolLength: normalizedMeet.meet.course === 25 ? 'P25' : 'P50',
-            startDate: parsedStartDate,
-            endDate: normalizedMeet.meet.end_date ? new Date(normalizedMeet.meet.end_date) : parsedStartDate,
-            type: 'provincial',
-            scope: 'provincial',
-            seasonId: season.id,
-            status: 'finalizado',
-          },
-        });
-        rollback.tournamentId = tournament.id;
+        let tournamentId: string;
+        if (target) {
+          tournamentId = target.id;
+          rollback.tournamentCreated = false;
+        } else {
+          const tournament = await tx.tournament.create({
+            data: {
+              name: override.name ?? normalizedMeet.meet.name,
+              venue: override.venue ?? normalizedMeet.meet.venue,
+              poolLength: meetPool,
+              startDate: parsedStartDate,
+              endDate: parsedEndDate,
+              type: override.type ?? 'provincial',
+              scope: override.scope ?? 'provincial',
+              seasonId,
+              status: 'finalizado',
+            },
+          });
+          tournamentId = tournament.id;
+        }
+        rollback.tournamentId = tournamentId;
 
         // ── Events, Heats, Results ───────────────────────────────
         // Cada resultado pertenece a una sola prueba (event_key): se agrupan una vez
@@ -471,6 +542,21 @@ export class CommitProcessor {
         // Varias pruebas del archivo (una por categoría de edad) comparten Event y serie en la base
         const heatIdByEventAndNo = new Map<string, string>();
         const insertedKeys = new Set<string>();
+
+        // Dentro de un torneo existente: nados que YA estaban cargados antes de este import (evento + nadador +
+        // serie + carril). Sirve para que reimportar un archivo con el mismo contenido no duplique (regla 5).
+        // No se agregan los nados de este mismo import: la prueba clasificatoria y la final de un nadador comparten
+        // Event y serie en la base y pueden coincidir en serie y carril; esos son nados distintos.
+        const existingSwims = new Set<string>();
+        if (target) {
+          const present = await tx.result.findMany({
+            where: { event: { tournamentId } },
+            select: { eventId: true, swimmerId: true, lane: true, heat: { select: { heatNumber: true } } },
+          });
+          for (const r of present) {
+            existingSwims.add(`${r.eventId}|${r.swimmerId}|${r.heat?.heatNumber ?? ''}|${r.lane ?? ''}`);
+          }
+        }
 
         for (const event of normalizedMeet.events) {
           const strokeCode = STROKE_CODE[event.stroke] ?? event.stroke;
@@ -492,7 +578,7 @@ export class CommitProcessor {
           // Deduplicate: si esa prueba y nivel ya tienen un evento en este torneo, se reutiliza
           const level = LEVEL_MAP[event.competition_type] ?? null;
           const existingDbEvent = await tx.event.findFirst({
-            where: { tournamentId: tournament.id, eventDefinitionId: eventDef.id, level },
+            where: { tournamentId, eventDefinitionId: eventDef.id, level },
             select: { id: true },
           });
           let createdEvent: { id: string };
@@ -501,7 +587,7 @@ export class CommitProcessor {
           } else {
             createdEvent = await tx.event.create({
               data: {
-                tournamentId: tournament.id,
+                tournamentId,
                 eventDefinitionId: eventDef.id,
                 categoryId: fallbackCategory.id,
                 round: ROUND_MAP[event.round] ?? 'serie_unica',
@@ -554,13 +640,35 @@ export class CommitProcessor {
             }
             insertedKeys.add(idempotencyKey);
 
+            const swimKey = `${createdEvent.id}|${swimmerId}|${result.heat_no}|${result.lane_no}`;
+            if (existingSwims.has(swimKey)) {
+              rollback.skippedResults.push({
+                source_line: result.source_line,
+                event_key: result.event_key,
+                swimmer_ref: result.swimmer_ref,
+                reason: 'already_in_tournament',
+                detail: `Ya cargado en el torneo: ${swimKey}`,
+              });
+              continue;
+            }
+
             const heatKey = `${createdEvent.id}|${result.heat_no}`;
             let heatId = heatIdByEventAndNo.get(heatKey);
             if (!heatId) {
-              const heat = await tx.heat.create({
-                data: { eventId: createdEvent.id, heatNumber: result.heat_no },
+              // La serie puede existir ya (otra jornada u otra categoría de la misma prueba).
+              const existingHeat = await tx.heat.findUnique({
+                where: { eventId_heatNumber: { eventId: createdEvent.id, heatNumber: result.heat_no } },
+                select: { id: true },
               });
-              heatId = heat.id;
+              if (existingHeat) {
+                heatId = existingHeat.id;
+              } else {
+                const heat = await tx.heat.create({
+                  data: { eventId: createdEvent.id, heatNumber: result.heat_no },
+                });
+                heatId = heat.id;
+                rollback.newHeatIds?.push(heat.id);
+              }
               heatIdByEventAndNo.set(heatKey, heatId);
             }
 
@@ -616,7 +724,7 @@ export class CommitProcessor {
           data: { mapping: rollback as unknown as Prisma.InputJsonValue },
         });
       },
-      { timeout: 30_000 },
+      { timeout: options.transactionTimeoutMs ?? 30_000 },
     );
 
     this.logger.log(
@@ -634,12 +742,17 @@ export class CommitProcessor {
       this.resultsGateway.notifyResultsUpdated(rollback.tournamentId, rollback.newEventIds);
     }
 
-    // B-10: encolar homologación del torneo recién importado (async, no bloquea)
-    if (this.homologationService && rollback.tournamentId) {
-      void this.homologationService.homologateTournament(rollback.tournamentId, committedBy ?? 'system')
+    // B-10: encolar homologación del torneo recién importado (no bloquea, salvo que se pida esperar)
+    const homologation = options.homologation ?? 'background';
+    if (this.homologationService && rollback.tournamentId && homologation !== 'skip') {
+      const pending = this.homologationService
+        .homologateTournament(rollback.tournamentId, committedBy ?? 'system')
+        .then(() => undefined)
         .catch((err: unknown) => {
           this.logger.warn(`Homologación post-commit falló para ${rollback.tournamentId}: ${String(err)}`);
         });
+      if (homologation === 'await') await pending;
+      else void pending;
     }
 
     return rollback.tournamentId!;
@@ -666,12 +779,19 @@ export class CommitProcessor {
         await tx.split.deleteMany({ where: { resultId: { in: mapping.resultIds } } });
         await tx.result.deleteMany({ where: { id: { in: mapping.resultIds } } });
       }
+      if (mapping.newHeatIds?.length) {
+        await tx.heat.deleteMany({ where: { id: { in: mapping.newHeatIds } } });
+      }
       if (mapping.newEventIds?.length) {
         await tx.heat.deleteMany({ where: { eventId: { in: mapping.newEventIds } } });
         await tx.event.deleteMany({ where: { id: { in: mapping.newEventIds } } });
       }
-      if (mapping.tournamentId) {
-        await tx.tournament.delete({ where: { id: mapping.tournamentId } });
+      // Solo se borra el torneo si lo creó este import y ningún otro import cuelga de él.
+      if (mapping.tournamentId && mapping.tournamentCreated !== false) {
+        const others = await tx.importJob.count({
+          where: { tournamentId: mapping.tournamentId, id: { not: jobId } },
+        });
+        if (others === 0) await tx.tournament.delete({ where: { id: mapping.tournamentId } });
       }
       // B-19: solo borrar nadadores/clubes que no tienen resultados en otros torneos
       if (mapping.newSwimmerIds?.length) {
