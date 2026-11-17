@@ -11,6 +11,7 @@ import { useResultsSocket } from '@/hooks/useResultsSocket';
 import { matchesFuzzySearch } from '@/lib/search';
 import { buildPodium } from '@/lib/podium';
 import { Podium } from '@/components/ui/Podium';
+import { PodiumButton, PodiumModal } from '@/components/ui/PodiumModal';
 import type { EventResultsResponse, RecordEntry } from '@/lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -20,9 +21,12 @@ function getPoints(position: number): number | null {
   return POINTS[position - 1] ?? null;
 }
 
-function matchesSearch(r: { swimmer: { lastName: string; firstName: string } }, q: string): boolean {
+function matchesSearch(
+  r: { swimmer: { lastName: string; firstName: string }; club: { shortName: string; name: string } },
+  q: string,
+): boolean {
   if (!q) return false;
-  return matchesFuzzySearch(`${r.swimmer.lastName} ${r.swimmer.firstName}`, q);
+  return matchesFuzzySearch(`${r.swimmer.lastName} ${r.swimmer.firstName} ${r.club.shortName} ${r.club.name}`, q);
 }
 
 export default function PruebaPage({ params }: { params: { id: string; eventId: string } }) {
@@ -36,6 +40,13 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
   const [matchIdx, setMatchIdx] = useState(0);
   const [categoryFilter, setCategoryFilter] = useState('');
   const rowRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const [podiumCategoryId, setPodiumCategoryId] = useState<string | null>(null);
+
+  // Si se llega desde el buscador del torneo (?buscar=…), el nadador ya queda resaltado
+  useEffect(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get('buscar');
+    if (fromUrl) setSwimmerSearch(fromUrl);
+  }, []);
 
   const fetchResults = useCallback(() => {
     fetch(`${API_BASE}/tournaments/${params.id}/events/${params.eventId}/results`)
@@ -305,18 +316,7 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
                   ) : <span />}
                   {/* Imagen del podio para compartir: solo con resultados homologados */}
                   {buildPodium(group.results, group.categoryId).length > 0 && (
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="text-pool-400">Descargar podio:</span>
-                      {([['square', 'Cuadrada'], ['story', 'Historia']] as const).map(([format, label]) => (
-                        <a
-                          key={format}
-                          href={`/torneos/${params.id}/prueba/${params.eventId}/podio?categoryId=${encodeURIComponent(group.categoryId)}&format=${format}&download=1`}
-                          className="rounded-lg border border-aqua-500/40 bg-aqua-500/10 px-2.5 py-1 font-semibold text-aqua-300 hover:bg-aqua-500/20 transition-colors"
-                        >
-                          {label}
-                        </a>
-                      ))}
-                    </div>
+                    <PodiumButton onClick={() => setPodiumCategoryId(group.categoryId)} />
                   )}
                 </div>
 
@@ -481,6 +481,20 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
           </div>
         )}
       </div>
+
+      {podiumCategoryId !== null && (
+        <PodiumModal
+          title={`${event.eventDefinition.distance} m ${stroke} — ${gender}`}
+          options={categoryGroups
+            .filter((g) => g.categoryId === podiumCategoryId)
+            .map((g) => ({
+              id: g.categoryId,
+              label: g.categoryName,
+              imageUrl: `/torneos/${params.id}/prueba/${params.eventId}/podio?categoryId=${encodeURIComponent(g.categoryId)}`,
+            }))}
+          onClose={() => setPodiumCategoryId(null)}
+        />
+      )}
     </div>
   );
 }

@@ -1,10 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useParams } from 'next/navigation';
 import { SwimmerNameLink } from '@/components/SwimmerNameLink';
 import type { DayFile, SembradoRow, ResultadoRow } from '@/lib/api';
 import { formatTime } from '@/lib/formatTime';
-import { matchesFuzzySearch } from '@/lib/search';
+import { searchPrueba } from '@/lib/search';
+import { formatEventNos, groupResultados, type ResultadoPruebaGroup } from '@/lib/file-results';
+import { PodiumButton, PodiumModal, type PodiumOption } from '@/components/ui/PodiumModal';
 import {
   matchesPruebaFilter, pruebaFilterOptions, STROKE_LABEL, categoryOfLabel, categoryOptions,
   type PruebaFilter, type PruebaStroke,
@@ -35,7 +38,7 @@ function SwimmerMatchNav({
   if (total === 0) return null;
   return (
     <div className="flex items-center justify-between gap-3 mb-3 bg-aqua-500/10 border border-aqua-500/30 rounded-lg px-3 py-1.5">
-      <span className="text-xs text-aqua-200">Nadador/a encontrado/a</span>
+      <span className="text-xs text-aqua-200">Coincidencias resaltadas</span>
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -69,6 +72,10 @@ const SEMBRADO_GRID = 'grid grid-cols-[2.5rem_1.6fr_2.5rem_1fr_5.5rem]';
 const RESULTADO_GRID = 'grid grid-cols-[3.25rem_1.6fr_0.9fr_5rem_5.5rem_3rem]';
 
 type FileType = 'sembrados' | 'resultados';
+
+// Fila que coincide con la búsqueda: se resalta sin cambiar su lugar ni su puesto.
+const ROW_MATCH = 'bg-aqua-500/15 shadow-[inset_3px_0_0_0_rgb(72,202,228)]';
+const ROW_CURRENT = 'bg-yellow-400/20 ring-2 ring-inset ring-yellow-400';
 
 const NO_PRUEBA_FILTER: PruebaFilter = { stroke: '', distance: '' };
 const SELECT_CLASS =
@@ -253,7 +260,7 @@ export function DayFilesPanel({
               {f.parsedRows && f.parsedRows.length > 0 && (
                 f.type === 'sembrados'
                   ? <SembradosTablePublic rows={f.parsedRows as SembradoRow[]} />
-                  : <ResultadosListPublic rows={f.parsedRows as ResultadoRow[]} standards={standards} />
+                  : <ResultadosListPublic rows={f.parsedRows as ResultadoRow[]} standards={standards} fileId={f.id} dayNumber={f.dayNumber} />
               )}
             </div>
           ))}
@@ -273,35 +280,29 @@ function SembradosTablePublic({ rows }: { rows: SembradoRow[] }) {
 
   const totalGroups = useMemo(() => new Set(rows.map((r) => r.eventNo)).size, [rows]);
 
-  // Mientras se escribe: si el texto coincide con la prueba se muestra completa;
-  // si no, solo quedan las filas de los nadadores que coinciden.
-  const filtered = useMemo(() => {
+  // El buscador elige QUÉ pruebas se muestran (las que coinciden por nombre o donde nada
+  // el nadador/club buscado). Cada prueba se ve siempre completa; las filas que coinciden
+  // se resaltan. La lógica está en lib/search.ts.
+  const { filtered, nameMatches } = useMemo(() => {
     const events = Array.from(new Set(rows.map((r) => r.eventNo))).sort((a, b) => a - b);
-    const q = search.trim();
-    return events.flatMap((eventNo) => {
+    const matchKeys: string[] = [];
+    const visible = events.flatMap((eventNo) => {
       const allRows = rows.filter((r) => r.eventNo === eventNo);
       const eventLabel = allRows[0]?.eventLabel ?? '';
       if (category && categoryOfLabel(eventLabel) !== category) return [];
       if (!matchesPruebaFilter(eventLabel, pruebaFilter)) return [];
-      const pruebaHit = q !== '' && matchesFuzzySearch(`Prueba ${eventNo} ${eventLabel}`, q);
-      const eventRows = !q || pruebaHit ? allRows : allRows.filter((r) => matchesFuzzySearch(r.swimmerName, q));
-      return eventRows.length > 0 ? [{ eventNo, eventLabel, rows: eventRows }] : [];
+      const hit = searchPrueba(`Prueba ${eventNo} ${eventLabel}`, allRows.map((r) => `${r.swimmerName} ${r.club}`), search);
+      if (!hit.visible) return [];
+      // Mismo orden en que se dibujan: por serie y carril
+      allRows
+        .filter((_, i) => hit.highlighted[i] === true)
+        .sort((a, b) => a.heatNo - b.heatNo || a.lane - b.lane)
+        .forEach((r) => matchKeys.push(`${eventNo}::${r.heatNo}::${r.lane}`));
+      return [{ eventNo, eventLabel, rows: allRows }];
     });
+    return { filtered: visible, nameMatches: matchKeys };
   }, [rows, category, pruebaFilter, search]);
-
-  // Coincidencias por nombre de nadador/a (para la navegación con flechas) — clave única por fila.
-  const nameMatches = useMemo(() => {
-    if (!search.trim()) return [];
-    const out: string[] = [];
-    for (const g of filtered) {
-      for (const r of g.rows) {
-        if (matchesFuzzySearch(r.swimmerName, search)) {
-          out.push(`${g.eventNo}::${r.heatNo}::${r.lane}`);
-        }
-      }
-    }
-    return out;
-  }, [filtered, search]);
+  const matchSet = useMemo(() => new Set(nameMatches), [nameMatches]);
 
   useEffect(() => setMatchIndex(0), [search]);
 
@@ -374,7 +375,7 @@ function SembradosTablePublic({ rows }: { rows: SembradoRow[] }) {
                               if (el) rowRefs.current.set(key, el);
                               else rowRefs.current.delete(key);
                             }}
-                            className={`${SEMBRADO_GRID} gap-2 px-4 py-1.5 text-xs items-center transition-colors ${isCurrent ? 'bg-aqua-500/20' : ''}`}
+                            className={`${SEMBRADO_GRID} gap-2 px-4 py-1.5 text-xs items-center transition-colors ${isCurrent ? ROW_CURRENT : matchSet.has(key) ? ROW_MATCH : ''}`}
                           >
                             <span className="min-w-0 truncate font-bold text-aqua-300">{r.lane}</span>
                             <SwimmerNameLink
@@ -401,55 +402,6 @@ function SembradosTablePublic({ rows }: { rows: SembradoRow[] }) {
   );
 }
 
-interface ResultadoRanked {
-  row: ResultadoRow;
-  displayPlace: number | null;
-}
-
-interface ResultadoCategoryGroup {
-  category: string;
-  rows: ResultadoRanked[];
-}
-
-interface ResultadoPruebaGroup {
-  key: string;
-  title: string;
-  eventNos: number[];
-  categories: ResultadoCategoryGroup[];
-  allRows: ResultadoRow[];
-}
-
-// El header "Evento N" se repite una vez por categoría (edad+género) dentro del mismo
-// número de prueba — el label queda armado como "<distancia+estilo> — <categoría>".
-// Se separa acá (sin tocar el parser) para poder mostrar cada categoría por separado.
-function splitEventLabel(label: string): { basePrueba: string; category: string } {
-  const idx = label.indexOf(' — ');
-  if (idx === -1) return { basePrueba: label, category: '' };
-  return { basePrueba: label.slice(0, idx), category: label.slice(idx + 3) };
-}
-
-function formatEventNos(nums: number[]): string {
-  const sorted = [...nums].sort((a, b) => a - b);
-  if (sorted.length === 1) return `Prueba ${sorted[0]}`;
-  const isContiguous = sorted.every((n, i) => i === 0 || n === (sorted[i - 1] ?? n) + 1);
-  return isContiguous
-    ? `Pruebas ${sorted[0]}–${sorted[sorted.length - 1]}`
-    : `Pruebas ${sorted.join(', ')}`;
-}
-
-// El "Lugar" que trae el PDF original es la posición en la carrera completa del género
-// (todas las categorías de edad juntas) — por eso dentro de una sola categoría se ven
-// saltos como 1, 2, 5. Acá se recalcula el puesto relativo a la categoría, ordenando por
-// tiempo final (igual criterio que Rankings: orden por tiempo, sin saltar por empates).
-function rankByCategory(catRows: ResultadoRow[]): ResultadoRanked[] {
-  const ok = catRows
-    .filter((r) => r.finalTimeMs !== null)
-    .sort((a, b) => a.finalTimeMs! - b.finalTimeMs!)
-    .map((row, i) => ({ row, displayPlace: i + 1 }));
-  const rest = catRows.filter((r) => r.finalTimeMs === null).map((row) => ({ row, displayPlace: null }));
-  return [...ok, ...rest];
-}
-
 // Compara el tiempo final contra el sembrado (inscripción) para mostrar si el nadador
 // bajó (mejoró) o subió (empeoró) su marca — el archivo de resultados trae ambos tiempos.
 function TimeDelta({ seedMs, finalMs }: { seedMs: number | null; finalMs: number | null }) {
@@ -471,7 +423,11 @@ const STANDARD_CHIP: Record<string, string> = {
 };
 const STANDARD_CHIP_DEFAULT = 'bg-aqua-500/15 text-aqua-300 border-aqua-400/40';
 
-function ResultadosListPublic({ rows, standards }: { rows: ResultadoRow[]; standards: StandardsTable | null }) {
+function ResultadosListPublic({
+  rows, standards, fileId, dayNumber,
+}: { rows: ResultadoRow[]; standards: StandardsTable | null; fileId: string; dayNumber: number }) {
+  const { id: tournamentId } = useParams<{ id: string }>();
+  const [podiumFor, setPodiumFor] = useState<{ title: string; options: PodiumOption[] } | null>(null);
   const [search, setSearch] = useState('');
   const [pruebaFilter, setPruebaFilter] = useState<PruebaFilter>(NO_PRUEBA_FILTER);
   const [category, setCategory] = useState('');
@@ -480,96 +436,38 @@ function ResultadosListPublic({ rows, standards }: { rows: ResultadoRow[]; stand
   const [matchIndex, setMatchIndex] = useState(0);
   const rowRefs = useRef(new Map<string, HTMLDivElement>());
 
-  const groups = useMemo<ResultadoPruebaGroup[]>(() => {
-    const events = Array.from(new Set(rows.map((r) => r.eventNo))).sort((a, b) => a - b);
-    const byEvent = events.map((eventNo) => {
-      const eventRows = rows.filter((r) => r.eventNo === eventNo);
-      const basePrueba = splitEventLabel(eventRows[0]?.eventLabel ?? '').basePrueba;
+  const groups = useMemo(() => groupResultados(rows), [rows]);
 
-      const categoryOrder: string[] = [];
-      const byCategory = new Map<string, ResultadoRow[]>();
-      for (const r of eventRows) {
-        const { category } = splitEventLabel(r.eventLabel);
-        if (!byCategory.has(category)) {
-          categoryOrder.push(category);
-          byCategory.set(category, []);
-        }
-        byCategory.get(category)!.push(r);
-      }
-      const categories = categoryOrder.map((category) => ({
-        category,
-        rows: rankByCategory(byCategory.get(category)!),
-      }));
-
-      return { eventNo, basePrueba, categories, allRows: eventRows };
-    });
-
-    // Se mezclan los Eventos que comparten exactamente la misma prueba base (mismo género
-    // incluido) en una sola tarjeta — así se consolidan las franjas etarias de un mismo
-    // género (ej. Prueba 47 + 49 + 51 + 53, todas "PROMO-MUJERES") sin mezclar Mujeres con
-    // Varones: quedan como dos pruebas separadas, una por género, para navegar más rápido.
-    interface MergedAccum {
-      base: string;
-      eventNos: number[];
-      categories: ResultadoCategoryGroup[];
-      allRows: ResultadoRow[];
-    }
-    const mergedOrder: string[] = [];
-    const merged = new Map<string, MergedAccum>();
-    for (const ev of byEvent) {
-      const key = ev.basePrueba;
-      let acc = merged.get(key);
-      if (!acc) {
-        acc = { base: key, eventNos: [], categories: [], allRows: [] };
-        merged.set(key, acc);
-        mergedOrder.push(key);
-      }
-      acc.eventNos.push(ev.eventNo);
-      acc.categories.push(...ev.categories);
-      acc.allRows.push(...ev.allRows);
-    }
-
-    return mergedOrder.map((key) => {
-      const acc = merged.get(key)!;
-      return { key, title: acc.base, eventNos: acc.eventNos, categories: acc.categories, allRows: acc.allRows };
-    });
-  }, [rows]);
-
-  // Categoría y búsqueda se aplican sobre las filas ya ordenadas, así el puesto mostrado
-  // sigue siendo el real de la categoría aunque se oculten otros nadadores. Si el texto
-  // coincide con la prueba se muestra completa; si no, solo los nadadores que coinciden.
-  const filtered = useMemo<ResultadoPruebaGroup[]>(() => {
-    const q = search.trim();
-    return groups.flatMap((g) => {
+  // El buscador elige QUÉ pruebas se muestran; cada una se ve completa, con todos los
+  // nadadores y sus puestos reales, y las filas que coinciden quedan resaltadas.
+  // El selector de categoría sí acota las categorías visibles (es un filtro, no una búsqueda).
+  const { filtered, nameMatches } = useMemo(() => {
+    const matchKeys: string[] = [];
+    const visible = groups.flatMap<ResultadoPruebaGroup>((g) => {
       if (!matchesPruebaFilter(g.title, pruebaFilter)) return [];
-      const pruebaHit = q !== '' && matchesFuzzySearch(`${formatEventNos(g.eventNos)} ${g.title}`, q);
-      const categories = g.categories
-        .filter((c) => !category || c.category === category)
-        .map((c) => ({
-          ...c,
-          rows: !q || pruebaHit ? c.rows : c.rows.filter(({ row }) => matchesFuzzySearch(row.swimmerName, q)),
-        }))
-        .filter((c) => c.rows.length > 0);
+      const categories = g.categories.filter((c) => !category || c.category === category);
       if (categories.length === 0) return [];
-      return [{ ...g, categories, allRows: categories.flatMap((c) => c.rows.map(({ row }) => row)) }];
+      const flat = categories.flatMap((c, catIdx) => c.rows.map(({ row }, i) => ({ row, key: `${g.key}::${catIdx}::${i}` })));
+      const hit = searchPrueba(
+        `${formatEventNos(g.eventNos)} ${g.title}`,
+        flat.map(({ row }) => `${row.swimmerName} ${row.club}`),
+        search,
+      );
+      if (!hit.visible) return [];
+      flat.forEach(({ key }, i) => { if (hit.highlighted[i]) matchKeys.push(key); });
+      return [{ ...g, categories, allRows: flat.map(({ row }) => row) }];
     });
+    return { filtered: visible, nameMatches: matchKeys };
   }, [groups, category, pruebaFilter, search]);
+  const matchSet = useMemo(() => new Set(nameMatches), [nameMatches]);
 
-  // Coincidencias por nombre de nadador/a (para la navegación con flechas) — clave única por fila.
-  const nameMatches = useMemo(() => {
-    if (!search.trim()) return [];
-    const out: string[] = [];
-    for (const g of filtered) {
-      g.categories.forEach((cat, catIdx) => {
-        cat.rows.forEach(({ row }, i) => {
-          if (matchesFuzzySearch(row.swimmerName, search)) {
-            out.push(`${g.key}::${catIdx}::${i}`);
-          }
-        });
-      });
-    }
-    return out;
-  }, [filtered, search]);
+  const openPodium = (g: ResultadoPruebaGroup) => {
+    const base = `/torneos/${encodeURIComponent(tournamentId)}/podio-archivo?day=${dayNumber}&fileId=${encodeURIComponent(fileId)}&prueba=${encodeURIComponent(g.key)}`;
+    const options = g.categories
+      .filter((c) => c.rows.some(({ row }) => row.finalTimeMs !== null))
+      .map((c, i) => ({ id: `${i}-${c.category}`, label: c.category, imageUrl: `${base}&cat=${encodeURIComponent(c.category)}` }));
+    setPodiumFor({ title: g.title, options });
+  };
 
   const isSearching = search.trim().length > 0;
 
@@ -622,13 +520,16 @@ function ResultadosListPublic({ rows, standards }: { rows: ResultadoRow[]; stand
         </p>
       ) : (
         <div className="space-y-3">
-          {filtered.map(({ key: groupKey, title, eventNos, categories, allRows }) => {
+          {filtered.map((group) => {
+            const { key: groupKey, title, eventNos, categories, allRows } = group;
             const open = isSearching || expanded.has(groupKey);
             return (
               <div key={groupKey} className="bg-pool-800/40 border border-pool-700/40 rounded-2xl overflow-hidden">
+                <div className="flex items-center gap-2 bg-pool-900/40 pr-3">
                 <button
                   onClick={() => toggle(groupKey)}
-                  className="w-full flex items-center justify-between gap-3 px-4 py-2.5 bg-pool-900/40 hover:bg-pool-900/60 text-left transition-colors"
+                  aria-expanded={open}
+                  className="min-w-0 flex-1 flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-pool-900/60 text-left transition-colors"
                 >
                   <span className="min-w-0">
                     <span className="font-semibold text-white text-sm">{title}</span>
@@ -644,6 +545,8 @@ function ResultadosListPublic({ rows, standards }: { rows: ResultadoRow[]; stand
                     </svg>
                   </span>
                 </button>
+                <PodiumButton onClick={() => openPodium(group)} />
+                </div>
                 {open && (
                   <div className="border-t border-pool-700/40">
                     {/* Header de columnas — una sola vez por prueba, mismo grid que las filas */}
@@ -684,7 +587,9 @@ function ResultadosListPublic({ rows, standards }: { rows: ResultadoRow[]; stand
                                 }}
                                 className={`${RESULTADO_GRID} gap-2 px-4 py-2 text-xs items-center transition-colors ${
                                   isCurrent
-                                    ? 'bg-aqua-500/20'
+                                    ? ROW_CURRENT
+                                    : matchSet.has(key)
+                                    ? ROW_MATCH
                                     : displayPlace != null
                                     ? positionClass(displayPlace)
                                     : ''
@@ -739,6 +644,9 @@ function ResultadosListPublic({ rows, standards }: { rows: ResultadoRow[]; stand
             );
           })}
         </div>
+      )}
+      {podiumFor && (
+        <PodiumModal title={podiumFor.title} options={podiumFor.options} onClose={() => setPodiumFor(null)} />
       )}
     </div>
   );
