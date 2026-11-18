@@ -22,6 +22,15 @@ describe('recordsForGroup', () => {
   });
 });
 
+describe('recordsForGroup — nacional', () => {
+  it('compara cada categoría con su par nacional y los Mayores con el Absoluto nacional', () => {
+    const nat = [rec('nacional', 'NAC_CAD', 51000), rec('nacional', 'NAC_ABS', 48000), rec('nacional', 'NAC_JUV', 49000)];
+    expect(recordsForGroup('CAD', nat).nacional?.timeMs).toBe(51000);
+    expect(recordsForGroup('MAY', nat).nacional?.timeMs).toBe(48000);
+    expect(recordsForGroup('INF', nat).nacional).toBeUndefined();
+  });
+});
+
 describe('recordMarks', () => {
   const refs = recordsForGroup('JUV', [rec('provincial', 'JUV', 54000), rec('noa', 'NOA_JUV', 53000)]);
 

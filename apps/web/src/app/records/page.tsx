@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { NavBar } from '@/components/NavBar';
 import { formatTime } from '@/lib/formatTime';
 import { fetchRecords, fetchNationalRecords } from '@/lib/api';
+import { categoryKey } from '@/lib/record-marks';
 import type { RecordEntry } from '@/lib/api';
 import Link from 'next/link';
 
@@ -96,7 +97,14 @@ function EventRecordsTable({ records, nationals, gender }: { records: RecordEntr
   if (filtered.length === 0) return null;
 
   const getNational = (r: RecordEntry) =>
-    nationals.find((n) => n.eventDefinition.id === r.eventDefinition.id && n.gender === r.gender && n.poolLength === r.poolLength);
+    nationals
+      .filter((n) => n.eventDefinition.id === r.eventDefinition.id && n.gender === r.gender && n.poolLength === r.poolLength)
+      .find((n) => {
+        // Misma categoría; los Mayores y el Absoluto se comparan con el Absoluto nacional
+        const key = categoryKey(r.category.code);
+        const nKey = categoryKey(n.category.code);
+        return nKey === key || (nKey === 'ABS' && (key === 'MAY' || key === 'ABS'));
+      });
 
   return (
     <div className="overflow-x-auto rounded-xl border border-pool-700/40">

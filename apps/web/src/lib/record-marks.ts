@@ -30,8 +30,8 @@ export interface GroupRecords {
 
 export type RecordMark = 'RT' | 'RNOA' | 'RN';
 
-/** NOA_INF → INF: las categorías NOA se comparan con las de igual nombre. */
-const categoryKey = (code: string): string => code.replace(/^NOA_/, '');
+/** NOA_INF y NAC_CAD → INF y CAD: las categorías NOA y nacionales se comparan con las de igual nombre. */
+export const categoryKey = (code: string): string => code.replace(/^(NOA|NAC)_/, '');
 
 /**
  * El mejor récord de cada alcance en la categoría global (INF, MEN, CAD, JUV, MAY...).
@@ -39,11 +39,13 @@ const categoryKey = (code: string): string => code.replace(/^NOA_/, '');
  * comparten el récord de Cadetes): así los guarda el evaluador de récords.
  */
 export function recordsForGroup(groupKey: string, records: RecordRef[]): GroupRecords {
-  const best = (scope: string): RecordRef | undefined =>
+  const best = (scope: string, keys: string[]): RecordRef | undefined =>
     records
-      .filter((r) => r.scope === scope && categoryKey(r.category.code) === groupKey)
+      .filter((r) => r.scope === scope && keys.includes(categoryKey(r.category.code)))
       .sort((a, b) => a.timeMs - b.timeMs)[0];
-  return { tucumano: best('provincial'), noa: best('noa'), nacional: best('nacional') };
+  // El nacional no tiene Mayores: los Mayores se comparan con el récord Absoluto nacional
+  const nationalKeys = groupKey === 'MAY' ? ['MAY', 'ABS'] : [groupKey];
+  return { tucumano: best('provincial', [groupKey]), noa: best('noa', [groupKey]), nacional: best('nacional', nationalKeys) };
 }
 
 /**
