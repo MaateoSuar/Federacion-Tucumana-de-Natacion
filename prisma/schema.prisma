@@ -758,7 +758,7 @@ model Record {
   clubId            String       @map("club_id")
   recordDate        DateTime     @map("record_date")
   tournamentName    String?      @map("tournament_name") // torneo donde se logró (nullable para históricos)
-  sourceResultId    String?      @unique @map("source_result_id")
+  sourceResultId    String?      @map("source_result_id") // un mismo resultado puede ser récord en varios ámbitos/categorías
   status            RecordStatus @default(pending_homologation)
   isCurrent         Boolean      @default(false) @map("is_current")
   previousRecordId  String?      @map("previous_record_id") // cadena histórica
@@ -777,6 +777,7 @@ model Record {
   supersededBy    Record[]             @relation("RecordChain")
   achievements    AthleteAchievement[]
 
+  @@unique([sourceResultId, scope, categoryId])
   @@index([scope, eventDefinitionId, categoryId, gender, poolLength, isCurrent])
   @@map("records")
 }

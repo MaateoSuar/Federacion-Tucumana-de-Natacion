@@ -9,6 +9,7 @@ const txMock = {
     findUnique: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
+    count: jest.fn().mockResolvedValue(0),
   },
   result: { update: jest.fn(), findUnique: jest.fn() },
   auditLog: { create: jest.fn() },
@@ -307,6 +308,14 @@ describe('RecordsService', () => {
       txMock.record.findUnique.mockResolvedValue(PREVIOUS);
       await service.revertRecord('rec-malo', 'admin1');
       expect(txMock.result.update).toHaveBeenCalledWith({ where: { id: 'r1' }, data: { isRecord: false } });
+    });
+
+    it('si el resultado sigue siendo récord en otro alcance o categoría, queda marcado', async () => {
+      mockPrisma.record.findUnique.mockResolvedValue(WRONG);
+      txMock.record.findUnique.mockResolvedValue(PREVIOUS);
+      txMock.record.count.mockResolvedValueOnce(1);
+      await service.revertRecord('rec-malo', 'admin1');
+      expect(txMock.result.update).not.toHaveBeenCalled();
     });
 
     it('deja en auditoría quién lo deshizo, el motivo y una copia completa del récord eliminado', async () => {

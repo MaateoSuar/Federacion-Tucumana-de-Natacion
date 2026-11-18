@@ -4,7 +4,7 @@
  *
  *  1. Borra los récords derivados (source_result_id no nulo); el récord oficial que habían
  *     reemplazado vuelve a quedar vigente. La Tabla Oficial no se toca.
- *  2. Vuelve a evaluar, en orden de fecha, los resultados homologados de torneos provinciales.
+ *  2. Vuelve a evaluar, en orden de fecha, todos los resultados homologados (el récord NOA vale en cualquier torneo).
  *
  * Desde apps/api:
  *   pnpm exec ts-node-transpile-only -P tsconfig.json ../../prisma/scripts/recalc-provincial-records.ts [--allow-remote-db]
@@ -13,8 +13,9 @@
  */
 import { PrismaClient } from '@prisma/client';
 import { RecordEvaluatorProcessor } from '../../apps/api/src/homologation/processors/record-evaluator.processor';
+import { NOA_PROVINCES } from '../../apps/api/src/homologation/record-scopes';
 
-const TUCUMAN_PROVINCE = 'Tucumán';
+// Clubes de provincias del NOA (incluye Tucumán): el evaluador decide después en qué alcance cuenta cada uno
 
 async function main(): Promise<void> {
   const url = process.env['DATABASE_URL'];
@@ -61,14 +62,13 @@ async function main(): Promise<void> {
       console.log(`Récords derivados borrados: ${derived.length} · oficiales restaurados: ${restored.count}`);
     }, { timeout: 120_000 });
 
-    // Solo los que el evaluador aceptaría (club de Tucumán); el resto se descartaría igual.
+    // Solo los que el evaluador aceptaría (club de una provincia del NOA); el resto se descartaría igual.
     const results = await prisma.result.findMany({
       where: {
         homologated: true,
         status: 'OK',
         finalTime: { not: null },
-        club: { province: TUCUMAN_PROVINCE },
-        event: { tournament: { scope: 'provincial' } },
+        club: { province: { in: [...NOA_PROVINCES] } },
       },
       select: {
         id: true, swimmerId: true, clubId: true, categoryId: true, finalTime: true, place: true, eventId: true,

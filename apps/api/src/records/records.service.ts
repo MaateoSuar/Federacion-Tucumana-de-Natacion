@@ -325,11 +325,15 @@ export class RecordsService {
         },
       });
 
-      if (wrong.sourceResultId) {
-        await tx.result.update({ where: { id: wrong.sourceResultId }, data: { isRecord: false } });
-      }
       // Primero se elimina el erróneo y después se reactiva el anterior: nunca hay dos vigentes
       await tx.record.delete({ where: { id: recordId } });
+      // Un resultado puede ser récord en varios alcances/categorías: solo se desmarca si no le queda ninguno
+      if (wrong.sourceResultId) {
+        const stillRecord = await tx.record.count({ where: { sourceResultId: wrong.sourceResultId } });
+        if (stillRecord === 0) {
+          await tx.result.update({ where: { id: wrong.sourceResultId }, data: { isRecord: false } });
+        }
+      }
       if (previous) {
         await tx.record.update({
           where: { id: previous.id },

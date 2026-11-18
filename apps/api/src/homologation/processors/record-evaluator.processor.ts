@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PoolLength, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { PostProcessJobData } from '../homologation.queue';
+import { NOA_PROVINCES, TUCUMAN_PROVINCE } from '../record-scopes';
 
 /**
  * REGLA 4 (decisión del 13/11/2026): cuando un resultado HOMOLOGADO supera al récord
@@ -9,10 +10,30 @@ import type { PostProcessJobData } from '../homologation.queue';
  * "superseded". Si resulta ser un error, un Admin lo vuelve al anterior desde el panel
  * (RecordsService.revertRecord), y todo queda en audit_logs.
  *
+ * Un mismo resultado puede ser récord en varios lugares a la vez (decisión del 18/11/2026):
+ *  - tucumano, si el club es de Tucumán: en la categoría oficial y en Absoluto;
+ *  - NOA, si el club es de una provincia del NOA: en la categoría NOA y en Absoluto NOA.
+ * Cada combinación (alcance, categoría) se evalúa por separado. Los nacionales son solo
+ * referencia y no se evalúan.
+ *
  * Se sigue cumpliendo: solo resultados homologados, y 25 m y 50 m nunca se comparan
  * (la pileta es parte de la clave del récord).
  */
-const TUCUMAN_PROVINCE = 'Tucumán';
+type RecordScope = 'provincial' | 'noa';
+
+interface RecordTarget {
+  scope: RecordScope;
+  categoryId: string;
+}
+
+interface AgeRange {
+  id: string;
+  minAge: number | null;
+  maxAge: number | null;
+}
+
+const NEG = Number.NEGATIVE_INFINITY;
+const POS = Number.POSITIVE_INFINITY;
 
 @Injectable()
 export class RecordEvaluatorProcessor {
@@ -21,65 +42,74 @@ export class RecordEvaluatorProcessor {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Categoría oficial de récords que contiene a la categoría del resultado, o null si no hay.
-   * Las categorías oficiales son las que ya tienen récords de la Tabla Oficial (source_result_id
-   * nulo); se elige la de rango de edades más angosto. Sin límites de edad (Absoluto, Escuela)
-   * o por debajo de las categorías oficiales (Pre A, Pre B): no genera récord.
-   * Pendiente: Absoluto no se actualiza solo (un resultado genera hoy un solo récord, por la
-   * clave única de source_result_id); sigue siendo la Tabla Oficial hasta aprobar el cambio de esquema.
+   * Categorías de récord de un alcance donde cae un resultado: la categoría oficial más
+   * angosta que contiene sus edades, y Absoluto (la oficial sin límites de edad).
+   * Las categorías oficiales son las que ya tienen récords cargados de la tabla oficial
+   * (source_result_id nulo) en ese alcance. Sin límites de edad (Absoluto, Escuela) o por
+   * debajo de las oficiales (Pre A, Pre B): no genera récord.
    */
-  private async resolveRecordCategory(resultCategoryId: string): Promise<string | null> {
+  private async categoriesFor(scope: RecordScope, own: Omit<AgeRange, 'id'>): Promise<string[]> {
+    const official: AgeRange[] = await this.prisma.category.findMany({
+      where: { scope, isActive: true, records: { some: { scope, sourceResultId: null } } },
+      select: { id: true, minAge: true, maxAge: true },
+    });
+    const lo = own.minAge ?? NEG;
+    const hi = own.maxAge ?? POS;
+    const specific = official
+      .filter((c) => (c.minAge !== null || c.maxAge !== null) && (c.minAge ?? NEG) <= lo && (c.maxAge ?? POS) >= hi)
+      .sort((a, b) => (a.maxAge ?? POS) - (a.minAge ?? NEG) - ((b.maxAge ?? POS) - (b.minAge ?? NEG)));
+    // Por debajo de las categorías oficiales (Pre A, Pre B): tampoco cuenta para Absoluto
+    if (!specific[0]) return [];
+    const absolute = official.find((c) => c.minAge === null && c.maxAge === null);
+    return [specific[0].id, absolute?.id].filter((id): id is string => id !== undefined);
+  }
+
+  private async targetsFor(clubId: string, resultCategoryId: string): Promise<RecordTarget[]> {
+    const club = await this.prisma.club.findUnique({ where: { id: clubId }, select: { province: true } });
+    const province = club?.province ?? null;
+    if (province === null) return [];
+
     const own = await this.prisma.category.findUnique({
       where: { id: resultCategoryId },
       select: { minAge: true, maxAge: true },
     });
-    if (!own || (own.minAge === null && own.maxAge === null)) return null;
+    // Sin límites de edad (Absoluto, Escuela): no es una categoría de competencia por edad
+    if (!own || (own.minAge === null && own.maxAge === null)) return [];
 
-    const official = await this.prisma.category.findMany({
-      where: { scope: 'provincial', isActive: true, records: { some: { sourceResultId: null } } },
-      select: { id: true, minAge: true, maxAge: true },
-    });
-    const lo = own.minAge ?? Number.NEGATIVE_INFINITY;
-    const hi = own.maxAge ?? Number.POSITIVE_INFINITY;
-    const containing = official
-      .filter((c) => (c.minAge !== null || c.maxAge !== null)
-        && (c.minAge ?? Number.NEGATIVE_INFINITY) <= lo
-        && (c.maxAge ?? Number.POSITIVE_INFINITY) >= hi)
-      .sort((a, b) =>
-        ((a.maxAge ?? Number.POSITIVE_INFINITY) - (a.minAge ?? Number.NEGATIVE_INFINITY))
-        - ((b.maxAge ?? Number.POSITIVE_INFINITY) - (b.minAge ?? Number.NEGATIVE_INFINITY)));
-    return containing[0]?.id ?? null;
+    const scopes: RecordScope[] = [];
+    if (province === TUCUMAN_PROVINCE) scopes.push('provincial');
+    if (NOA_PROVINCES.includes(province)) scopes.push('noa');
+
+    const targets: RecordTarget[] = [];
+    for (const scope of scopes) {
+      for (const categoryId of await this.categoriesFor(scope, own)) targets.push({ scope, categoryId });
+    }
+    return targets;
   }
 
   async process(data: PostProcessJobData): Promise<void> {
+    const targets = await this.targetsFor(data.clubId, data.categoryId);
+    for (const target of targets) await this.evaluate(data, target);
+  }
+
+  private async evaluate(data: PostProcessJobData, target: RecordTarget): Promise<void> {
     const {
-      resultId, swimmerId, clubId, eventDefinitionId, poolLength, categoryId,
-      gender, finalTimeMs, resultDate, tournamentName,
+      resultId, swimmerId, clubId, eventDefinitionId, poolLength, gender,
+      finalTimeMs, resultDate, tournamentName,
     } = data;
     const prismaPool: PoolLength = poolLength === 25 ? 'P25' : 'P50';
 
-    // Idempotencia: un resultado genera a lo sumo un récord (source_result_id es único).
-    const alreadyEvaluated = await this.prisma.record.findUnique({
-      where: { sourceResultId: resultId },
+    // Idempotencia: un resultado genera a lo sumo un récord por (alcance, categoría).
+    const alreadyEvaluated = await this.prisma.record.findFirst({
+      where: { sourceResultId: resultId, scope: target.scope, categoryId: target.categoryId },
       select: { id: true },
     });
     if (alreadyEvaluated) return;
 
-    // Decisión del 18/11/2026: el récord tucumano solo cuenta nadadores de clubes de Tucumán.
-    // Un club de otra provincia (o sin provincia cargada) no genera récord provincial.
-    const club = await this.prisma.club.findUnique({ where: { id: clubId }, select: { province: true } });
-    if (club?.province !== TUCUMAN_PROVINCE) return;
-
-    // El récord vive en la categoría oficial (Infantiles, Menores, Cadetes, Juveniles, Mayores),
-    // no en la de torneo (Infantil 1, Cadete 2...). El resultado conserva su categoría congelada.
-    const recordCategoryId = await this.resolveRecordCategory(categoryId);
-    if (!recordCategoryId) return;
-
-    // Récords nacionales son solo-referencia — solo evaluamos scope=provincial.
     const key = {
-      scope: 'provincial' as const,
+      scope: target.scope,
       eventDefinitionId,
-      categoryId: recordCategoryId,
+      categoryId: target.categoryId,
       gender,
       poolLength: prismaPool,
     };
@@ -124,6 +154,7 @@ export class RecordEvaluatorProcessor {
             entityType: 'Record',
             entityId: created.id,
             payload: {
+              scope: target.scope,
               timeMs: finalTimeMs,
               swimmerId,
               sourceResultId: resultId,
@@ -134,12 +165,12 @@ export class RecordEvaluatorProcessor {
         });
 
         this.logger.log(
-          `Record auto-published for event ${eventDefinitionId}/${prismaPool}/${gender} — ${finalTimeMs}ms`,
+          `Record ${target.scope} auto-published for event ${eventDefinitionId}/${prismaPool}/${gender} — ${finalTimeMs}ms`,
         );
       });
     } catch (err) {
-      // Otro job del mismo resultado ganó la carrera (source_result_id único):
-      // ya está evaluado, no se corta el resto del post-proceso.
+      // Otro job del mismo resultado ganó la carrera (clave única): ya está evaluado,
+      // no se corta el resto del post-proceso.
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') return;
       throw err;
     }

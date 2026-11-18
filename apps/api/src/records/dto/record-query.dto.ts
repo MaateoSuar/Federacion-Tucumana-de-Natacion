@@ -2,8 +2,8 @@ import { IsEnum, IsOptional, IsString } from 'class-validator';
 
 export class RecordQueryDto {
   @IsOptional()
-  @IsEnum(['provincial', 'nacional'])
-  scope?: 'provincial' | 'nacional' = 'provincial';
+  @IsEnum(['provincial', 'noa', 'nacional'])
+  scope?: 'provincial' | 'noa' | 'nacional' = 'provincial';
 
   @IsOptional()
   @IsString()

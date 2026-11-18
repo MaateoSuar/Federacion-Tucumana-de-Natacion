@@ -50,8 +50,11 @@ function lastUpdatedDate(records: RecordEntry[]): Date | null {
 }
 
 // Orden de categorías dentro de la tabla de una prueba — misma referencia que CATEGORY_ORDER
+// Los códigos NOA_INF, NOA_MEN... se ordenan y filtran igual que INF, MEN...
+const baseCode = (code: string): string => code.replace(/^NOA_/, '');
+
 function categoryOrderIndex(code: string): number {
-  const idx = CATEGORY_ORDER.indexOf(code);
+  const idx = CATEGORY_ORDER.indexOf(baseCode(code));
   return idx === -1 ? CATEGORY_ORDER.length : idx;
 }
 
@@ -154,6 +157,7 @@ export default function RecordsPage() {
   const [nationals, setNationals] = useState<RecordEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [scope, setScope] = useState<'provincial' | 'noa'>('provincial');
 
   // Filtros
   const [poolFilter, setPoolFilter] = useState<'' | 'P25' | 'P50'>('');
@@ -161,17 +165,20 @@ export default function RecordsPage() {
   const [eventFilter, setEventFilter] = useState('');
 
   useEffect(() => {
+    setLoading(true);
+    setError(false);
+    setCategoryFilter('');
     Promise.all([
-      fetchRecords({ scope: 'provincial' }),
+      fetchRecords({ scope }),
       fetchNationalRecords(),
     ])
       .then(([r, n]) => { setRecords(r); setNationals(n); })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, []);
+  }, [scope]);
 
   const categoryOptions = useMemo(() => {
-    const names = new Map(records.map((r) => [r.category.code, r.category.name]));
+    const names = new Map(records.map((r) => [baseCode(r.category.code), r.category.name]));
     return CATEGORY_ORDER.filter((code) => names.has(code)).map((code) => ({ code, name: names.get(code)! }));
   }, [records]);
 
@@ -194,7 +201,7 @@ export default function RecordsPage() {
   const filteredRecords = useMemo(() => {
     return records.filter((r) => {
       if (poolFilter && r.poolLength !== poolFilter) return false;
-      if (categoryFilter && r.category.code !== categoryFilter) return false;
+      if (categoryFilter && baseCode(r.category.code) !== categoryFilter) return false;
       if (eventFilter && eventBaseKey(r.eventDefinition) !== eventFilter) return false;
       return true;
     });
@@ -214,7 +221,23 @@ export default function RecordsPage() {
       <div className="max-w-6xl mx-auto px-4 md:px-8 py-10">
         <header className="mb-8">
           <p className="text-aqua-400 text-xs font-bold uppercase tracking-widest mb-1">FTN</p>
-          <h1 className="text-3xl font-black text-white">Tabla Oficial de Récords Tucumanos</h1>
+          <h1 className="text-3xl font-black text-white">
+            {scope === 'noa' ? 'Récords del NOA' : 'Tabla Oficial de Récords Tucumanos'}
+          </h1>
+          <div className="mt-4 inline-flex rounded-lg border border-pool-700/60 p-0.5" role="tablist" aria-label="Alcance de los récords">
+            {([['provincial', 'Tucumán'], ['noa', 'NOA']] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={scope === key}
+                onClick={() => setScope(key)}
+                className={`rounded-md px-4 py-1.5 text-sm font-semibold transition-colors ${scope === key ? 'bg-aqua-500 text-white' : 'text-pool-300 hover:text-white'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           {nationals.length > 0 && (
             <p className="text-pool-400 text-sm mt-1">Los récords nacionales se muestran como referencia.</p>
           )}
