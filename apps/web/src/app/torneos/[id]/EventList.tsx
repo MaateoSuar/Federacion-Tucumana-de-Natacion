@@ -5,7 +5,7 @@ import Link from 'next/link';
 import type { EventResultsResponse, ResultEntry, TournamentEvent } from '@/lib/api';
 import { searchPrueba } from '@/lib/search';
 import { categoryPlacings } from '@/lib/event-placings';
-import { buildPodium } from '@/lib/podium';
+import { groupResultsByCategory } from '@/lib/category-groups';
 import { PodiumButton, PodiumModal, type PodiumOption } from '@/components/ui/PodiumModal';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -155,16 +155,13 @@ export function EventList({ events, tournamentId }: { events: TournamentEvent[];
     if (!podiumFor) return null;
     if (podiumFor.eventIds.some((id) => resultsByEvent[id] === undefined)) return null;
     return podiumFor.eventIds.flatMap((eventId) => {
-      const results = resultsByEvent[eventId] ?? [];
-      const cats = new Map<string, { name: string; orderNo: number }>();
-      for (const r of results) cats.set(r.category.id, { name: r.category.name, orderNo: r.category.orderNo });
-      return [...cats.entries()]
-        .filter(([categoryId]) => buildPodium(results, categoryId).length > 0)
-        .sort((a, b) => a[1].orderNo - b[1].orderNo)
-        .map(([categoryId, c]) => ({
-          id: `${eventId}:${categoryId}`,
-          label: c.name,
-          imageUrl: `/torneos/${tournamentId}/prueba/${eventId}/podio?categoryId=${encodeURIComponent(categoryId)}`,
+      // Un podio por categoría global (todos los Cadetes juntos, todos los Juveniles juntos...)
+      return groupResultsByCategory(resultsByEvent[eventId] ?? [])
+        .filter((g) => g.results.some((r) => r.status === 'OK' && r.finalTime !== null))
+        .map((g) => ({
+          id: `${eventId}:${g.key}`,
+          label: g.name,
+          imageUrl: `/torneos/${tournamentId}/prueba/${eventId}/podio?group=${encodeURIComponent(g.key)}`,
         }));
     });
   }, [podiumFor, resultsByEvent, tournamentId]);

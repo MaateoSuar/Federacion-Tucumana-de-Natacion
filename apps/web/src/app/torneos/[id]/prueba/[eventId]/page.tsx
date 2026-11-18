@@ -9,10 +9,26 @@ import { RecordBadge } from '@/components/ui/RecordBadge';
 import { formatTime } from '@/lib/formatTime';
 import { useResultsSocket } from '@/hooks/useResultsSocket';
 import { matchesFuzzySearch } from '@/lib/search';
-import { buildPodium } from '@/lib/podium';
+import { rankPodium } from '@/lib/podium';
 import { Podium } from '@/components/ui/Podium';
 import { PodiumButton, PodiumModal } from '@/components/ui/PodiumModal';
+import { groupResultsByCategory } from '@/lib/category-groups';
+import { recordMarks, recordsForGroup, type GroupRecords, type RecordMark } from '@/lib/record-marks';
+import { standardsMet, type StandardsTable } from '@/lib/standards-match';
 import type { EventResultsResponse, RecordEntry } from '@/lib/api';
+
+// Chip de marca básica cumplida. Color según el token configurado en el set.
+const STANDARD_CHIP: Record<string, string> = {
+  sky: 'bg-sky-500/15 text-sky-300 border-sky-400/40',
+  emerald: 'bg-emerald-500/15 text-emerald-300 border-emerald-400/40',
+  amber: 'bg-amber-500/15 text-amber-300 border-amber-400/40',
+};
+const STANDARD_CHIP_DEFAULT = 'bg-aqua-500/15 text-aqua-300 border-aqua-400/40';
+
+const MARK_LABEL: Record<RecordMark, { text: string; title: string }> = {
+  RT: { text: 'RT', title: 'Récord tucumano: rompió el récord vigente de su categoría' },
+  RNOA: { text: 'RNOA', title: 'Récord NOA: rompió el récord vigente de su categoría' },
+};
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -33,8 +49,10 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
   const [data, setData] = useState<EventResultsResponse | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [error, setError] = useState(false);
-  // Récords vigentes de esta prueba (misma pileta y género), como referencia
+  // Récords vigentes de esta prueba (misma pileta y género): tucumanos, NOA y nacionales
   const [records, setRecords] = useState<RecordEntry[]>([]);
+  // Marcas básicas (nacional / para federarse) de la pileta del torneo
+  const [standards, setStandards] = useState<StandardsTable | null>(null);
   const [liveUpdate, setLiveUpdate] = useState(false);
   const [swimmerSearch, setSwimmerSearch] = useState('');
   const [matchIdx, setMatchIdx] = useState(0);
@@ -69,8 +87,16 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
     const qs = new URLSearchParams({ eventDefinitionId: eventDefId, poolLength: eventPool, gender: eventGender });
     const get = (path: string) =>
       fetch(`${API_BASE}${path}?${qs}`).then((r) => (r.ok ? (r.json() as Promise<RecordEntry[]>) : [])).catch(() => []);
-    // Provinciales + nacionales (los nacionales son solo referencia)
-    void Promise.all([get('/records'), get('/records/national')]).then(([prov, nat]) => setRecords([...prov, ...nat]));
+    // Tucumanos + NOA + nacionales (los nacionales son solo referencia)
+    void Promise.all([
+      get('/records'),
+      fetch(`${API_BASE}/records?${qs}&scope=noa`).then((r) => (r.ok ? (r.json() as Promise<RecordEntry[]>) : [])).catch(() => []),
+      get('/records/national'),
+    ]).then(([prov, noa, nat]) => setRecords([...prov, ...noa, ...nat]));
+    void fetch(`${API_BASE}/rankings/standards?poolLength=${eventPool}`)
+      .then((r) => (r.ok ? (r.json() as Promise<StandardsTable>) : null))
+      .then(setStandards)
+      .catch(() => setStandards(null));
   }, [eventDefId, eventPool, eventGender]);
 
   useResultsSocket({
@@ -110,38 +136,38 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
   const othersResults = results.filter((r) => r.status !== 'OK' && r.status !== 'DSQ');
 
   type ResultItem = (typeof results)[0];
-  type CategoryGroup = {
-    categoryId: string;
-    categoryName: string;
-    orderNo: number;
-    results: ResultItem[];
-    dqResults: ResultItem[];
-  };
 
-  const categoryGroups: CategoryGroup[] = [];
+  // Primero TODOS juntos por categoría global (todos los Cadetes, todos los Juveniles...) y,
+  // si se elige, separados por subcategoría (Cadete 1, Cadete 2...).
+  const sortedOk = [...okResults].sort((a, b) => (a.finalTime ?? Infinity) - (b.finalTime ?? Infinity));
+  const categoryGroups = groupResultsByCategory<ResultItem>([...sortedOk, ...dqResults]).map((g) => ({
+    ...g,
+    results: g.results.filter((r) => r.status === 'OK'),
+    dqResults: g.results.filter((r) => r.status === 'DSQ'),
+  }));
+  type CategoryGroup = (typeof categoryGroups)[number];
+  const isMultiCategory = categoryGroups.length > 1 || categoryGroups.some((g) => g.categories.length > 1);
 
-  const addToGroup = (r: ResultItem, isDq: boolean) => {
-    const catId = r.category?.id ?? 'unknown';
-    let group = categoryGroups.find((g) => g.categoryId === catId);
-    if (!group) {
-      group = {
-        categoryId: catId,
-        categoryName: r.category?.name ?? event.category.name,
-        orderNo: r.category?.orderNo ?? 0,
-        results: [],
-        dqResults: [],
-      };
-      categoryGroups.push(group);
-    }
-    if (isDq) group.dqResults.push(r);
-    else group.results.push(r);
-  };
-
-  for (const r of okResults) addToGroup(r, false);
-  for (const r of dqResults) addToGroup(r, true);
-  categoryGroups.sort((a, b) => a.orderNo - b.orderNo);
-  const isMultiCategory = categoryGroups.length > 1;
-  const visibleGroups = categoryFilter ? categoryGroups.filter((g) => g.categoryId === categoryFilter) : categoryGroups;
+  // categoryFilter: '' (todas) · 'g:CAD' (una categoría global) · 'c:<id>' (una subcategoría)
+  const filterGroupKey = categoryFilter.startsWith('g:') ? categoryFilter.slice(2) : '';
+  const filterCategoryId = categoryFilter.startsWith('c:') ? categoryFilter.slice(2) : '';
+  const visibleGroups: CategoryGroup[] = categoryGroups
+    .filter((g) => !filterGroupKey || g.key === filterGroupKey)
+    .map((g) =>
+      filterCategoryId
+        ? {
+            ...g,
+            results: g.results.filter((r) => r.category.id === filterCategoryId),
+            dqResults: g.dqResults.filter((r) => r.category.id === filterCategoryId),
+          }
+        : g,
+    )
+    .filter((g) => g.results.length + g.dqResults.length > 0);
+  // Una subcategoría elegida: el puesto se cuenta dentro de ella
+  const showSubChip = (g: CategoryGroup) => !filterCategoryId && g.categories.length > 1;
+  // Récords de referencia por categoría global
+  const groupRecords = (g: CategoryGroup): GroupRecords => recordsForGroup(g.key, records);
+  const eventGenderMF = event.eventDefinition.gender === 'F' ? 'F' : event.eventDefinition.gender === 'M' ? 'M' : null;
   // La columna de sembrado aparece solo si el torneo importado trae ese dato
   const hasSeed = results.some((r) => r.seedTime != null);
 
@@ -205,9 +231,9 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
               )}
             </h1>
             <p className="text-pool-300 text-sm mt-1">
-              {isMultiCategory
+              {categoryGroups.length > 1
                 ? `${categoryGroups.length} categorías`
-                : categoryGroups[0]?.categoryName ?? event.category.name
+                : categoryGroups[0]?.name ?? event.category.name
               } · {gender} · Piscina {pool}
             </p>
           </div>
@@ -221,28 +247,6 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
             </span>
           </div>
         </div>
-
-        {/* Récords vigentes de la prueba: referencia, no participan del orden */}
-        {records.length > 0 && (
-          <div className="mb-6 rounded-xl border border-amber-400/25 bg-amber-400/5 px-4 py-3">
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-amber-300">
-              Récords vigentes · {event.eventDefinition.distance} m {stroke} · {gender} · Piscina {pool}
-            </p>
-            <ul className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
-              {records.map((rec) => (
-                <li key={rec.id} className="flex items-baseline gap-1.5">
-                  <span className="text-xs text-pool-400">
-                    {rec.category.name}{rec.scope === 'nacional' ? ' (nacional)' : ''}
-                  </span>
-                  <span className="font-mono font-bold tabular-nums text-white">{formatTime(rec.timeMs)}</span>
-                  <Link href={`/nadadores/${rec.swimmer.id}`} className="text-xs text-pool-300 hover:text-aqua-300 transition-colors">
-                    {rec.swimmer.firstName} {rec.swimmer.lastName}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
 
         {/* Swimmer search — sticky para que la navegación 1/X acompañe el scroll */}
         <div className="sticky top-14 z-30 -mx-4 md:-mx-8 px-4 md:px-8 py-3 mb-6 bg-pool-950/95 backdrop-blur border-b border-pool-800/60 flex items-center gap-2">
@@ -274,7 +278,14 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
               className="shrink-0 bg-pool-800/60 border border-pool-700/50 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-aqua-500 transition-colors"
             >
               <option value="">Todas las categorías</option>
-              {categoryGroups.map((g) => <option key={g.categoryId} value={g.categoryId}>{g.categoryName}</option>)}
+              {categoryGroups.map((g) => (
+                <optgroup key={g.key} label={g.name}>
+                  <option value={`g:${g.key}`}>{g.name} (todos)</option>
+                  {g.categories.length > 1 && g.categories.map((c) => (
+                    <option key={c.id} value={`c:${c.id}`}>{c.name}</option>
+                  ))}
+                </optgroup>
+              ))}
             </select>
           )}
           {/* Match counter + prev/next */}
@@ -306,22 +317,51 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
           <p className="text-pool-400 text-center py-10">Sin resultados disponibles.</p>
         ) : (
           <div className="space-y-6">
-            {visibleGroups.map((group) => (
-              <div key={group.categoryId}>
+            {visibleGroups.map((group) => {
+              const refs = groupRecords(group);
+              const podium = rankPodium(
+                group.results.map((r) => ({
+                  swimmerName: `${r.swimmer.firstName} ${r.swimmer.lastName}`.trim(),
+                  clubName: r.club.name,
+                  timeMs: r.finalTime,
+                })),
+              );
+              const podiumKey = filterCategoryId ? `c:${filterCategoryId}` : `g:${group.key}`;
+              const subTitle = filterCategoryId ? group.categories.find((c) => c.id === filterCategoryId)?.name : null;
+              return (
+              <div key={group.key}>
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-2 px-1">
                   {isMultiCategory ? (
                     <h2 className="text-xs font-bold text-aqua-400 uppercase tracking-widest">
-                      {group.categoryName}
+                      {group.name}{subTitle ? ` · ${subTitle}` : ''}
+                      <span className="ml-2 font-normal normal-case tracking-normal text-pool-500">
+                        {group.results.length} {group.results.length === 1 ? 'resultado' : 'resultados'}
+                      </span>
                     </h2>
                   ) : <span />}
-                  {/* Imagen del podio para compartir: solo con resultados homologados */}
-                  {buildPodium(group.results, group.categoryId).length > 0 && (
-                    <PodiumButton onClick={() => setPodiumCategoryId(group.categoryId)} />
-                  )}
+                  {podium.length > 0 && <PodiumButton onClick={() => setPodiumCategoryId(podiumKey)} />}
                 </div>
 
-                {/* Podio de la categoría (solo homologados) */}
-                <Podium entries={buildPodium(group.results, group.categoryId)} />
+                {/* Récords de referencia de la categoría: tucumano, NOA y nacional */}
+                {(refs.tucumano || refs.noa || refs.nacional) && (
+                  <div className="mb-2 flex flex-wrap gap-x-5 gap-y-1 rounded-lg border border-amber-400/25 bg-amber-400/5 px-3 py-2 text-xs">
+                    {([['Récord Tucumano', refs.tucumano], ['Récord NOA', refs.noa], ['Récord Nacional', refs.nacional]] as const).map(
+                      ([label, rec]) =>
+                        rec && (
+                          <span key={label} className="flex items-baseline gap-1.5">
+                            <span className="text-pool-400">{label} · {group.name}</span>
+                            <span className="font-mono font-bold tabular-nums text-white">{formatTime(rec.timeMs)}</span>
+                            <Link href={`/nadadores/${rec.swimmer.id}`} className="text-pool-300 hover:text-aqua-300 transition-colors">
+                              {rec.swimmer.firstName} {rec.swimmer.lastName}
+                            </Link>
+                          </span>
+                        ),
+                    )}
+                  </div>
+                )}
+
+                {/* Podio de la categoría */}
+                <Podium entries={podium} />
 
                 {/* OK results table */}
                 {group.results.length > 0 && (
@@ -371,7 +411,51 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
                                     >
                                       {r.swimmer.lastName}, {r.swimmer.firstName}
                                     </Link>
-                                    {r.isRecord && <RecordBadge />}
+                                    {/* Récord que rompió en este torneo */}
+                                    {(() => {
+                                      const marks = recordMarks({ id: r.id, finalTime: r.finalTime, clubProvince: r.club.province }, refs);
+                                      return marks.length > 0
+                                        ? marks.map((m) => (
+                                            <span
+                                              key={m}
+                                              title={r.homologated ? MARK_LABEL[m].title : `${MARK_LABEL[m].title} (tentativo: el resultado todavía no está homologado)`}
+                                              className={`rounded border px-1.5 py-0.5 text-xs font-bold ${
+                                                r.homologated
+                                                  ? 'border-yellow-400/40 bg-yellow-400/20 text-yellow-300'
+                                                  : 'border-dashed border-yellow-400/40 bg-yellow-400/5 text-yellow-300/80'
+                                              }`}
+                                            >
+                                              {MARK_LABEL[m].text}
+                                            </span>
+                                          ))
+                                        : r.isRecord && <RecordBadge />;
+                                    })()}
+                                    {/* Marcas básicas que cumple (nacional / para federarse) */}
+                                    {eventGenderMF && r.finalTime != null &&
+                                      standardsMet(
+                                        {
+                                          stroke: event.eventDefinition.stroke,
+                                          distance: event.eventDefinition.distance,
+                                          gender: eventGenderMF,
+                                          age: r.swimmer.age ?? r.category.minAge ?? 0,
+                                          timeMs: r.finalTime,
+                                          level: event.level ?? null,
+                                        },
+                                        r.swimmer.age != null || r.category.minAge != null ? standards : null,
+                                      ).map((set) => (
+                                        <span
+                                          key={set.setId}
+                                          title={`Cumple la ${set.name} para su edad`}
+                                          className={`shrink-0 rounded border px-1 py-px text-[9px] font-bold tracking-wide ${STANDARD_CHIP[set.color] ?? STANDARD_CHIP_DEFAULT}`}
+                                        >
+                                          {set.shortLabel}
+                                        </span>
+                                      ))}
+                                    {showSubChip(group) && (
+                                      <span className="rounded border border-pool-600/60 px-1.5 py-px text-[10px] font-semibold text-pool-400">
+                                        {r.category.name}
+                                      </span>
+                                    )}
                                   </div>
                                 </td>
                                 <td className="px-4 py-3 text-pool-300 hidden sm:table-cell">{r.club.shortName}</td>
@@ -457,7 +541,8 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -486,12 +571,17 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
         <PodiumModal
           title={`${event.eventDefinition.distance} m ${stroke} — ${gender}`}
           options={categoryGroups
-            .filter((g) => g.categoryId === podiumCategoryId)
-            .map((g) => ({
-              id: g.categoryId,
-              label: g.categoryName,
-              imageUrl: `/torneos/${params.id}/prueba/${params.eventId}/podio?categoryId=${encodeURIComponent(g.categoryId)}`,
-            }))}
+            .filter((g) => podiumCategoryId === `g:${g.key}` || g.categories.some((c) => podiumCategoryId === `c:${c.id}`))
+            .map((g) => {
+              const sub = g.categories.find((c) => podiumCategoryId === `c:${c.id}`);
+              return {
+                id: podiumCategoryId,
+                label: sub ? `${g.name} · ${sub.name}` : g.name,
+                imageUrl: sub
+                  ? `/torneos/${params.id}/prueba/${params.eventId}/podio?categoryId=${encodeURIComponent(sub.id)}`
+                  : `/torneos/${params.id}/prueba/${params.eventId}/podio?group=${encodeURIComponent(g.key)}`,
+              };
+            })}
           onClose={() => setPodiumCategoryId(null)}
         />
       )}

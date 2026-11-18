@@ -42,6 +42,44 @@ export interface FileResult {
   finalTimeMs: number | null;
 }
 
+export interface StandardQuery {
+  stroke: string;
+  distance: number;
+  gender: 'M' | 'F';
+  age: number;
+  timeMs: number;
+  /** FEDERADOS, PROMOCIONAL, ESCUELA o null si el nivel no está definido. */
+  level: string | null;
+}
+
+/**
+ * Sets de marcas básicas que cumple un tiempo: tiempo <= marca de su edad, misma prueba,
+ * mismo género y la pileta de la tabla; según el nivel de la prueba (ver el encabezado).
+ */
+export function standardsMet(q: StandardQuery, table: StandardsTable | null): StandardSet[] {
+  if (!table) return [];
+  const metSetIds = new Set(
+    table.standards
+      .filter(
+        (s) =>
+          s.stroke === q.stroke &&
+          s.distance === q.distance &&
+          s.gender === q.gender &&
+          (s.minAge === null || q.age >= s.minAge) &&
+          (s.maxAge === null || q.age <= s.maxAge) &&
+          q.timeMs <= s.timeMs,
+      )
+      .map((s) => s.setId),
+  );
+
+  return table.sets.filter((set) => {
+    if (!metSetIds.has(set.setId)) return false;
+    if (q.level === 'FEDERADOS') return set.purpose !== 'federacion';
+    if (q.level === 'PROMOCIONAL' || q.level === 'ESCUELA') return set.purpose === 'federacion';
+    return true;
+  });
+}
+
 /**
  * Sets de marcas básicas que cumple un resultado de archivo (tiempo <= marca de su
  * edad, misma prueba, mismo género y la pileta de la tabla).
@@ -52,27 +90,5 @@ export function standardsMetByFileResult(result: FileResult, table: StandardsTab
   const gender = genderFromCategoryLabel(category);
   const { stroke, distance, level } = parsePruebaLabel(result.eventLabel);
   if (!gender || !stroke || distance === null) return [];
-
-  const age = result.age;
-  const time = result.finalTimeMs;
-  const metSetIds = new Set(
-    table.standards
-      .filter(
-        (s) =>
-          s.stroke === stroke &&
-          s.distance === distance &&
-          s.gender === gender &&
-          (s.minAge === null || age >= s.minAge) &&
-          (s.maxAge === null || age <= s.maxAge) &&
-          time <= s.timeMs,
-      )
-      .map((s) => s.setId),
-  );
-
-  return table.sets.filter((set) => {
-    if (!metSetIds.has(set.setId)) return false;
-    if (level === 'FEDERADOS') return set.purpose !== 'federacion';
-    if (level === 'PROMOCIONAL' || level === 'ESCUELA') return set.purpose === 'federacion';
-    return true;
-  });
+  return standardsMet({ stroke, distance, gender, age: result.age, timeMs: result.finalTimeMs, level }, table);
 }

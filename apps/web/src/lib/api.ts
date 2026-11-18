@@ -262,9 +262,10 @@ export interface ResultEntry {
   isPb: boolean;
   isRecord: boolean;
   homologated: boolean;
-  swimmer: { id: string; firstName: string; lastName: string; gender: string };
-  club: { id: string; name: string; shortName: string };
-  category: { id: string; name: string; orderNo: number };
+  /** `age`: edad deportiva en el año del torneo (solo la edad, nunca la fecha de nacimiento). */
+  swimmer: { id: string; firstName: string; lastName: string; gender: string; age?: number | null };
+  club: { id: string; name: string; shortName: string; province?: string | null };
+  category: { id: string; code?: string; name: string; orderNo: number; minAge?: number | null; maxAge?: number | null };
   /** Tiempo de sembrado (inscripción) en ms, si el archivo importado lo traía. */
   seedTime?: number | null;
   splits: { distance: number; cumulativeTime: number }[];

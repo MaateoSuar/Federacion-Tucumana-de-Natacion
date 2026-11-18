@@ -473,9 +473,9 @@ export class TournamentsService {
         { finalTime: { sort: 'asc', nulls: 'last' } },
       ],
       include: {
-        swimmer: { select: { id: true, firstName: true, lastName: true, gender: true } },
-        club: { select: { id: true, name: true, shortName: true } },
-        category: { select: { id: true, name: true, orderNo: true } },
+        swimmer: { select: { id: true, firstName: true, lastName: true, gender: true, birthDate: true } },
+        club: { select: { id: true, name: true, shortName: true, province: true } },
+        category: { select: { id: true, code: true, name: true, orderNo: true, minAge: true, maxAge: true } },
         splits: { orderBy: { distance: 'asc' } },
       },
     });
@@ -503,7 +503,15 @@ export class TournamentsService {
       return a.finalTime - b.finalTime;
     });
 
-    return { event, results: dedupedResults };
+    // Edad deportiva (regla 3): año del torneo menos año de nacimiento. Se publica solo la edad,
+    // nunca la fecha de nacimiento.
+    const tournamentYear = event.tournament.startDate.getUTCFullYear();
+    const publicResults = dedupedResults.map(({ swimmer, ...rest }) => {
+      const { birthDate, ...publicSwimmer } = swimmer;
+      return { ...rest, swimmer: { ...publicSwimmer, age: birthDate ? tournamentYear - birthDate.getUTCFullYear() : null } };
+    });
+
+    return { event, results: publicResults };
   }
 
   // ─── Documentos ───────────────────────────────────────────────────────────
