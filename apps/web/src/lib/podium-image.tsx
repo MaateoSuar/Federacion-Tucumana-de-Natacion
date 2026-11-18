@@ -127,10 +127,11 @@ export function renderPodiumImage(input: PodiumImageInput): ImageResponse {
         }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ffffff', borderRadius: 20, padding: '12px 22px' }}>
-            <img src={logoUrl} alt="" height={72} />
+          {/* Logo bien visible: más grande en la vertical, que tiene alto de sobra */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ffffff', borderRadius: 26, padding: format === 'story' ? '22px 40px' : '16px 30px' }}>
+            <img src={logoUrl} alt="" height={format === 'story' ? 220 : 136} />
           </div>
-          <div style={{ display: 'flex', marginTop: 26, fontSize: 26, letterSpacing: 8, fontWeight: 800, color: C.aqua }}>PODIO</div>
+          <div style={{ display: 'flex', marginTop: format === 'story' ? 44 : 22, fontSize: 26, letterSpacing: 8, fontWeight: 800, color: C.aqua }}>PODIO</div>
           <div style={{ display: 'flex', marginTop: 8, fontSize: eventTitle.length > 22 ? 48 : 68, fontWeight: 800, color: C.text, textAlign: 'center' }}>{eventTitle}</div>
           <div style={{ display: 'flex', marginTop: 6, fontSize: 32, color: C.muted, textAlign: 'center' }}>{subtitle}</div>
         </div>
