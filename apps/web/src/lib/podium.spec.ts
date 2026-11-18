@@ -48,9 +48,9 @@ describe('buildPodium', () => {
     expect(isClassicPodium(podium)).toBe(true);
   });
 
-  it('solo cuenta resultados homologados', () => {
+  it('cuenta también los resultados sin homologar (torneos cargados desde el Drive)', () => {
     const podium = buildPodium([r('A', 29000, { homologated: false }), r('B', 30000)], 'CAD_1');
-    expect(podium.map((p) => p.swimmerName)).toEqual(['Ana B']);
+    expect(podium.map((p) => p.swimmerName)).toEqual(['Ana A', 'Ana B']);
   });
 
   it('descalificados, ausentes y resultados sin tiempo no suben al podio', () => {
@@ -86,6 +86,6 @@ describe('buildPodium', () => {
 
   it('sin resultados válidos devuelve un podio vacío', () => {
     expect(buildPodium([], 'CAD_1')).toEqual([]);
-    expect(buildPodium([r('A', 29000, { homologated: false })], 'CAD_1')).toEqual([]);
+    expect(buildPodium([r('A', null)], 'CAD_1')).toEqual([]);
   });
 });

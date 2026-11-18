@@ -31,7 +31,7 @@ export function buildPodium(results: PodiumSourceResult[], categoryId: string): 
     results
       .filter(
         (r): r is PodiumSourceResult & { finalTime: number } =>
-          r.category.id === categoryId && r.homologated && r.status === 'OK' && r.finalTime !== null,
+          r.category.id === categoryId && r.status === 'OK' && r.finalTime !== null,
       )
       .map((r) => ({
         swimmerName: `${r.swimmer.firstName} ${r.swimmer.lastName}`.trim(),

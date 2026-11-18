@@ -24,6 +24,8 @@ const makeData = (overrides: Partial<PostProcessJobData> = {}): PostProcessJobDa
 const makePrisma = (
   currentRecord: { id: string; timeMs: number } | null = null,
   existingForResult: { id: string } | null = null,
+  clubProvince: string | null = 'Tucumán',
+  ownAges: { minAge: number | null; maxAge: number | null } | null = { minAge: 10, maxAge: 10 }, // Infantil 1
 ) => {
   const tx = {
     record: {
@@ -37,6 +39,16 @@ const makePrisma = (
   return {
     tx,
     record: { findUnique: jest.fn().mockResolvedValue(existingForResult) },
+    club: { findUnique: jest.fn().mockResolvedValue({ province: clubProvince }) },
+    category: {
+      findUnique: jest.fn().mockResolvedValue(ownAges),
+      // Categorías oficiales de récords: Infantiles (10-11), Mayores (19+) y Absoluto (sin límites)
+      findMany: jest.fn().mockResolvedValue([
+        { id: 'cat-infantiles', minAge: 10, maxAge: 11 },
+        { id: 'cat-mayores', minAge: 19, maxAge: null },
+        { id: 'cat-absoluto', minAge: null, maxAge: null },
+      ]),
+    },
     $transaction: jest.fn().mockImplementation((fn: (t: typeof tx) => Promise<unknown>) => fn(tx)),
   };
 };
@@ -109,6 +121,43 @@ describe('RecordEvaluatorProcessor — el récord se actualiza solo', () => {
     expect(prisma.tx.record.create).not.toHaveBeenCalled();
     expect(prisma.tx.record.update).not.toHaveBeenCalled();
     expect(prisma.tx.result.update).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['de otra provincia', 'Catamarca'],
+    ['sin provincia cargada', null],
+  ])('un club %s no genera récord tucumano', async (_label, province) => {
+    const prisma = makePrisma(null, null, province);
+    await new RecordEvaluatorProcessor(prisma as never).process(makeData());
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.tx.record.create).not.toHaveBeenCalled();
+    expect(prisma.tx.result.update).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['Infantil 1 va a Infantiles', { minAge: 10, maxAge: 10 }, 'cat-infantiles'],
+    ['Mayores se queda en Mayores', { minAge: 19, maxAge: null }, 'cat-mayores'],
+  ])('el récord vive en la categoría oficial: %s', async (_label, ages, expectedCategory) => {
+    const prisma = makePrisma(null, null, 'Tucumán', ages);
+    await new RecordEvaluatorProcessor(prisma as never).process(makeData({ categoryId: 'cat-torneo' }));
+
+    expect(prisma.tx.record.findFirst).toHaveBeenCalledWith({
+      where: expect.objectContaining({ categoryId: expectedCategory }),
+    });
+    expect(prisma.tx.record.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ categoryId: expectedCategory }),
+    });
+  });
+
+  it.each([
+    ['Pre A (sin edad mínima, por debajo de las oficiales)', { minAge: null, maxAge: 8 }],
+    ['Absoluto o Escuela (sin límites de edad)', { minAge: null, maxAge: null }],
+  ])('sin categoría oficial que lo contenga no genera récord: %s', async (_label, ages) => {
+    const prisma = makePrisma(null, null, 'Tucumán', ages);
+    await new RecordEvaluatorProcessor(prisma as never).process(makeData());
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('es idempotente: reprocesar un resultado ya evaluado no hace nada', async () => {
