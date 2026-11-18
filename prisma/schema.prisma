@@ -691,7 +691,7 @@ model Result {
   club         Club          @relation("ResultFrozenClub", fields: [clubId], references: [id])
   homologator  User?         @relation("ResultHomologator", fields: [homologatedBy], references: [id])
   splits       Split[]
-  record       Record?       @relation("RecordSourceResult")
+  records      Record[]      @relation("RecordSourceResult")
   personalBest PersonalBest? @relation("PBSourceResult")
 
   @@index([swimmerId, eventId])
