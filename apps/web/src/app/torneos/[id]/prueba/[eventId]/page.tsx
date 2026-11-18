@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { NavBar } from '@/components/NavBar';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { MedalIcon, positionClass } from '@/components/ui/MedalIcon';
-import { RecordBadge } from '@/components/ui/RecordBadge';
 import { formatTime } from '@/lib/formatTime';
 import { useResultsSocket } from '@/hooks/useResultsSocket';
 import { matchesFuzzySearch } from '@/lib/search';
@@ -25,9 +24,21 @@ const STANDARD_CHIP: Record<string, string> = {
 };
 const STANDARD_CHIP_DEFAULT = 'bg-aqua-500/15 text-aqua-300 border-aqua-400/40';
 
-const MARK_LABEL: Record<RecordMark, { text: string; title: string }> = {
-  RT: { text: 'RT', title: 'Récord tucumano: rompió el récord vigente de su categoría' },
-  RNOA: { text: 'RNOA', title: 'Récord NOA: rompió el récord vigente de su categoría' },
+// Cada alcance tiene su color, igual en el recuadro de récords y en la marca de cada resultado:
+// tucumano = celeste, NOA = verde, nacional = ámbar.
+const SCOPE_STYLE: Record<RecordMark, { text: string; title: string; label: string; badge: string; dashed: string; ink: string }> = {
+  RT: {
+    text: 'RT', label: 'Récord Tucumano', title: 'Récord tucumano: rompió el récord vigente de su categoría',
+    badge: 'border-sky-400/50 bg-sky-500/20 text-sky-300', dashed: 'border-dashed border-sky-400/50 bg-sky-500/5 text-sky-300/80', ink: 'text-sky-300',
+  },
+  RNOA: {
+    text: 'RNOA', label: 'Récord NOA', title: 'Récord NOA: rompió el récord vigente de su categoría',
+    badge: 'border-emerald-400/50 bg-emerald-500/20 text-emerald-300', dashed: 'border-dashed border-emerald-400/50 bg-emerald-500/5 text-emerald-300/80', ink: 'text-emerald-300',
+  },
+  RN: {
+    text: 'RN', label: 'Récord Nacional', title: 'Récord nacional: rompió el récord vigente de su categoría',
+    badge: 'border-amber-400/50 bg-amber-500/20 text-amber-300', dashed: 'border-dashed border-amber-400/50 bg-amber-500/5 text-amber-300/80', ink: 'text-amber-300',
+  },
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -163,8 +174,6 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
         : g,
     )
     .filter((g) => g.results.length + g.dqResults.length > 0);
-  // Una subcategoría elegida: el puesto se cuenta dentro de ella
-  const showSubChip = (g: CategoryGroup) => !filterCategoryId && g.categories.length > 1;
   // Récords de referencia por categoría global
   const groupRecords = (g: CategoryGroup): GroupRecords => recordsForGroup(g.key, records);
   const eventGenderMF = event.eventDefinition.gender === 'F' ? 'F' : event.eventDefinition.gender === 'M' ? 'M' : null;
@@ -345,11 +354,11 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
                 {/* Récords de referencia de la categoría: tucumano, NOA y nacional */}
                 {(refs.tucumano || refs.noa || refs.nacional) && (
                   <div className="mb-2 flex flex-wrap gap-x-5 gap-y-1 rounded-lg border border-amber-400/25 bg-amber-400/5 px-3 py-2 text-xs">
-                    {([['Récord Tucumano', refs.tucumano], ['Récord NOA', refs.noa], ['Récord Nacional', refs.nacional]] as const).map(
-                      ([label, rec]) =>
+                    {([['RT', refs.tucumano], ['RNOA', refs.noa], ['RN', refs.nacional]] as const).map(
+                      ([mark, rec]) =>
                         rec && (
-                          <span key={label} className="flex items-baseline gap-1.5">
-                            <span className="text-pool-400">{label} · {group.name}</span>
+                          <span key={mark} className="flex items-baseline gap-1.5">
+                            <span className={`font-semibold ${SCOPE_STYLE[mark].ink}`}>{SCOPE_STYLE[mark].label} · {group.name}</span>
                             <span className="font-mono font-bold tabular-nums text-white">{formatTime(rec.timeMs)}</span>
                             <Link href={`/nadadores/${rec.swimmer.id}`} className="text-pool-300 hover:text-aqua-300 transition-colors">
                               {rec.swimmer.firstName} {rec.swimmer.lastName}
@@ -411,25 +420,16 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
                                     >
                                       {r.swimmer.lastName}, {r.swimmer.firstName}
                                     </Link>
-                                    {/* Récord que rompió en este torneo */}
-                                    {(() => {
-                                      const marks = recordMarks({ id: r.id, finalTime: r.finalTime, clubProvince: r.club.province }, refs);
-                                      return marks.length > 0
-                                        ? marks.map((m) => (
-                                            <span
-                                              key={m}
-                                              title={r.homologated ? MARK_LABEL[m].title : `${MARK_LABEL[m].title} (tentativo: el resultado todavía no está homologado)`}
-                                              className={`rounded border px-1.5 py-0.5 text-xs font-bold ${
-                                                r.homologated
-                                                  ? 'border-yellow-400/40 bg-yellow-400/20 text-yellow-300'
-                                                  : 'border-dashed border-yellow-400/40 bg-yellow-400/5 text-yellow-300/80'
-                                              }`}
-                                            >
-                                              {MARK_LABEL[m].text}
-                                            </span>
-                                          ))
-                                        : r.isRecord && <RecordBadge />;
-                                    })()}
+                                    {/* Récord que rompió en este torneo: RT (celeste), RNOA (verde), RN (ámbar) */}
+                                    {recordMarks({ id: r.id, finalTime: r.finalTime, clubProvince: r.club.province }, refs).map((m) => (
+                                      <span
+                                        key={m}
+                                        title={r.homologated ? SCOPE_STYLE[m].title : `${SCOPE_STYLE[m].title} (tentativo: el resultado todavía no está homologado)`}
+                                        className={`rounded border px-1.5 py-0.5 text-xs font-bold ${r.homologated ? SCOPE_STYLE[m].badge : SCOPE_STYLE[m].dashed}`}
+                                      >
+                                        {SCOPE_STYLE[m].text}
+                                      </span>
+                                    ))}
                                     {/* Marcas básicas que cumple (nacional / para federarse) */}
                                     {eventGenderMF && r.finalTime != null &&
                                       standardsMet(
@@ -451,11 +451,6 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
                                           {set.shortLabel}
                                         </span>
                                       ))}
-                                    {showSubChip(group) && (
-                                      <span className="rounded border border-pool-600/60 px-1.5 py-px text-[10px] font-semibold text-pool-400">
-                                        {r.category.name}
-                                      </span>
-                                    )}
                                   </div>
                                 </td>
                                 <td className="px-4 py-3 text-pool-300 hidden sm:table-cell">{r.club.shortName}</td>

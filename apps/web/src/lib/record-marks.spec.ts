@@ -46,6 +46,12 @@ describe('recordMarks', () => {
     expect(recordMarks({ id: 'mine', finalTime: 54000, clubProvince: 'Tucumán' }, own)).toEqual(['RT']);
   });
 
+  it('el récord nacional (RN) lo puede romper cualquier nadador, aun de fuera del NOA', () => {
+    const withNational = recordsForGroup('JUV', [rec('nacional', 'JUV', 51000)]);
+    expect(recordMarks({ id: 'x', finalTime: 50000, clubProvince: 'Córdoba' }, withNational)).toEqual(['RN']);
+    expect(recordMarks({ id: 'x', finalTime: 52000, clubProvince: 'Córdoba' }, withNational)).toEqual([]);
+  });
+
   it('sin provincia del club, sin tiempo o de fuera del NOA no marca nada', () => {
     expect(recordMarks({ id: 'x', finalTime: 40000, clubProvince: null }, refs)).toEqual([]);
     expect(recordMarks({ id: 'x', finalTime: null, clubProvince: 'Tucumán' }, refs)).toEqual([]);

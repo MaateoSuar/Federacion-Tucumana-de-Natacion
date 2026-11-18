@@ -4,7 +4,7 @@
  * Reglas (decisiones del 18/11/2026):
  *  - Récord tucumano: solo cuentan nadadores de clubes de Tucumán.
  *  - Récord NOA: clubes de cualquiera de las provincias del NOA.
- *  - Los récords nacionales son solo de referencia: se muestran pero no se marcan.
+ *  - Récord nacional (RN): lo puede romper cualquier nadador; es solo de referencia (la FTN no lo homologa).
  *  - Los récords de 25 m y 50 m nunca se comparan: la pantalla pide los de la pileta del torneo.
  * La lista de provincias del NOA es la misma que usa la API (apps/api/src/homologation/record-scopes.ts).
  */
@@ -28,7 +28,7 @@ export interface GroupRecords {
   nacional?: RecordRef;
 }
 
-export type RecordMark = 'RT' | 'RNOA';
+export type RecordMark = 'RT' | 'RNOA' | 'RN';
 
 /** NOA_INF → INF: las categorías NOA se comparan con las de igual nombre. */
 const categoryKey = (code: string): string => code.replace(/^NOA_/, '');
@@ -54,12 +54,14 @@ export function recordMarks(
   result: { id: string; finalTime: number | null; clubProvince?: string | null },
   refs: GroupRecords,
 ): RecordMark[] {
-  if (result.finalTime === null || !result.clubProvince) return [];
+  if (result.finalTime === null) return [];
   const broke = (rec: RecordRef | undefined): boolean =>
     rec !== undefined && (result.finalTime! < rec.timeMs || rec.sourceResult?.id === result.id);
 
   const marks: RecordMark[] = [];
-  if (result.clubProvince === TUCUMAN_PROVINCE && broke(refs.tucumano)) marks.push('RT');
-  if (NOA_PROVINCES.includes(result.clubProvince) && broke(refs.noa)) marks.push('RNOA');
+  const province = result.clubProvince ?? '';
+  if (province === TUCUMAN_PROVINCE && broke(refs.tucumano)) marks.push('RT');
+  if (NOA_PROVINCES.includes(province) && broke(refs.noa)) marks.push('RNOA');
+  if (broke(refs.nacional)) marks.push('RN');
   return marks;
 }
