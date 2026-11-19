@@ -89,7 +89,7 @@ describe('AuthService', () => {
 
   // ── 1. register ─────────────────────────────────────────────────────────────
 
-  describe('register (solo con código de perfil)', () => {
+  describe('register (con o sin código de perfil)', () => {
     const dto = { email: 'nuevo@ftn.ar', password: 'miPassword8', firstName: 'Ana', lastName: 'Gómez', claimCode: 'FTN-7K3M-9PQX' };
     const tx = { user: { create: jest.fn() } };
 
@@ -103,11 +103,22 @@ describe('AuthService', () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
     });
 
-    it('sin código no se crea la cuenta (el código es obligatorio)', async () => {
-      await expect(service.register({ ...dto, claimCode: '' }, '1.2.3.4')).rejects.toThrow(/necesitás el código de perfil/);
-      await expect(service.register({ ...dto, claimCode: '   ' }, '1.2.3.4')).rejects.toThrow(BadRequestException);
-      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
-      expect(tx.user.create).not.toHaveBeenCalled();
+    it('sin código la cuenta se crea igual, sin vincular y con el email dado por verificado', async () => {
+      mockPrisma.user.create.mockResolvedValue(makeUser({ id: 'suelto-1' }));
+      for (const claimCode of [undefined, '', '   ']) {
+        mockPrisma.user.create.mockClear();
+        const result = await service.register({ ...dto, claimCode }, '1.2.3.4');
+        expect(result).toMatchObject({ linked: false, verified: true });
+        expect(mockPrisma.user.create.mock.calls[0][0].data.emailVerifiedAt).toBeInstanceOf(Date);
+      }
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled(); // no se canjea nada
+      expect(mockClaimCodes.assertNotLockedOut).not.toHaveBeenCalled();
+      expect(mockClaimCodes.recordFailure).not.toHaveBeenCalled();
+    });
+
+    it('sin código también se rechaza un email ya registrado', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(makeUser());
+      await expect(service.register({ ...dto, claimCode: undefined }, '1.2.3.4')).rejects.toThrow(ConflictException);
     });
 
     it('con un código válido crea la cuenta verificada y vinculada, todo en una transacción', async () => {
@@ -142,7 +153,7 @@ describe('AuthService', () => {
       expect(mockClaimCodes.recordFailure).toHaveBeenCalledWith('1.2.3.4', 'register');
     });
 
-    it('hashea la contraseña con argon2 (nunca guarda en claro)', async () => {
+    it('hashea la contraseña con argon2 (nunca guarda en claro), con y sin código', async () => {
       await service.register(dto, '1.2.3.4');
       const data = tx.user.create.mock.calls[0][0].data as { passwordHash: string };
       expect(data.passwordHash).not.toBe('miPassword8');

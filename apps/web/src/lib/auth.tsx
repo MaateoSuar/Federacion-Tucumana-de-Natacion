@@ -19,8 +19,8 @@ export interface RegisterInput {
   lastName: string;
   email: string;
   password: string;
-  /** Código de perfil OBLIGATORIO (FTN-XXXX-XXXX) que entrega el club o la federación. */
-  claimCode: string;
+  /** Código de perfil (FTN-XXXX-XXXX) que entrega el club o la federación. Opcional: sin código la cuenta se crea sin vincular. */
+  claimCode?: string;
 }
 
 /** Respuesta de `POST /auth/register`. */

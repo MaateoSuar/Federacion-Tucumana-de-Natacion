@@ -47,33 +47,47 @@ export class AuthService {
   // ── Registro ──────────────────────────────────────────────────────────────
 
   /**
-   * El registro SOLO existe con un código de perfil válido: no se crean cuentas sueltas. La cuenta
-   * nace vinculada al nadador del código y con el email dado por verificado (el código lo entregó la
-   * federación o el club). Todo o nada. Orden pensado contra abusos: primero límite de intentos y
-   * existencia del código (barato), recién después el hash de la contraseña (caro) y el chequeo de
-   * email (así no se puede sondear qué emails existen sin un código válido).
+   * Registro con o sin código de perfil (decisión del 19/11/2026):
+   *  - CON código: la cuenta nace vinculada al nadador del código. Todo o nada: si el código no
+   *    sirve, no se crea nada y se informa (no se crea una cuenta suelta en silencio).
+   *  - SIN código: la cuenta se crea sin vincular; después, en su panel, se le pide el código o
+   *    hace la solicitud de vinculación, que aprueba una persona (regla 6).
+   * Mientras no haya envío real de emails, la cuenta nace con el email dado por verificado (si no,
+   * no podría ingresar). Revisar cuando se conecte un servicio de correo.
+   * Contra abusos con código: primero límite de intentos y existencia del código (barato), recién
+   * después el hash de la contraseña (caro) y el chequeo de email (no se sondean emails con códigos falsos).
    */
   async register(dto: RegisterDto, ip: string | null = null) {
     const claimCode = dto.claimCode?.trim();
-    if (!claimCode) {
-      throw new BadRequestException('Para crear tu cuenta necesitás el código de perfil que te da tu club o la federación.');
-    }
-    await this.claimCodes.assertNotLockedOut(ip);
-    if (!(await this.claimCodes.isRedeemable(claimCode))) {
-      await this.claimCodes.recordFailure(ip, 'register');
-      throw new BadRequestException(INVALID_CODE);
+
+    if (claimCode) {
+      await this.claimCodes.assertNotLockedOut(ip);
+      if (!(await this.claimCodes.isRedeemable(claimCode))) {
+        await this.claimCodes.recordFailure(ip, 'register');
+        throw new BadRequestException(INVALID_CODE);
+      }
     }
 
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) throw new ConflictException('El email ya está registrado');
 
     const passwordHash = await argon2.hash(dto.password);
+    const base = { email: dto.email, passwordHash, firstName: dto.firstName, lastName: dto.lastName, emailVerifiedAt: new Date() };
+
+    if (!claimCode) {
+      const user = await this.prisma.user.create({ data: base });
+      this.logger.log(`Registro sin código: usuario ${user.id} (queda sin vincular)`);
+      return {
+        message: 'Cuenta creada. Ya podés ingresar. Para ver y seguir tu perfil de nadador vas a necesitar tu código de perfil o hacer la solicitud de vinculación.',
+        linked: false,
+        verified: true,
+      };
+    }
+
     try {
       const created = await this.prisma.$transaction(
         async (tx) => {
-          const newUser = await tx.user.create({
-            data: { email: dto.email, passwordHash, firstName: dto.firstName, lastName: dto.lastName, emailVerifiedAt: new Date() },
-          });
+          const newUser = await tx.user.create({ data: base });
           const { swimmerId } = await this.claimCodes.redeemInTransaction(tx, newUser.id, claimCode);
           return { userId: newUser.id, swimmerId };
         },

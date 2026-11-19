@@ -166,10 +166,23 @@ suite('códigos de perfil contra Postgres real', () => {
     expect(await db.user.count({ where: { email: 'emi@test.ar' } })).toBe(0);
   });
 
-  it('sin código no hay cuenta, y el intento con un código inexistente no crea usuario', async () => {
-    await expect(auth.register(registerDto({ claimCode: '' }) as never)).rejects.toThrow(/necesitás el código/);
+  it('sin código la cuenta se crea igual pero SIN vincular; con un código inexistente se rechaza y no crea nada', async () => {
     await expect(auth.register(registerDto({ claimCode: 'FTN-ABCD-EFGH' }) as never, '9.9.9.9')).rejects.toBeInstanceOf(BadRequestException);
     expect(await db.user.count({ where: { email: 'emi@test.ar' } })).toBe(0);
+
+    await expect(auth.register(registerDto({ claimCode: '' }) as never, '9.9.9.9')).resolves.toMatchObject({ linked: false, verified: true });
+    const user = await db.user.findUniqueOrThrow({ where: { email: 'emi@test.ar' } });
+    expect(user.swimmerId).toBeNull();
+    expect(user.emailVerifiedAt).not.toBeNull();
+    expect(await db.accountLinkRequest.count({ where: { userId: user.id } })).toBe(0); // nada se vincula solo (regla 6)
+  });
+
+  it('una cuenta creada sin código se vincula después canjeando el código estando logueada', async () => {
+    await auth.register(registerDto() as never);
+    const user = await db.user.findUniqueOrThrow({ where: { email: 'emi@test.ar' } });
+    const { code } = await claimCodes.create(swimmerId, adminId);
+    await expect(claimCodes.redeem(user.id, code)).resolves.toMatchObject({ swimmerId });
+    expect((await db.user.findUniqueOrThrow({ where: { id: user.id } })).swimmerId).toBe(swimmerId);
   });
 
   it('los intentos fallidos quedan anotados con la IP (sin guardar el código) y a los 8 se bloquea esa IP', async () => {

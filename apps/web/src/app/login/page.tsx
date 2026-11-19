@@ -127,7 +127,7 @@ function LoginScreen() {
         lastName: registerValues.lastName.trim(),
         email: cleanEmail,
         password,
-        claimCode: registerValues.claimCode,
+        ...(registerValues.claimCode ? { claimCode: registerValues.claimCode } : {}),
       });
 
       const base = { email: cleanEmail, message: result.message, linked: result.linked === true };
