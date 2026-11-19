@@ -69,11 +69,13 @@ export function ClaimCodePanel({ swimmerId, swimmerName }: { swimmerId: string; 
     }
   };
 
+  const [revoking, setRevoking] = useState<string | null>(null);
+
   const revoke = async (id: string) => {
-    if (!confirm('¿Revocar este código? Ya no se va a poder usar.')) return;
     try {
       await apiFetch(`/admin/claim-codes/${id}`, { method: 'DELETE' });
       setCreated((c) => (c?.id === id ? null : c));
+      setRevoking(null);
       await load();
     } catch (e) {
       setError((e as Error).message);
@@ -157,9 +159,17 @@ export function ClaimCodePanel({ swimmerId, swimmerName }: { swimmerId: string; 
                     : `Creado el ${fmtDate(r.createdAt)} por ${r.creator.firstName} ${r.creator.lastName} · vence el ${fmtDate(r.expiresAt)}`}
                 </span>
                 {r.status === 'activo' && (
-                  <button type="button" onClick={() => void revoke(r.id)} className="ml-auto text-xs text-red-600 hover:underline">
-                    Revocar
-                  </button>
+                  revoking === r.id ? (
+                    <span className="ml-auto flex items-center gap-2 text-xs">
+                      <span className="text-gray-500">¿Revocar? Ya no se va a poder usar.</span>
+                      <button type="button" onClick={() => void revoke(r.id)} className="text-red-600 font-semibold hover:underline">Sí, revocar</button>
+                      <button type="button" onClick={() => setRevoking(null)} className="text-gray-500 hover:underline">Cancelar</button>
+                    </span>
+                  ) : (
+                    <button type="button" onClick={() => setRevoking(r.id)} className="ml-auto text-xs text-red-600 hover:underline">
+                      Revocar
+                    </button>
+                  )
                 )}
               </li>
             ))}

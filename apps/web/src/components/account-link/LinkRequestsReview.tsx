@@ -55,6 +55,8 @@ export function LinkRequestsReview({ variant }: { variant: 'light' | 'dark' }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<string | null>(null);
+  // Confirmación en la propia tarjeta: el diálogo del navegador (confirm) puede estar bloqueado y el botón "no hace nada"
+  const [confirming, setConfirming] = useState<string | null>(null);
   const [reason, setReason] = useState('');
 
   const load = useCallback(async (s: Status) => {
@@ -71,11 +73,11 @@ export function LinkRequestsReview({ variant }: { variant: 'light' | 'dark' }) {
   useEffect(() => { void load(status); }, [load, status]);
 
   const approve = async (r: LinkRequest) => {
-    if (!confirm(`¿Aprobar? ${r.user.firstName} ${r.user.lastName} (${r.user.email}) va a quedar vinculado/a al perfil de ${r.swimmer.firstName} ${r.swimmer.lastName}.`)) return;
     setBusyId(r.id);
     setError(null);
     try {
       await apiFetch(`/account-link/requests/${r.id}/approve`, { method: 'PATCH', body: JSON.stringify({}) });
+      setConfirming(null);
       setNotice('Solicitud aprobada: la cuenta ya está vinculada.');
       await load(status);
     } catch (e) {
@@ -146,9 +148,13 @@ export function LinkRequestsReview({ variant }: { variant: 'light' | 'dark' }) {
                   : r.matchConfidence >= 40 ? 'text-amber-600 border-amber-300/50 bg-amber-500/10'
                   : 'text-red-500 border-red-300/50 bg-red-500/10'
                 }`}
-                title="Qué tanto coincide el nombre de la cuenta con el del nadador. Es solo una ayuda: decide una persona."
+                title="Compara el nombre con el que se creó la cuenta con el del nadador. Es solo una ayuda: puede ser una familia con otro apellido o un tutor. Decide una persona."
               >
-                Coincidencia de nombre {r.matchConfidence}%
+                {r.matchConfidence >= 85
+                  ? 'El nombre de la cuenta coincide'
+                  : r.matchConfidence >= 40
+                    ? `Nombre parecido (${r.matchConfidence}%)`
+                    : 'El nombre de la cuenta NO coincide: verificá antes de aprobar'}
               </span>
             </div>
 
@@ -178,14 +184,29 @@ export function LinkRequestsReview({ variant }: { variant: 'light' | 'dark' }) {
                     <button onClick={() => { setRejecting(null); setReason(''); }} className={`px-4 py-2 rounded-lg text-sm font-medium ${t.tab}`}>Cancelar</button>
                   </div>
                 ) : (
+                  confirming === r.id ? (
+                    <div className={`rounded-lg px-4 py-3 text-sm ${t.note}`} role="alertdialog" aria-label="Confirmar aprobación">
+                      <p className="mb-3">
+                        ¿Vincular la cuenta de <strong>{r.user.firstName} {r.user.lastName}</strong> ({r.user.email}) al perfil de{' '}
+                        <strong>{r.swimmer.firstName} {r.swimmer.lastName}</strong>? Va a poder ver y seguir ese perfil.
+                      </p>
+                      <div className="flex gap-2">
+                        <button onClick={() => void approve(r)} disabled={busyId === r.id} className="px-4 py-2 rounded-lg text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">
+                          {busyId === r.id ? 'Aprobando…' : 'Sí, aprobar'}
+                        </button>
+                        <button onClick={() => setConfirming(null)} disabled={busyId === r.id} className={`px-4 py-2 rounded-lg text-sm font-medium ${t.tab}`}>Cancelar</button>
+                      </div>
+                    </div>
+                  ) : (
                   <div className="flex gap-2">
-                    <button onClick={() => void approve(r)} disabled={busyId === r.id} className="px-4 py-2 rounded-lg text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">
-                      {busyId === r.id ? 'Aprobando…' : '✓ Aprobar'}
+                    <button onClick={() => { setConfirming(r.id); setError(null); setNotice(null); }} className="px-4 py-2 rounded-lg text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700">
+                      ✓ Aprobar
                     </button>
                     <button onClick={() => { setRejecting(r.id); setError(null); }} className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 text-red-500 border border-red-300/40 hover:bg-red-500/20">
                       ✗ Rechazar
                     </button>
                   </div>
+                  )
                 )}
               </div>
             ) : (
