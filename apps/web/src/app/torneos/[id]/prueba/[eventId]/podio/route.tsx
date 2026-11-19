@@ -63,7 +63,7 @@ export async function GET(request: Request, { params }: { params: { id: string; 
     subtitle: [categoryName, gender, pool].filter(Boolean).join(' · '),
     tournamentName: event.tournament.name,
     date,
-    logoUrl: new URL('/logo-ftn.png', url.origin).toString(),
+    logoUrl: new URL('/logo-ftn-podio.png', url.origin).toString(),
     downloadName: download ? `podio ${eventTitle} ${categoryName} ${gender}` : undefined,
   });
 }
