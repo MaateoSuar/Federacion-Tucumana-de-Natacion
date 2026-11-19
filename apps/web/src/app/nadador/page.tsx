@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { RedeemClaimCodeForm } from '@/components/nadador/RedeemClaimCodeForm';
+import { RequestLinkForm } from '@/components/nadador/RequestLinkForm';
 
 export default function NadadorPage() {
   const { user, logout, isLoading } = useAuth();
@@ -98,6 +99,7 @@ export default function NadadorPage() {
 
         {/* Código de perfil: vincula la cuenta al instante */}
         <RedeemClaimCodeForm />
+        <RequestLinkForm />
 
         {/* Quick links */}
         <div className="w-full grid grid-cols-2 gap-4">

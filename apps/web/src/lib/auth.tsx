@@ -14,10 +14,29 @@ export interface AuthUser {
   swimmerId: string | null;
 }
 
+export interface RegisterInput {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  /** Código de perfil opcional (FTN-XXXX-XXXX) que entrega el club o la federación. */
+  claimCode?: string;
+}
+
+/** Respuesta de `POST /auth/register`. */
+export interface RegisterResult {
+  message: string;
+  /** El código de perfil fue aceptado y la cuenta quedó asociada. */
+  linked?: boolean;
+  /** El email ya está verificado: se puede iniciar sesión sin pasos extra. */
+  verified?: boolean;
+}
+
 interface AuthContextValue {
   user: AuthUser | null;
   accessToken: string | null;
   login: (email: string, password: string) => Promise<void>;
+  register: (input: RegisterInput) => Promise<RegisterResult>;
   logout: () => void;
   isLoading: boolean;
 }
@@ -36,6 +55,18 @@ function parseJwtPayload(token: string): Record<string, unknown> {
     return {};
   }
 }
+
+/** Arma un mensaje legible desde el cuerpo de error de Nest (string o string[]). */
+async function readErrorMessage(res: Response, fallback: string): Promise<string> {
+  const body = (await res.json().catch(() => ({}))) as { message?: string | string[] };
+  if (Array.isArray(body.message)) {
+    const joined = body.message.filter((m) => typeof m === 'string' && m.length > 0).join('. ');
+    return joined || fallback;
+  }
+  return typeof body.message === 'string' && body.message.length > 0 ? body.message : fallback;
+}
+
+const NETWORK_ERROR_MESSAGE = 'No pudimos conectar con el servidor. Revisá tu conexión e intentá de nuevo.';
 
 async function fetchMe(token: string): Promise<Partial<AuthUser>> {
   try {
@@ -84,14 +115,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const res = await fetch(`${API_BASE}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+    } catch {
+      throw new Error(NETWORK_ERROR_MESSAGE);
+    }
     if (!res.ok) {
-      const body = await res.json().catch(() => ({})) as { message?: string };
-      throw new Error(body.message ?? 'Credenciales incorrectas');
+      throw new Error(await readErrorMessage(res, 'Credenciales incorrectas'));
     }
     const { accessToken: at, refreshToken: rt } = await res.json() as {
       accessToken: string;
@@ -114,6 +149,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const register = useCallback(async (input: RegisterInput): Promise<RegisterResult> => {
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+    } catch {
+      throw new Error(NETWORK_ERROR_MESSAGE);
+    }
+    if (!res.ok) {
+      throw new Error(await readErrorMessage(res, 'No pudimos crear tu cuenta. Intentá de nuevo.'));
+    }
+    const body = (await res.json().catch(() => ({}))) as Partial<RegisterResult>;
+    return {
+      message: typeof body.message === 'string' ? body.message : '',
+      linked: body.linked === true,
+      verified: body.verified === true,
+    };
+  }, []);
+
   const logout = useCallback(() => {
     localStorage.removeItem('ftn_access_token');
     localStorage.removeItem('ftn_refresh_token');
@@ -122,7 +179,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, accessToken, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, accessToken, login, register, logout, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

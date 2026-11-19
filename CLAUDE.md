@@ -62,7 +62,7 @@ Estas reglas se blindan con tests. Nunca modificarlas sin aprobación explícita
 
 5. **Importación idempotente.** Reimportar el mismo meet no duplica datos. Clave natural de idempotencia: `(external_meet_id | file_hash, event, swimmer, heat, lane)`. Usar upsert.
 
-6. **Athlete ≠ User.** Un `swimmer` existe sin cuenta. Un `user` con rol NADADOR se vincula a un `swimmer` via `users.swimmer_id` (nullable), que se setea **únicamente** cuando un Admin aprueba un `AccountLinkRequest`. Toda vinculación queda auditada en `audit_logs`. Un swimmer ↔ una sola cuenta activa (índice único parcial).
+6. **Athlete ≠ User.** Un `swimmer` existe sin cuenta. Un `user` con rol NADADOR se vincula a un `swimmer` via `users.swimmer_id` (nullable), que se setea **únicamente** por una aprobación humana: un Admin aprueba un `AccountLinkRequest`, **un Entrenador aprueba solo los de nadadores de su club** (decisión del 19/11/2026; el club se lee de la base, nunca del token, y nadie revisa su propia solicitud), o un Admin genera un **código de perfil** de un solo uso para un nadador concreto (generarlo es la aprobación). Toda vinculación queda auditada en `audit_logs`. Un swimmer ↔ una sola cuenta activa (índice único parcial).
 
 **Reglas de negocio adicionales confirmadas:**
 - `AthleteProfile` cuelga del `swimmer`, no del `user`. Existe aunque no haya cuenta.

@@ -100,6 +100,9 @@ export default function EntrenadorPage() {
           <span className="text-pool-500 text-xs">Entrenador</span>
         </div>
         <div className="flex items-center gap-4">
+          <Link href="/entrenador/solicitudes" className="text-aqua-300 hover:text-aqua-200 text-sm font-medium transition-colors">
+            Solicitudes de vinculación
+          </Link>
           <div className="hidden sm:flex items-center gap-2 bg-emerald-950/60 border border-emerald-500/30 rounded-full px-3 py-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
             <span className="text-emerald-300 text-xs font-semibold">

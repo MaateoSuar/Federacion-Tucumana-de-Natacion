@@ -100,3 +100,259 @@
   0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+
+/* Login: respetar prefers-reduced-motion (sin movimiento, solo estados finales) */
+@media (prefers-reduced-motion: reduce) {
+  .ftn-login *,
+  .ftn-login *::before,
+  .ftn-login *::after {
+    animation: none !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
+}
+
+/* === Login: nadador con cuatro estilos (crol, mariposa, espalda, pecho) ===
+   Cada estilo = un ciclo `--c` y un set de animaciones por parte del cuerpo.
+   Las animaciones se apagan con prefers-reduced-motion (ver bloque de arriba). */
+
+.sw-crawl  { --c: 1.8s; }
+.sw-fly    { --c: 1.5s; }
+.sw-back   { --c: 1.7s; }
+.sw-breast { --c: 2.6s; }
+
+@keyframes sw-splash {
+  0%   { opacity: 0; transform: translate(0, 0); }
+  5%   { opacity: 0.9; }
+  25%  { opacity: 0.7; transform: translate(6px, -13px); }
+  50%  { opacity: 0; transform: translate(12px, 2px); }
+  100% { opacity: 0; transform: translate(12px, 2px); }
+}
+.sw-splash { opacity: 0; animation: sw-splash var(--c) ease-out infinite; }
+.sw-breast .sw-splash { display: none; }
+.sw-crawl .sw-splash-a { animation-delay: calc(var(--c) * -0.84); }
+.sw-crawl .sw-splash-b { animation-delay: calc(var(--c) * -1.34); }
+.sw-fly .sw-splash-a, .sw-fly .sw-splash-b { animation-delay: calc(var(--c) * -0.9); }
+.sw-back .sw-splash-a { animation-delay: 0s; }
+.sw-back .sw-splash-b { animation-delay: calc(var(--c) * -0.5); }
+
+/* -- Crol: brazada alterna, patada de batido, rotación sobre el eje y respiración lateral -- */
+@keyframes sw-crawl-body {
+  0%, 100% { transform: translateY(0) rotate(-2.5deg); }
+  50%      { transform: translateY(-1.5px) rotate(2.5deg); }
+}
+@keyframes sw-roll-squash {
+  0%, 100% { transform: scale(1, 1.04); }
+  50%      { transform: scale(1, 0.9); }
+}
+@keyframes sw-crawl-arm {
+  0%   { transform: rotate(18deg); }
+  15%  { transform: rotate(50deg); }
+  30%  { transform: rotate(105deg); }
+  45%  { transform: rotate(165deg); }
+  58%  { transform: rotate(215deg); }
+  75%  { transform: rotate(285deg); }
+  90%  { transform: rotate(345deg); }
+  100% { transform: rotate(378deg); }
+}
+@keyframes sw-crawl-fore {
+  0%   { transform: rotate(0deg); }
+  15%  { transform: rotate(-8deg); }
+  30%  { transform: rotate(12deg); }
+  45%  { transform: rotate(20deg); }
+  58%  { transform: rotate(85deg); }
+  75%  { transform: rotate(100deg); }
+  90%  { transform: rotate(55deg); }
+  100% { transform: rotate(0deg); }
+}
+@keyframes sw-flutter-thigh {
+  from { transform: rotate(-2deg); }
+  to   { transform: rotate(2.5deg); }
+}
+@keyframes sw-flutter-shin {
+  from { transform: rotate(-4deg); }
+  to   { transform: rotate(5deg); }
+}
+/* La cara va dentro del agua y la cabeza solo rota al costado para tomar aire (nunca mira al frente) */
+@keyframes sw-crawl-head {
+  0%, 60%, 96%, 100% { transform: translateY(3px) rotate(3deg); }
+  68%, 86%           { transform: translateY(-2px) rotate(-5deg); }
+}
+@keyframes sw-crawl-face {
+  0%, 60%, 96%, 100% { transform: translateX(0); }
+  68%, 86%           { transform: translateX(-8px); }
+}
+@keyframes sw-mouth-breath {
+  0%, 62%, 94%, 100% { opacity: 0; }
+  70%, 84%           { opacity: 1; }
+}
+
+.sw-crawl .sw-body    { animation: sw-crawl-body var(--c) ease-in-out infinite; }
+.sw-crawl .sw-torso   { animation: sw-roll-squash var(--c) ease-in-out infinite; }
+.sw-crawl .sw-arm-n   { animation: sw-crawl-arm var(--c) linear infinite; }
+.sw-crawl .sw-fore-n  { animation: sw-crawl-fore var(--c) linear infinite; }
+.sw-crawl .sw-arm-f   { animation: sw-crawl-arm var(--c) linear infinite; animation-delay: calc(var(--c) * -0.5); }
+.sw-crawl .sw-fore-f  { animation: sw-crawl-fore var(--c) linear infinite; animation-delay: calc(var(--c) * -0.5); }
+.sw-crawl .sw-thigh-n { animation: sw-flutter-thigh 0.34s ease-in-out infinite alternate; }
+.sw-crawl .sw-shin-n  { animation: sw-flutter-shin 0.34s ease-in-out infinite alternate -0.08s; }
+.sw-crawl .sw-thigh-f { animation: sw-flutter-thigh 0.34s ease-in-out infinite alternate-reverse; }
+.sw-crawl .sw-shin-f  { animation: sw-flutter-shin 0.34s ease-in-out infinite alternate-reverse -0.08s; }
+.sw-crawl .sw-head    { animation: sw-crawl-head var(--c) ease-in-out infinite; }
+.sw-crawl .sw-face    { animation: sw-crawl-face var(--c) ease-in-out infinite; }
+.sw-crawl .sw-mouth   { animation: sw-mouth-breath var(--c) ease-in-out infinite; }
+
+/* -- Mariposa: ondulación de todo el cuerpo, brazos juntos por encima del agua, respiración frontal cada 2 brazadas -- */
+@keyframes sw-fly-body {
+  0%   { transform: translateY(1px) rotate(5deg); }
+  40%  { transform: translateY(-5px) rotate(-5deg); }
+  75%  { transform: translateY(0) rotate(1deg); }
+  100% { transform: translateY(1px) rotate(5deg); }
+}
+@keyframes sw-fly-arm {
+  0%   { transform: rotate(15deg) scale(1, 1); }
+  12%  { transform: rotate(55deg) scale(1, 1); }
+  26%  { transform: rotate(110deg) scale(1, 1); }
+  40%  { transform: rotate(170deg) scale(1, 1); }
+  50%  { transform: rotate(215deg) scale(0.9, 1); }
+  65%  { transform: rotate(265deg) scale(0.62, 1); }
+  82%  { transform: rotate(320deg) scale(0.75, 1); }
+  100% { transform: rotate(375deg) scale(1, 1); }
+}
+@keyframes sw-fly-fore {
+  0%   { transform: rotate(0deg); }
+  12%  { transform: rotate(-6deg); }
+  26%  { transform: rotate(12deg); }
+  40%  { transform: rotate(20deg); }
+  50%  { transform: rotate(28deg); }
+  65%  { transform: rotate(22deg); }
+  82%  { transform: rotate(12deg); }
+  100% { transform: rotate(0deg); }
+}
+@keyframes sw-dolphin-thigh {
+  from { transform: rotate(-9deg); }
+  to   { transform: rotate(10deg); }
+}
+@keyframes sw-dolphin-shin {
+  from { transform: rotate(-14deg); }
+  to   { transform: rotate(14deg); }
+}
+/* Dura 2 ciclos de brazada: cara abajo entre brazos y un respiro corto hacia adelante cada 2 brazadas */
+@keyframes sw-fly-head {
+  0%, 58%, 84%, 100% { transform: translateY(3px) rotate(8deg); }
+  66%, 76%           { transform: translateY(-5px) rotate(-14deg); }
+}
+@keyframes sw-fly-mouth {
+  0%, 62%, 80%, 100% { opacity: 0; }
+  68%, 76%           { opacity: 1; }
+}
+
+.sw-fly .sw-body    { animation: sw-fly-body var(--c) ease-in-out infinite; }
+.sw-fly .sw-arm-n   { animation: sw-fly-arm var(--c) linear infinite; }
+.sw-fly .sw-fore-n  { animation: sw-fly-fore var(--c) linear infinite; }
+.sw-fly .sw-arm-f   { animation: sw-fly-arm var(--c) linear infinite; animation-delay: calc(var(--c) * -0.03); }
+.sw-fly .sw-fore-f  { animation: sw-fly-fore var(--c) linear infinite; animation-delay: calc(var(--c) * -0.03); }
+.sw-fly .sw-thigh-n { animation: sw-dolphin-thigh 0.375s ease-in-out infinite alternate; }
+.sw-fly .sw-shin-n  { animation: sw-dolphin-shin 0.375s ease-in-out infinite alternate -0.1s; }
+.sw-fly .sw-thigh-f { animation: sw-dolphin-thigh 0.375s ease-in-out infinite alternate -0.02s; }
+.sw-fly .sw-shin-f  { animation: sw-dolphin-shin 0.375s ease-in-out infinite alternate -0.12s; }
+.sw-fly .sw-head    { animation: sw-fly-head calc(var(--c) * 2) ease-in-out infinite; }
+.sw-fly .sw-mouth   { animation: sw-fly-mouth calc(var(--c) * 2) ease-in-out infinite; }
+
+/* -- Espalda: boca arriba, brazos alternos en molino, cabeza quieta, batido y cadera alta -- */
+@keyframes sw-back-body {
+  0%, 100% { transform: translateY(2px) rotate(-3deg); }
+  50%      { transform: translateY(1px) rotate(3deg); }
+}
+@keyframes sw-back-arm {
+  0%   { transform: rotate(-14deg); }
+  12%  { transform: rotate(20deg); }
+  25%  { transform: rotate(70deg); }
+  38%  { transform: rotate(125deg); }
+  50%  { transform: rotate(180deg); }
+  62%  { transform: rotate(220deg); }
+  75%  { transform: rotate(270deg); }
+  88%  { transform: rotate(320deg); }
+  100% { transform: rotate(346deg); }
+}
+@keyframes sw-back-fore {
+  0%, 100% { transform: rotate(0deg); }
+  25%      { transform: rotate(12deg); }
+  50%      { transform: rotate(8deg); }
+}
+
+.sw-back .sw-body    { animation: sw-back-body var(--c) ease-in-out infinite; }
+.sw-back .sw-torso   { animation: sw-roll-squash var(--c) ease-in-out infinite; }
+.sw-back .sw-arm-n   { animation: sw-back-arm var(--c) linear infinite; }
+.sw-back .sw-fore-n  { animation: sw-back-fore var(--c) linear infinite; }
+.sw-back .sw-arm-f   { animation: sw-back-arm var(--c) linear infinite; animation-delay: calc(var(--c) * -0.5); }
+.sw-back .sw-fore-f  { animation: sw-back-fore var(--c) linear infinite; animation-delay: calc(var(--c) * -0.5); }
+.sw-back .sw-thigh-n { animation: sw-flutter-thigh 0.32s ease-in-out infinite alternate; }
+.sw-back .sw-shin-n  { animation: sw-flutter-shin 0.32s ease-in-out infinite alternate -0.08s; }
+.sw-back .sw-thigh-f { animation: sw-flutter-thigh 0.32s ease-in-out infinite alternate-reverse; }
+.sw-back .sw-shin-f  { animation: sw-flutter-shin 0.32s ease-in-out infinite alternate-reverse -0.08s; }
+/* Cabeza quieta mirando hacia arriba (pose fija, no es una animación) */
+.sw-back .sw-head    { transform: translateY(3px) rotate(-72deg); }
+
+/* -- Pecho: brazada en corazón, patada de rana, sube y baja para respirar y se desliza -- */
+@keyframes sw-breast-body {
+  0%, 14%  { transform: translateY(0) rotate(0deg); }
+  34%      { transform: translateY(-1px) rotate(-1deg); }
+  42%      { transform: translateY(-5px) rotate(-6deg); }
+  52%      { transform: translateY(-2px) rotate(-2deg); }
+  60%      { transform: translateY(2px) rotate(3deg); }
+  75%      { transform: translateY(1px) rotate(0deg); }
+  100%     { transform: translateY(0) rotate(0deg); }
+}
+@keyframes sw-breast-arm {
+  0%, 14% { transform: rotate(8deg); }
+  26%     { transform: rotate(55deg); }
+  36%     { transform: rotate(85deg); }
+  44%     { transform: rotate(100deg); }
+  56%     { transform: rotate(45deg); }
+  66%, 100% { transform: rotate(8deg); }
+}
+@keyframes sw-breast-fore {
+  0%, 14% { transform: rotate(0deg); }
+  26%     { transform: rotate(10deg); }
+  36%     { transform: rotate(-50deg); }
+  44%     { transform: rotate(-105deg); }
+  56%     { transform: rotate(-50deg); }
+  66%, 100% { transform: rotate(0deg); }
+}
+@keyframes sw-frog-thigh {
+  0%, 12%  { transform: rotate(0deg); }
+  24%      { transform: rotate(-20deg); }
+  40%      { transform: rotate(-48deg); }
+  46%      { transform: rotate(-30deg); }
+  54%      { transform: rotate(4deg); }
+  60%, 100% { transform: rotate(0deg); }
+}
+@keyframes sw-frog-shin {
+  0%, 12%  { transform: rotate(0deg); }
+  24%      { transform: rotate(55deg); }
+  40%      { transform: rotate(118deg); }
+  46%      { transform: rotate(60deg); }
+  54%      { transform: rotate(-8deg); }
+  62%, 100% { transform: rotate(0deg); }
+}
+@keyframes sw-breast-head {
+  0%, 30%, 58%, 100% { transform: translateY(3px) rotate(8deg); }
+  38%, 50%           { transform: translateY(-6px) rotate(-14deg); }
+}
+@keyframes sw-breast-mouth {
+  0%, 34%, 54%, 100% { opacity: 0; }
+  40%, 48%           { opacity: 1; }
+}
+
+.sw-breast .sw-body    { animation: sw-breast-body var(--c) ease-in-out infinite; }
+.sw-breast .sw-arm-n   { animation: sw-breast-arm var(--c) ease-in-out infinite; }
+.sw-breast .sw-fore-n  { animation: sw-breast-fore var(--c) ease-in-out infinite; }
+.sw-breast .sw-arm-f   { animation: sw-breast-arm var(--c) ease-in-out infinite; animation-delay: calc(var(--c) * -0.015); }
+.sw-breast .sw-fore-f  { animation: sw-breast-fore var(--c) ease-in-out infinite; animation-delay: calc(var(--c) * -0.015); }
+.sw-breast .sw-thigh-n { animation: sw-frog-thigh var(--c) ease-in-out infinite; }
+.sw-breast .sw-shin-n  { animation: sw-frog-shin var(--c) ease-in-out infinite; }
+.sw-breast .sw-thigh-f { animation: sw-frog-thigh var(--c) ease-in-out infinite; animation-delay: calc(var(--c) * -0.015); }
+.sw-breast .sw-shin-f  { animation: sw-frog-shin var(--c) ease-in-out infinite; animation-delay: calc(var(--c) * -0.015); }
+.sw-breast .sw-head    { animation: sw-breast-head var(--c) ease-in-out infinite; }
+.sw-breast .sw-mouth   { animation: sw-breast-mouth var(--c) ease-in-out infinite; }
