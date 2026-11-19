@@ -101,6 +101,11 @@ export function Swimmer({ uid, stroke }: { uid: string; stroke: SwimStroke }) {
       {/* Cuello y cabeza (gira para respirar) */}
       <path d="M210 53L232 49L234 63L212 67Z" fill={ref('skin')} />
       <g className="sw-head" style={{ transformOrigin: '236px 50px' }}>
+        {/* Perfil (solo en espalda): mentón y nariz marcan hacia dónde mira la cara */}
+        <g className="sw-profile">
+          <ellipse cx="242" cy="59" rx="6.5" ry="4" fill={ref('head')} />
+          <path d="M246.500 47.500Q253 51.500 247 54.500Z" fill={ref('head')} />
+        </g>
         <circle cx="236" cy="50" r="12" fill={ref('head')} />
         {/* Gorra */}
         <path
@@ -202,10 +207,13 @@ export function Swimmer({ uid, stroke }: { uid: string; stroke: SwimStroke }) {
         ))}
       </g>
 
-      {/* Reflejo del cuerpo sobre el agua (solo lo que está por encima de la superficie) */}
-      <g clipPath={`url(#${id('below')})`}>
-        <use href={`#${id('body')}`} transform={`translate(0 ${SURFACE_Y * 2}) scale(1 -1)`} opacity="0.16" />
-      </g>
+      {/* Reflejo del cuerpo sobre el agua (solo lo que está por encima de la superficie).
+          En espalda se omite: la cabeza va boca arriba y su reflejo espejado parecería una cabeza invertida. */}
+      {stroke !== 'back' && (
+        <g clipPath={`url(#${id('below')})`}>
+          <use href={`#${id('body')}`} transform={`translate(0 ${SURFACE_Y * 2}) scale(1 -1)`} opacity="0.16" />
+        </g>
+      )}
 
       {body}
 
