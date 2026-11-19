@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
+import { RedeemClaimCodeForm } from '@/components/nadador/RedeemClaimCodeForm';
 
 export default function NadadorPage() {
   const { user, logout, isLoading } = useAuth();
@@ -87,13 +88,16 @@ export default function NadadorPage() {
             <div>
               <h3 className="text-white font-bold text-sm mb-1">Vinculá tu perfil atlético</h3>
               <p className="text-pool-400 text-sm leading-relaxed">
-                Tu cuenta aún no está vinculada a un registro de nadador. Solicitá la vinculación
-                y el administrador de la FTN la aprobará para que puedas ver tu historial completo,
-                marcas personales y evolución de tiempos.
+                Tu cuenta aún no está vinculada a un registro de nadador. Con el código que te dé tu club
+                o la federación la vinculás al instante, y ves tu historial completo, marcas personales
+                y evolución de tiempos.
               </p>
             </div>
           </div>
         </div>
+
+        {/* Código de perfil: vincula la cuenta al instante */}
+        <RedeemClaimCodeForm />
 
         {/* Quick links */}
         <div className="w-full grid grid-cols-2 gap-4">

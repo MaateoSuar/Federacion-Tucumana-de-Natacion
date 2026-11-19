@@ -9,6 +9,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { ClaimCodeService } from '../claim-codes/claim-code.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -40,6 +41,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly claimCodes: ClaimCodeService,
   ) {}
 
   // ── Registro ──────────────────────────────────────────────────────────────
@@ -51,6 +53,26 @@ export class AuthService {
     if (existing) throw new ConflictException('El email ya está registrado');
 
     const passwordHash = await argon2.hash(dto.password);
+
+    // Con código de perfil: la cuenta nace vinculada al nadador y con el email dado por verificado
+    // (el código lo entregó la federación o el club: prueba la identidad). Todo o nada: si el código
+    // no sirve, no se crea la cuenta.
+    if (dto.claimCode?.trim()) {
+      const claimCode = dto.claimCode;
+      const created = await this.prisma.$transaction(
+        async (tx) => {
+          const newUser = await tx.user.create({
+            data: { email: dto.email, passwordHash, firstName: dto.firstName, lastName: dto.lastName, emailVerifiedAt: new Date() },
+          });
+          const { swimmerId } = await this.claimCodes.redeemInTransaction(tx, newUser.id, claimCode);
+          return { userId: newUser.id, swimmerId };
+        },
+        { maxWait: 10_000, timeout: 30_000 },
+      );
+      this.logger.log(`Registro con código de perfil: usuario ${created.userId} → nadador ${created.swimmerId}`);
+      return { message: 'Cuenta creada y vinculada a tu perfil de nadador. Ya podés ingresar.', linked: true, verified: true };
+    }
+
     const user = await this.prisma.user.create({
       data: {
         email: dto.email,
@@ -63,7 +85,7 @@ export class AuthService {
     const verificationToken = this.signEmailVerificationToken(user.id, user.email);
     this.sendEmailVerification(user.email, verificationToken);
 
-    return { message: 'Registro exitoso. Revisá tu email para verificar tu cuenta.' };
+    return { message: 'Registro exitoso. Revisá tu email para verificar tu cuenta.', linked: false, verified: false };
   }
 
   // ── Verificación de email ─────────────────────────────────────────────────

@@ -8,6 +8,7 @@
  *   docker exec ftn_postgres psql -U ftn -d postgres -c "CREATE DATABASE ftn_merge_test"
  *   DATABASE_URL=postgresql://ftn:***@localhost:5432/ftn_merge_test npx prisma migrate deploy --schema=../../prisma/schema.prisma
  *   MERGE_TEST_DATABASE_URL=postgresql://ftn:***@localhost:5432/ftn_merge_test pnpm --filter api test merge.integration
+ * IMPORTANTE: correr con --runInBand: las suites de integración comparten (y vacían) la misma base.
  */
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';

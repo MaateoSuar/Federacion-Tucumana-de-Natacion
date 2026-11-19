@@ -241,6 +241,9 @@ export class SwimmerMergeService {
     moved.externalIds = (await tx.externalIdMap.updateMany({ where: { swimmerId: duplicateId }, data: { swimmerId: canonicalId } })).count;
     moved.aliases = await this.mergeAliases(tx, canonicalId, duplicateId, normalizeText(duplicateName));
     moved.linkRequests = await this.mergeLinkRequests(tx, canonicalId, duplicateId);
+    // Códigos de perfil sin canjear del duplicado: se revocan (el principal es el que queda y su código, si lo tiene, sigue vigente)
+    await tx.swimmerClaimCode.updateMany({ where: { swimmerId: duplicateId, usedAt: null, revokedAt: null }, data: { revokedAt: new Date() } });
+    moved.claimCodes = (await tx.swimmerClaimCode.updateMany({ where: { swimmerId: duplicateId }, data: { swimmerId: canonicalId } })).count;
     moved.achievements = await this.mergeAchievements(tx, canonicalId, duplicateId);
     await this.mergeProfile(tx, canonicalId, duplicateId);
     moved.statistics = await this.mergeStatistics(tx, canonicalId, duplicateId);

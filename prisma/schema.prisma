@@ -315,6 +315,8 @@ model User {
   uploadedDayFiles     TournamentDayFile[]
   generatedExports     MeetManagerExport[]
   uploadedMedia        Media[]
+  claimCodesCreated    SwimmerClaimCode[]   @relation("ClaimCodeCreator")
+  claimCodesUsed       SwimmerClaimCode[]   @relation("ClaimCodeRedeemer")
 
   @@map("users")
 }
@@ -450,6 +452,7 @@ model Swimmer {
   linkRequests   AccountLinkRequest[]
   externalIdMaps ExternalIdMap[]
   aliases        SwimmerAlias[]
+  claimCodes     SwimmerClaimCode[]
 
   @@map("swimmers")
 }
@@ -1068,6 +1071,30 @@ model Media {
 
   @@index([entityType, entityId])
   @@map("media")
+}
+
+// Código de perfil de un solo uso: un Admin lo genera para UN nadador concreto y quien lo canjea
+// (al crear su cuenta o ya logueado) queda vinculado a ese nadador. Que el Admin lo haya generado
+// es la aprobación humana de la vinculación (regla 6): el canje deja un AccountLinkRequest aprobado
+// y todo queda en audit_logs. Solo se guarda el hash; el código en claro se muestra una vez.
+model SwimmerClaimCode {
+  id         String    @id @default(cuid())
+  swimmerId  String    @map("swimmer_id")
+  codeHash   String    @unique @map("code_hash") // sha256 del código normalizado
+  codeHint   String    @map("code_hint") // últimos 4 caracteres, para reconocerlo en el panel
+  createdBy  String    @map("created_by")
+  expiresAt  DateTime  @map("expires_at")
+  usedAt     DateTime? @map("used_at")
+  usedBy     String?   @map("used_by")
+  revokedAt  DateTime? @map("revoked_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  swimmer  Swimmer @relation(fields: [swimmerId], references: [id])
+  creator  User    @relation("ClaimCodeCreator", fields: [createdBy], references: [id])
+  redeemer User?   @relation("ClaimCodeRedeemer", fields: [usedBy], references: [id])
+
+  @@index([swimmerId])
+  @@map("swimmer_claim_codes")
 }
 
 // Variantes de nombre confirmadas para un nadador (p.ej. grafías en PDF).

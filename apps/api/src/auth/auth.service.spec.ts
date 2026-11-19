@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ClaimCodeService } from '../claim-codes/claim-code.service';
 import * as argon2 from 'argon2';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -71,6 +72,7 @@ describe('AuthService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: JwtService, useValue: mockJwt },
         { provide: ConfigService, useValue: mockConfig },
+        { provide: ClaimCodeService, useValue: { redeemInTransaction: jest.fn() } },
       ],
     }).compile();
 

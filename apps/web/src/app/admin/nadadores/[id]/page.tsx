@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
 import ImageUpload from '@/components/ImageUpload';
 import { DatePicker } from '@/components/DatePicker';
+import { ClaimCodePanel } from '@/components/admin/ClaimCodePanel';
 
 interface ClubRef { id: string; name: string; shortName: string; }
 
@@ -134,6 +135,9 @@ export default function NadadoresDetailPage() {
         <span className="text-gray-200">/</span>
         <span className="text-gray-700 font-medium">{fullName}</span>
       </nav>
+
+      {/* Código de perfil para que el nadador cree su cuenta */}
+      <ClaimCodePanel swimmerId={swimmer.id} swimmerName={`${swimmer.firstName} ${swimmer.lastName}`} />
 
       {/* Datos personales */}
       <div className="card overflow-hidden">

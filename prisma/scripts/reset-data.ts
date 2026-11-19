@@ -29,7 +29,7 @@ type Counts = Record<string, number>;
 const TABLES = [
   'user', 'role', 'permission', 'category', 'eventDefinition', 'season', 'timeStandardSet', 'timeStandard', 'scoringScheme',
   'tournament', 'event', 'heat', 'registration', 'laneAssignment', 'result', 'split',
-  'swimmer', 'club', 'swimmerAlias', 'clubAlias', 'swimmerClubHistory', 'athleteProfile', 'affiliation', 'coach', 'accountLinkRequest',
+  'swimmer', 'club', 'swimmerAlias', 'clubAlias', 'swimmerClubHistory', 'athleteProfile', 'affiliation', 'coach', 'accountLinkRequest', 'swimmerClaimCode',
   'personalBest', 'ranking', 'rankingHistory', 'record', 'athleteStatistics', 'athleteAchievement',
   'importJob', 'meetManagerImport', 'externalIdMap', 'tournamentDayFile', 'tournamentDocument', 'meetManagerExport', 'auditLog',
 ] as const;
@@ -151,6 +151,7 @@ async function main(): Promise<void> {
         await tx.swimmerClubHistory.deleteMany({ where: { OR: [{ swimmerId: { notIn: keepSwimmerIds } }, { clubId: { notIn: keepClubIds } }] } });
         await tx.athleteProfile.deleteMany({ where: { swimmerId: { notIn: keepSwimmerIds } } });
         await tx.accountLinkRequest.deleteMany({ where: { swimmerId: { notIn: keepSwimmerIds } } });
+        await tx.swimmerClaimCode.deleteMany({ where: { swimmerId: { notIn: keepSwimmerIds } } });
         await tx.affiliation.deleteMany({ where: { clubId: { notIn: keepClubIds } } });
         await tx.coach.deleteMany({ where: { clubId: { notIn: keepClubIds } } });
 
