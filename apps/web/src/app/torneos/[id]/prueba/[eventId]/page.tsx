@@ -16,13 +16,13 @@ import { recordMarks, recordsForGroup, type GroupRecords, type RecordMark } from
 import { standardsMet, type StandardsTable } from '@/lib/standards-match';
 import type { EventResultsResponse, RecordEntry } from '@/lib/api';
 
-// Chip de marca básica cumplida. Color según el token configurado en el set.
-const STANDARD_CHIP: Record<string, string> = {
-  sky: 'bg-sky-500/15 text-sky-300 border-sky-400/40',
-  emerald: 'bg-emerald-500/15 text-emerald-300 border-emerald-400/40',
-  amber: 'bg-amber-500/15 text-amber-300 border-amber-400/40',
+// Línea que corta la tabla: de ahí para arriba lograron la marca básica del set
+const STANDARD_CUT: Record<string, string> = {
+  sky: 'border-sky-400/60 bg-sky-500/10 text-sky-300',
+  emerald: 'border-emerald-400/60 bg-emerald-500/10 text-emerald-300',
+  amber: 'border-amber-400/60 bg-amber-500/10 text-amber-300',
 };
-const STANDARD_CHIP_DEFAULT = 'bg-aqua-500/15 text-aqua-300 border-aqua-400/40';
+const STANDARD_CUT_DEFAULT = 'border-aqua-400/60 bg-aqua-500/10 text-aqua-300';
 
 // Cada alcance tiene su color, igual en el recuadro de récords y en la marca de cada resultado:
 // tucumano = celeste, NOA = verde, nacional = ámbar.
@@ -177,6 +177,21 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
   // Récords de referencia por categoría global
   const groupRecords = (g: CategoryGroup): GroupRecords => recordsForGroup(g.key, records);
   const eventGenderMF = event.eventDefinition.gender === 'F' ? 'F' : event.eventDefinition.gender === 'M' ? 'M' : null;
+  // Marcas básicas que cumple un resultado (según nivel de la prueba y edad deportiva)
+  const metSetsOf = (r: ResultItem) =>
+    eventGenderMF && r.finalTime != null && (r.swimmer.age != null || r.category.minAge != null)
+      ? standardsMet(
+          {
+            stroke: event.eventDefinition.stroke,
+            distance: event.eventDefinition.distance,
+            gender: eventGenderMF,
+            age: r.swimmer.age ?? r.category.minAge ?? 0,
+            timeMs: r.finalTime,
+            level: event.level ?? null,
+          },
+          standards,
+        )
+      : [];
   // La columna de sembrado aparece solo si el torneo importado trae ese dato
   const hasSeed = results.some((r) => r.seedTime != null);
 
@@ -336,6 +351,9 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
                 })),
               );
               const podiumKey = filterCategoryId ? `c:${filterCategoryId}` : `g:${group.key}`;
+              // Último puesto de la tabla que logró cada marca básica: la línea va justo debajo
+              const lastMet = new Map<string, number>();
+              group.results.forEach((r, i) => metSetsOf(r).forEach((set) => lastMet.set(set.setId, i)));
               const subTitle = filterCategoryId ? group.categories.find((c) => c.id === filterCategoryId)?.name : null;
               return (
               <div key={group.key}>
@@ -430,27 +448,6 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
                                         {SCOPE_STYLE[m].text}
                                       </span>
                                     ))}
-                                    {/* Marcas básicas que cumple (nacional / para federarse) */}
-                                    {eventGenderMF && r.finalTime != null &&
-                                      standardsMet(
-                                        {
-                                          stroke: event.eventDefinition.stroke,
-                                          distance: event.eventDefinition.distance,
-                                          gender: eventGenderMF,
-                                          age: r.swimmer.age ?? r.category.minAge ?? 0,
-                                          timeMs: r.finalTime,
-                                          level: event.level ?? null,
-                                        },
-                                        r.swimmer.age != null || r.category.minAge != null ? standards : null,
-                                      ).map((set) => (
-                                        <span
-                                          key={set.setId}
-                                          title={`Cumple la ${set.name} para su edad`}
-                                          className={`shrink-0 rounded border px-1 py-px text-[9px] font-bold tracking-wide ${STANDARD_CHIP[set.color] ?? STANDARD_CHIP_DEFAULT}`}
-                                        >
-                                          {set.shortLabel}
-                                        </span>
-                                      ))}
                                   </div>
                                 </td>
                                 <td className="px-4 py-3 text-pool-300 hidden sm:table-cell">{r.club.shortName}</td>
@@ -497,6 +494,21 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
                                   </td>
                                 </tr>
                               )}
+                              {/* Si hay nadadores debajo, una línea separa a los que lograron la marca básica */}
+                              {idx < group.results.length - 1 &&
+                                (standards?.sets ?? [])
+                                  .filter((set) => lastMet.get(set.setId) === idx)
+                                  .map((set) => (
+                                    <tr key={`${r.id}-corte-${set.setId}`}>
+                                      <td colSpan={hasSeed ? 7 : 6} className="p-0">
+                                        <div className={`flex items-center gap-3 border-y-2 px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider ${STANDARD_CUT[set.color] ?? STANDARD_CUT_DEFAULT}`}>
+                                          <span className="h-px flex-1 bg-current opacity-40" />
+                                          <span>{set.name} · de acá para arriba la lograron</span>
+                                          <span className="h-px flex-1 bg-current opacity-40" />
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ))}
                             </>
                           );
                         })}

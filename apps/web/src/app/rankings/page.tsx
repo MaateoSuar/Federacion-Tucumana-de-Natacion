@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { NavBar } from '@/components/NavBar';
 import { MedalIcon } from '@/components/ui/MedalIcon';
 import { formatTime } from '@/lib/formatTime';
+import { matchesFuzzySearch } from '@/lib/search';
 import type {
   RankingEntry, ClubRankingEntry, EventStandard,
   EventDefinition, Category, Season, Tournament,
@@ -129,6 +130,9 @@ export default function RankingsPage() {
     return lines;
   }, [eventRankings, standards]);
   const [clubRankings, setClubRankings] = useState<ClubRankingEntry[] | null>(null);
+  // Buscador por nombre de nadador/a o club: filtra la tabla mientras se escribe
+  const [search, setSearch] = useState('');
+  const q = search.trim();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -319,6 +323,28 @@ export default function RankingsPage() {
           </div>
         )}
 
+        {/* Buscador por nombre */}
+        <div className="relative mb-6">
+          <input
+            type="text"
+            aria-label={tab === 'prueba' ? 'Buscar nadador/a o club' : 'Buscar club'}
+            placeholder={tab === 'prueba' ? 'Buscar nadador/a o club (ej: Perez, Azucena)...' : 'Buscar club...'}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-pool-800/60 border border-pool-700/50 rounded-xl px-4 pr-9 py-2.5 text-sm text-white placeholder-pool-500 focus:outline-none focus:border-aqua-500 transition-colors"
+          />
+          {search && (
+            <button
+              type="button"
+              aria-label="Borrar búsqueda"
+              onClick={() => setSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-pool-500 hover:text-white transition-colors text-lg leading-none"
+            >
+              ×
+            </button>
+          )}
+        </div>
+
         {/* Estado */}
         {loading && <div className="flex justify-center py-16"><div className="w-6 h-6 border-2 border-aqua-400 border-t-transparent rounded-full animate-spin" /></div>}
         {error && <p className="text-red-400 text-center py-10">{error}</p>}
@@ -327,6 +353,8 @@ export default function RankingsPage() {
         {!loading && tab === 'prueba' && eventRankings && (
           eventRankings.length === 0
             ? <p className="text-pool-400 text-center py-16">Sin resultados para estos filtros.</p>
+            : q && !eventRankings.some((r) => matchesFuzzySearch(`${r.swimmerName} ${r.clubName}`, q))
+            ? <p className="text-pool-400 text-center py-16">Ningún nadador ni club coincide con la búsqueda.</p>
             : (
               <>
               <div className="overflow-x-auto rounded-xl border border-pool-700/40">
@@ -342,8 +370,9 @@ export default function RankingsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-pool-700/20">
-                    {(cutLines.get(0) ?? []).map((s) => <StandardCutRow key={s.setId} standard={s} />)}
-                    {eventRankings.map((r, idx) => (
+                    {/* Con búsqueda activa se ocultan las líneas de corte: dependen de ver la tabla completa */}
+                    {!q && (cutLines.get(0) ?? []).map((s) => <StandardCutRow key={s.setId} standard={s} />)}
+                    {eventRankings.map((r, idx) => (!q || matchesFuzzySearch(`${r.swimmerName} ${r.clubName}`, q)) && (
                       <Fragment key={`${r.swimmerId}-${r.categoryId}-${r.sourceResultId}`}>
                       <tr className="hover:bg-pool-800/30 transition-colors">
                         <td className="px-4 py-3"><MedalIcon position={r.position} /></td>
@@ -351,7 +380,7 @@ export default function RankingsPage() {
                           <Link href={`/nadadores/${r.swimmerId}`} className="hover:text-aqua-300 transition-colors">
                             {r.swimmerName}
                           </Link>
-                          {standards
+                          {cutLines.size === 0 && standards
                             .filter((s) => r.meets?.includes(s.setId))
                             .map((s) => (
                               <span
@@ -370,7 +399,7 @@ export default function RankingsPage() {
                         </td>
                         <td className="px-4 py-3 text-right font-mono font-bold text-white">{formatTime(r.finalTime)}</td>
                       </tr>
-                      {(cutLines.get(idx + 1) ?? []).map((s) => <StandardCutRow key={s.setId} standard={s} />)}
+                      {!q && (cutLines.get(idx + 1) ?? []).map((s) => <StandardCutRow key={s.setId} standard={s} />)}
                       </Fragment>
                     ))}
                   </tbody>
@@ -384,6 +413,8 @@ export default function RankingsPage() {
         {!loading && tab === 'club' && clubRankings && (
           clubRankings.length === 0
             ? <p className="text-pool-400 text-center py-16">Sin datos de clubes disponibles.</p>
+            : q && !clubRankings.some((c) => matchesFuzzySearch(c.clubName, q))
+            ? <p className="text-pool-400 text-center py-16">Ningún club coincide con la búsqueda.</p>
             : (
               <div className="overflow-x-auto rounded-xl border border-pool-700/40">
                 <table className="w-full text-sm">
@@ -400,7 +431,7 @@ export default function RankingsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-pool-700/20">
-                    {clubRankings.map((c) => (
+                    {clubRankings.map((c) => (!q || matchesFuzzySearch(c.clubName, q)) && (
                       <tr key={c.clubId} className="hover:bg-pool-800/30 transition-colors">
                         <td className="px-4 py-3"><MedalIcon position={c.position} /></td>
                         <td className="px-4 py-3 font-semibold text-white">{c.clubName}</td>
