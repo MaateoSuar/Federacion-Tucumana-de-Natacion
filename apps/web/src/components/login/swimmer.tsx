@@ -100,12 +100,29 @@ export function Swimmer({ uid, stroke }: { uid: string; stroke: SwimStroke }) {
 
       {/* Cuello y cabeza (gira para respirar) */}
       <path d="M210 53L232 49L234 63L212 67Z" fill={ref('skin')} />
-      <g className="sw-head" style={{ transformOrigin: '236px 50px' }}>
-        {/* Perfil (solo en espalda): mentón y nariz marcan hacia dónde mira la cara */}
-        <g className="sw-profile">
-          <ellipse cx="242" cy="59" rx="6.5" ry="4" fill={ref('head')} />
-          <path d="M246.500 47.500Q253 51.500 247 54.500Z" fill={ref('head')} />
+      {stroke === 'back' ? (
+        /* Espalda: boca arriba. La cara mira hacia ARRIBA con la frente al frente (derecha) y el mentón
+           hacia el cuerpo (izquierda); la gorra cubre la parte de atrás, hundida en el agua. */
+        <g className="sw-head-back">
+          <circle cx="236" cy="50" r="12" fill={ref('head')} />
+          {/* Mentón (hacia el cuerpo) y nariz (hacia arriba) */}
+          <ellipse cx="226.500" cy="45.500" rx="3.200" ry="3.800" fill={ref('head')} />
+          <path d="M231.500 38.500Q233.500 33.500 236.500 38.500Z" fill={ref('head')} />
+          {/* Gorra: mitad de atrás de la cabeza, del nacimiento de la frente a la nuca */}
+          <path d="M224.500 53A11.950 11.950 0 0 0 247.500 47Q236 44 224.500 53Z" fill={ref('cap')} />
+          <path d="M226 55.500A11 11 0 0 0 243 58.500" fill="none" className="stroke-white/50" strokeWidth="1.2" strokeLinecap="round" />
+          {/* Antiparras sobre la frente, con la correa hacia la nuca */}
+          <path d="M238.500 46.500Q236.500 49 234.500 51.500" fill="none" className="stroke-pool-950/70" strokeWidth="1.1" strokeLinecap="round" />
+          <ellipse cx="242.500" cy="43.500" rx="4.600" ry="3" transform="rotate(-18 242.500 43.500)" className="fill-pool-900" />
+          <ellipse cx="242.500" cy="43.500" rx="4.600" ry="3" transform="rotate(-18 242.500 43.500)" fill="none" className="stroke-aqua-200" strokeWidth="1" />
+          <ellipse cx="241.500" cy="42.200" rx="1.700" ry="0.900" className="fill-white/80" />
+          {/* Boca, sobre el borde de la cara entre la nariz y el mentón */}
+          <ellipse cx="229.600" cy="41.600" rx="1.700" ry="0.900" transform="rotate(-48 229.600 41.600)" className="fill-pool-950/60" />
+          {/* Brillo */}
+          <ellipse cx="238" cy="39.500" rx="3" ry="1.400" className="fill-white/40" />
         </g>
+      ) : (
+      <g className="sw-head" style={{ transformOrigin: '236px 50px' }}>
         <circle cx="236" cy="50" r="12" fill={ref('head')} />
         {/* Gorra */}
         <path
@@ -124,6 +141,7 @@ export function Swimmer({ uid, stroke }: { uid: string; stroke: SwimStroke }) {
         {/* Brillo en la cabeza */}
         <ellipse cx="231" cy="45" rx="3" ry="1.600" className="fill-white/40" />
       </g>
+      )}
     </g>
   );
 

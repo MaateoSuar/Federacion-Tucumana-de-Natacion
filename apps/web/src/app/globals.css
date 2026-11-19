@@ -291,13 +291,7 @@
 .sw-back .sw-shin-n  { animation: sw-flutter-shin 0.32s ease-in-out infinite alternate -0.08s; }
 .sw-back .sw-thigh-f { animation: sw-flutter-thigh 0.32s ease-in-out infinite alternate-reverse; }
 .sw-back .sw-shin-f  { animation: sw-flutter-shin 0.32s ease-in-out infinite alternate-reverse -0.08s; }
-/* Cabeza quieta, boca arriba (pose fija, no es una animación). Rota -72° sobre su propio centro:
-   las antiparras y la boca quedan arriba, el mentón al frente y la nuca con la gorra hundidos en el agua.
-   El cuello sigue unido al torso. Se muestran el perfil (nariz y mentón) y la boca. */
-.sw-back .sw-head    { transform: translate(0, 5px) rotate(-72deg); }
-.sw-back .sw-mouth   { opacity: 1 !important; }
-.sw-profile          { display: none; }
-.sw-back .sw-profile { display: block; }
+/* La cabeza de espalda es un dibujo propio (sw-head-back en swimmer.tsx): cara hacia arriba, quieta. */
 
 /* -- Pecho: brazada en corazón, patada de rana, sube y baja para respirar y se desliza -- */
 @keyframes sw-breast-body {
