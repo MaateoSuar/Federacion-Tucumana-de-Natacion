@@ -117,7 +117,8 @@ const config: Config = {
         },
         'swim-across': {
           '0%': { transform: 'translateX(-560px)' },
-          '42%, 100%': { transform: 'translateX(calc(100vw + 120px))' },
+          // Cruza casi todo el ciclo (queda solo una pausa corta fuera de pantalla antes de volver)
+          '90%, 100%': { transform: 'translateX(calc(100vw + 120px))' },
         },
         'foam-pulse': {
           '0%, 100%': { opacity: '0.35', transform: 'scale(0.85)' },

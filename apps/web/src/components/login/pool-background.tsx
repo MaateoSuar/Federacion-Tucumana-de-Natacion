@@ -20,9 +20,10 @@ const STROKES: readonly SwimStroke[] = ['fly', 'back', 'breast', 'crawl'];
 
 /** `start` = índice de STROKES con el que arranca cada nadador. El primero (crol) es el que queda quieto con movimiento reducido. */
 const SWIMMERS = [
-  { lane: 0, duration: 38, delay: -3, start: 3 },
-  { lane: 3, duration: 46, delay: -27, start: 0 },
-  { lane: 2, duration: 52, delay: -40, start: 2 },
+  { lane: 0, duration: 19, delay: -2, start: 3 },
+  { lane: 1, duration: 23, delay: -15, start: 0 },
+  { lane: 2, duration: 17, delay: -8, start: 2 },
+  { lane: 3, duration: 21, delay: -19, start: 1 },
 ] as const;
 
 const BUBBLES = [
@@ -69,7 +70,7 @@ export function PoolBackground() {
         <LaneRope key={top} top={top} delay={-i * 1.1} />
       ))}
 
-      {/* Nadadores cruzando de vez en cuando, cada cruce con un estilo distinto */}
+      {/* Cuatro nadadores cruzando casi sin pausa, uno por calle y desfasados; cada cruce con un estilo distinto */}
       {SWIMMERS.map((sw) => (
         <CrossingSwimmer key={sw.lane} {...sw} />
       ))}
