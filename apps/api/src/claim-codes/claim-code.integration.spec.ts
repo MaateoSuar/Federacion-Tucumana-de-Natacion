@@ -166,6 +166,44 @@ suite('códigos de perfil contra Postgres real', () => {
     expect(await db.user.count({ where: { email: 'emi@test.ar' } })).toBe(0);
   });
 
+  it('sin código no hay cuenta, y el intento con un código inexistente no crea usuario', async () => {
+    await expect(auth.register(registerDto({ claimCode: '' }) as never)).rejects.toThrow(/necesitás el código/);
+    await expect(auth.register(registerDto({ claimCode: 'FTN-ABCD-EFGH' }) as never, '9.9.9.9')).rejects.toBeInstanceOf(BadRequestException);
+    expect(await db.user.count({ where: { email: 'emi@test.ar' } })).toBe(0);
+  });
+
+  it('los intentos fallidos quedan anotados con la IP (sin guardar el código) y a los 8 se bloquea esa IP', async () => {
+    const { code } = await claimCodes.create(swimmerId, adminId);
+    for (let i = 0; i < 8; i++) {
+      await auth.register(registerDto({ claimCode: 'FTN-ZZZZ-ZZZ' + (i % 9 + 2) }) as never, '5.5.5.5').catch(() => undefined);
+    }
+    const logs = await db.auditLog.findMany({ where: { action: 'CLAIM_CODE_FAILED' } });
+    expect(logs).toHaveLength(8);
+    expect(JSON.stringify(logs)).not.toContain('ZZZZ');
+    expect(logs.every((l) => l.ipAddress === '5.5.5.5')).toBe(true);
+
+    // Esa IP queda bloqueada aunque ahora escriba el código CORRECTO
+    await expect(auth.register(registerDto({ claimCode: code }) as never, '5.5.5.5')).rejects.toThrow(/demasiados intentos/);
+    expect(await db.user.count({ where: { email: 'emi@test.ar' } })).toBe(0);
+    // Otra IP con el código correcto sí puede (el bloqueo global todavía no se alcanzó)
+    await expect(auth.register(registerDto({ claimCode: code }) as never, '6.6.6.6')).resolves.toMatchObject({ linked: true });
+  });
+
+  it('el canje de un usuario logueado también anota los fallos y respeta el bloqueo', async () => {
+    const user = await db.user.create({ data: { email: 'l@t.ar', passwordHash: 'x', firstName: 'L', lastName: 'G', emailVerifiedAt: new Date() } });
+    for (let i = 0; i < 8; i++) await claimCodes.redeem(user.id, 'FTN-ABCD-EFGH', '7.7.7.7').catch(() => undefined);
+    await expect(claimCodes.redeem(user.id, 'FTN-ABCD-EFGH', '7.7.7.7')).rejects.toThrow(/demasiados intentos/);
+  });
+
+  it('los códigos son únicos: no hay dos con el mismo hash', async () => {
+    const other = await db.swimmer.create({ data: { firstName: 'O', lastName: 'Tro', gender: 'M', currentClubId: tucumanClubId } });
+    const a = await claimCodes.create(swimmerId, adminId);
+    const b = await claimCodes.create(other.id, adminId);
+    expect(a.code).not.toBe(b.code);
+    const hashes = (await db.swimmerClaimCode.findMany({ select: { codeHash: true } })).map((r) => r.codeHash);
+    expect(new Set(hashes).size).toBe(hashes.length);
+  });
+
   it('un código usado no se puede revocar', async () => {
     const { code, id } = await claimCodes.create(swimmerId, adminId);
     await auth.register(registerDto({ claimCode: code }) as never);

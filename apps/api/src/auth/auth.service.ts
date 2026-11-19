@@ -9,7 +9,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { ClaimCodeService } from '../claim-codes/claim-code.service';
+import { ClaimCodeService, INVALID_CODE } from '../claim-codes/claim-code.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -46,19 +46,29 @@ export class AuthService {
 
   // ── Registro ──────────────────────────────────────────────────────────────
 
-  async register(dto: RegisterDto) {
-    const existing = await this.prisma.user.findUnique({
-      where: { email: dto.email },
-    });
+  /**
+   * El registro SOLO existe con un código de perfil válido: no se crean cuentas sueltas. La cuenta
+   * nace vinculada al nadador del código y con el email dado por verificado (el código lo entregó la
+   * federación o el club). Todo o nada. Orden pensado contra abusos: primero límite de intentos y
+   * existencia del código (barato), recién después el hash de la contraseña (caro) y el chequeo de
+   * email (así no se puede sondear qué emails existen sin un código válido).
+   */
+  async register(dto: RegisterDto, ip: string | null = null) {
+    const claimCode = dto.claimCode?.trim();
+    if (!claimCode) {
+      throw new BadRequestException('Para crear tu cuenta necesitás el código de perfil que te da tu club o la federación.');
+    }
+    await this.claimCodes.assertNotLockedOut(ip);
+    if (!(await this.claimCodes.isRedeemable(claimCode))) {
+      await this.claimCodes.recordFailure(ip, 'register');
+      throw new BadRequestException(INVALID_CODE);
+    }
+
+    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) throw new ConflictException('El email ya está registrado');
 
     const passwordHash = await argon2.hash(dto.password);
-
-    // Con código de perfil: la cuenta nace vinculada al nadador y con el email dado por verificado
-    // (el código lo entregó la federación o el club: prueba la identidad). Todo o nada: si el código
-    // no sirve, no se crea la cuenta.
-    if (dto.claimCode?.trim()) {
-      const claimCode = dto.claimCode;
+    try {
       const created = await this.prisma.$transaction(
         async (tx) => {
           const newUser = await tx.user.create({
@@ -71,21 +81,11 @@ export class AuthService {
       );
       this.logger.log(`Registro con código de perfil: usuario ${created.userId} → nadador ${created.swimmerId}`);
       return { message: 'Cuenta creada y vinculada a tu perfil de nadador. Ya podés ingresar.', linked: true, verified: true };
+    } catch (error) {
+      // Otro registro ganó la carrera por el mismo código: cuenta como intento fallido
+      if (error instanceof BadRequestException) await this.claimCodes.recordFailure(ip, 'register');
+      throw error;
     }
-
-    const user = await this.prisma.user.create({
-      data: {
-        email: dto.email,
-        passwordHash,
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-      },
-    });
-
-    const verificationToken = this.signEmailVerificationToken(user.id, user.email);
-    this.sendEmailVerification(user.email, verificationToken);
-
-    return { message: 'Registro exitoso. Revisá tu email para verificar tu cuenta.', linked: false, verified: false };
   }
 
   // ── Verificación de email ─────────────────────────────────────────────────

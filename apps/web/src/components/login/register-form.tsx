@@ -88,8 +88,10 @@ export function RegisterForm({
     if (password.length < MIN_PASSWORD_LENGTH) {
       errors.password = `La contraseña necesita al menos ${MIN_PASSWORD_LENGTH} caracteres.`;
     }
-    if (values.claimCode.length > 0 && !isValidClaimCode(values.claimCode)) {
-      errors.claimCode = 'El código tiene el formato FTN-XXXX-XXXX. Revisalo o dejalo vacío.';
+    if (values.claimCode.length === 0) {
+      errors.claimCode = 'Necesitás el código de perfil que te dio tu club o la federación para crear la cuenta.';
+    } else if (!isValidClaimCode(values.claimCode)) {
+      errors.claimCode = 'El código tiene el formato FTN-XXXX-XXXX. Revisalo con quien te lo dio.';
     }
     setFieldErrors(errors);
 
@@ -195,8 +197,10 @@ export function RegisterForm({
         <div className="rounded-2xl border border-dashed border-aqua-300/30 bg-pool-950/40 p-3.5">
           <Field
             label="Código de perfil"
-            tag="Opcional"
+            tag="Obligatorio"
             name="claimCode"
+            required
+            aria-required="true"
             autoComplete="off"
             autoCapitalize="characters"
             spellCheck={false}
@@ -212,8 +216,8 @@ export function RegisterForm({
               <span className="flex items-start gap-1.5">
                 <InfoIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-aqua-300" />
                 <span>
-                  Es un código personal que te da tu club o la federación para asociar tu cuenta a tu perfil de nadador
-                  (marcas, récords e historial). Si no tenés uno, dejalo vacío y seguí.
+                  Sin código no se puede crear la cuenta. Es personal y de un solo uso: te lo da tu club o la federación
+                  y asocia tu cuenta a tu perfil de nadador (marcas, récords e historial). No lo compartas.
                 </span>
               </span>
             }

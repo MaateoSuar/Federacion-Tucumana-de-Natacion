@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, HttpException, HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { assertTucumanSwimmer } from '../account-link/tucuman-eligibility';
@@ -10,7 +10,14 @@ export const CLAIM_CODE_MAX_DAYS = 90;
 type Tx = Prisma.TransactionClient;
 
 /** Mismo mensaje para código inexistente, vencido, usado o revocado: no se revela cuál es. */
-const INVALID_CODE = 'El código es inválido, venció o ya fue usado. Pedile uno nuevo a tu club o a la federación.';
+export const INVALID_CODE = 'El código es inválido, venció o ya fue usado. Pedile uno nuevo a tu club o a la federación.';
+
+// Protección contra adivinanza de códigos. Los intentos fallidos quedan en audit_logs (persisten
+// entre reinicios y entre instancias). El espacio de códigos es de ~6,5×10¹¹: con estos topes
+// adivinar uno es inviable.
+const LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
+const MAX_FAILURES_PER_IP = 8;
+const MAX_FAILURES_GLOBAL = 100;
 
 export type ClaimCodeStatus = 'activo' | 'usado' | 'vencido' | 'revocado';
 
@@ -43,7 +50,11 @@ export class ClaimCodeService {
 
       await tx.swimmerClaimCode.updateMany({ where: { swimmerId, usedAt: null, revokedAt: null }, data: { revokedAt: new Date() } });
 
-      const code = generateClaimCode();
+      // Un código nunca se repite: se genera hasta que su hash no exista (colisión casi imposible)
+      let code = generateClaimCode();
+      for (let i = 0; i < 5 && (await tx.swimmerClaimCode.findUnique({ where: { codeHash: hashClaimCodeBody(normalizeClaimCode(code) as string) } })); i++) {
+        code = generateClaimCode();
+      }
       const body = normalizeClaimCode(code) as string;
       const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
       const row = await tx.swimmerClaimCode.create({
@@ -146,8 +157,41 @@ export class ClaimCodeService {
     return { swimmerId: code.swimmerId, requestId: request.id };
   }
 
+  /** ¿Existe un código activo (no usado, no revocado, no vencido) con ese valor? Solo lectura, sin revelar el motivo. */
+  async isRedeemable(rawCode: string): Promise<boolean> {
+    const body = normalizeClaimCode(rawCode ?? '');
+    if (!body) return false;
+    const code = await this.prisma.swimmerClaimCode.findUnique({ where: { codeHash: hashClaimCodeBody(body) }, select: { usedAt: true, revokedAt: true, expiresAt: true } });
+    return !!code && !code.usedAt && !code.revokedAt && code.expiresAt.getTime() > Date.now();
+  }
+
+  /** Corta los intentos si esta IP (o el sistema entero) acumuló demasiados códigos incorrectos hace poco. */
+  async assertNotLockedOut(ip: string | null): Promise<void> {
+    const since = new Date(Date.now() - LOCKOUT_WINDOW_MS);
+    const [byIp, global] = await Promise.all([
+      ip ? this.prisma.auditLog.count({ where: { action: 'CLAIM_CODE_FAILED', ipAddress: ip, createdAt: { gte: since } } }) : Promise.resolve(0),
+      this.prisma.auditLog.count({ where: { action: 'CLAIM_CODE_FAILED', createdAt: { gte: since } } }),
+    ]);
+    if (byIp >= MAX_FAILURES_PER_IP || global >= MAX_FAILURES_GLOBAL) {
+      this.logger.warn(`Registro con código bloqueado (IP ${ip ?? '?'}: ${byIp} fallos, global: ${global})`);
+      throw new HttpException('Hubo demasiados intentos con códigos incorrectos. Esperá unos minutos y volvé a probar, o pedile el código a tu club o a la federación.', HttpStatus.TOO_MANY_REQUESTS);
+    }
+  }
+
+  /** Anota un intento con código incorrecto (nunca se guarda el código escrito). */
+  async recordFailure(ip: string | null, via: 'register' | 'redeem'): Promise<void> {
+    await this.prisma.auditLog.create({
+      data: { action: 'CLAIM_CODE_FAILED', entityType: 'auth', entityId: via, ipAddress: ip, payload: { via } },
+    });
+  }
+
   /** Canje de un usuario ya logueado y sin vincular. */
-  async redeem(userId: string, rawCode: string) {
+  async redeem(userId: string, rawCode: string, ip: string | null = null) {
+    await this.assertNotLockedOut(ip);
+    if (!(await this.isRedeemable(rawCode))) {
+      await this.recordFailure(ip, 'redeem');
+      throw new BadRequestException(INVALID_CODE);
+    }
     const result = await this.prisma.$transaction((tx) => this.redeemInTransaction(tx, userId, rawCode), { maxWait: 10_000, timeout: 30_000 });
     return { message: 'Listo: tu cuenta quedó vinculada a tu perfil de nadador.', swimmerId: result.swimmerId };
   }

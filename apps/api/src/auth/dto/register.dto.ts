@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength, MaxLength } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, MinLength, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class RegisterDto {
@@ -22,9 +22,9 @@ export class RegisterDto {
   @IsNotEmpty()
   declare lastName: string;
 
-  @ApiProperty({ required: false, example: 'FTN-7K3M-9PQX', description: 'Código de perfil que entrega la federación o el club: vincula la cuenta al nadador y la deja verificada.' })
-  @IsOptional()
+  @ApiProperty({ example: 'FTN-7K3M-9PQX', description: 'Código de perfil (obligatorio) que entrega la federación o el club: vincula la cuenta al nadador y la deja verificada.' })
   @IsString()
+  @IsNotEmpty({ message: 'Para crear tu cuenta necesitás el código de perfil que te da tu club o la federación.' })
   @MaxLength(40)
-  declare claimCode?: string;
+  declare claimCode: string;
 }

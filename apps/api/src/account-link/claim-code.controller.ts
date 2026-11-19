@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Ip, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
@@ -38,8 +38,8 @@ export class ClaimCodeController {
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @ApiOperation({ summary: 'Vincular mi cuenta a mi perfil de nadador con un código' })
-  redeem(@CurrentUser() user: AuthenticatedUser, @Body() dto: RedeemClaimCodeDto) {
-    return this.service.redeem(user.id, dto.code);
+  redeem(@CurrentUser() user: AuthenticatedUser, @Body() dto: RedeemClaimCodeDto, @Ip() ip: string) {
+    return this.service.redeem(user.id, dto.code, ip ?? null);
   }
 
   // ── Admin ─────────────────────────────────────────────────────────────────

@@ -7,6 +7,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Ip,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -31,10 +32,10 @@ export class AuthController {
 
   @Post('register')
   @UseGuards(ThrottlerGuard)
-  @Throttle({ default: { ttl: 60_000, limit: 8 } })
-  @ApiOperation({ summary: 'Registro de nuevo usuario' })
-  register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  @Throttle({ default: { ttl: 60_000, limit: 6 } })
+  @ApiOperation({ summary: 'Registro con código de perfil (obligatorio)' })
+  register(@Body() dto: RegisterDto, @Ip() ip: string) {
+    return this.authService.register(dto, ip ?? null);
   }
 
   @Get('verify-email')
