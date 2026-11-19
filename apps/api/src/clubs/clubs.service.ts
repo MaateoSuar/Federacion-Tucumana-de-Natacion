@@ -11,6 +11,8 @@ import { ClubStatus, Prisma } from '@prisma/client';
 export interface ClubFilters {
   search?: string;
   status?: ClubStatus;
+  /** Provincia exacta, o "none" para los que no tienen. */
+  province?: string;
   page?: number;
   limit?: number;
 }
@@ -33,11 +35,14 @@ export class ClubsService {
   }
 
   async findAll(filters: ClubFilters = {}) {
-    const { search, status, page = 1, limit = 20 } = filters;
+    const { search, status, province, page = 1, limit = 20 } = filters;
     const skip = (page - 1) * limit;
 
     const where: Prisma.ClubWhereInput = {};
     if (status) where.status = status;
+    // province=none → clubes sin provincia asignada (hay que completarla para habilitar cuentas)
+    if (province === 'none') where.province = null;
+    else if (province) where.province = province;
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
@@ -51,7 +56,9 @@ export class ClubsService {
         where,
         skip,
         take: limit,
-        orderBy: { name: 'asc' },
+        // Sin provincia: primero los clubes con más nadadores, que son los que más urge completar
+        orderBy: province === 'none' ? [{ swimmers: { _count: 'desc' } }, { name: 'asc' }] : { name: 'asc' },
+        include: { _count: { select: { swimmers: true } } },
       }),
       this.prisma.club.count({ where }),
     ]);

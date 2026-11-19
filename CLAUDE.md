@@ -68,6 +68,7 @@ Estas reglas se blindan con tests. Nunca modificarlas sin aprobación explícita
 - `AthleteProfile` cuelga del `swimmer`, no del `user`. Existe aunque no haya cuenta.
 - `NormalizedMeet` (staging) se persiste como JSONB en `meet_manager_import.parsed_payload`. El archivo original va a S3.
 - Récords nacionales (`scope=nacional`) son **read-only de referencia**; la FTN no los homologa. Se muestran como benchmark sobre las marcas provinciales.
+- **Cuentas y seguimiento solo para nadadores tucumanos** (decisión del 19/11/2026): un nadador solo puede tener cuenta/perfil personal si su club actual tiene `province = 'Tucumán'`. Los de otras provincias (o de clubes sin provincia asignada) se ven en resultados, rankings y récords, pero no se les genera código ni se les aprueba vinculación. Se verifica al generar el código, al pedir la vinculación y otra vez al canjear/aprobar. La provincia de cada club la completa el Admin (Admin → Clubes).
 - Licencia/afiliación anual es **condición habilitante bloqueante**: sin licencia vigente, el nadador no puede inscribirse. El pasaporte figura como "vencida".
 - Scoring de relevos = doble. Tablas con <8 competidores no se recortan (puntos solo a los puestos que existan). Todo en `scoring_schemes` JSONB, nada hardcodeado.
 

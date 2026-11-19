@@ -10,6 +10,7 @@ import { AccountLinkStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateLinkRequestDto } from './dto/create-link-request.dto';
 import { ReviewLinkRequestDto } from './dto/review-link-request.dto';
+import { assertTucumanSwimmer } from './tucuman-eligibility';
 
 function computeMatchConfidence(
   userFirstName: string,
@@ -78,12 +79,14 @@ export class AccountLinkService {
       }),
       this.prisma.swimmer.findUnique({
         where: { id: dto.swimmerId },
-        select: { id: true, firstName: true, lastName: true, documentId: true },
+        select: { id: true, firstName: true, lastName: true, documentId: true, currentClub: { select: { name: true, province: true } } },
       }),
     ]);
 
     if (!user) throw new NotFoundException('Usuario no encontrado.');
     if (!swimmer) throw new NotFoundException('Nadador no encontrado.');
+    // Solo nadadores de clubes de Tucumán tienen cuenta con seguimiento
+    assertTucumanSwimmer(swimmer);
 
     if (user.swimmerId) {
       throw new ConflictException('Ya tenés una cuenta vinculada a un nadador.');
@@ -200,11 +203,13 @@ export class AccountLinkService {
     const scope = await this.reviewScope(actor);
     const req = await this.prisma.accountLinkRequest.findUnique({
       where: { id: requestId },
-      select: { id: true, userId: true, swimmerId: true, status: true, swimmer: { select: { currentClubId: true } } },
+      select: { id: true, userId: true, swimmerId: true, status: true, swimmer: { select: { currentClubId: true, currentClub: { select: { name: true, province: true } } } } },
     });
     if (!req) throw new NotFoundException('Solicitud no encontrada.');
     this.assertInScope(scope, req.swimmer.currentClubId);
     if (req.userId === actor.id) throw new ForbiddenException('No podés revisar tu propia solicitud.');
+    // El club pudo cambiar de provincia desde que se pidió
+    assertTucumanSwimmer(req.swimmer);
     if (req.status !== AccountLinkStatus.pending) {
       throw new BadRequestException(
         `Solo se pueden aprobar solicitudes pendientes (estado actual: ${req.status}).`,

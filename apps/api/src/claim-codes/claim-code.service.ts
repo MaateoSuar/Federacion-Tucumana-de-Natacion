@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { assertTucumanSwimmer } from '../account-link/tucuman-eligibility';
 import { generateClaimCode, hashClaimCodeBody, normalizeClaimCode } from './claim-code.util';
 
 export const CLAIM_CODE_DEFAULT_DAYS = 14;
@@ -29,9 +30,11 @@ export class ClaimCodeService {
     return this.prisma.$transaction(async (tx) => {
       const swimmer = await tx.swimmer.findUnique({
         where: { id: swimmerId },
-        select: { id: true, firstName: true, lastName: true, currentClub: { select: { name: true } } },
+        select: { id: true, firstName: true, lastName: true, currentClub: { select: { name: true, province: true } } },
       });
       if (!swimmer) throw new NotFoundException('Nadador no encontrado.');
+      // Solo nadadores de clubes de Tucumán tienen cuenta
+      assertTucumanSwimmer(swimmer);
 
       // Regla 6: un nadador, una sola cuenta. Si ya tiene una, el código no tiene sentido.
       if (await tx.user.findFirst({ where: { swimmerId }, select: { id: true } })) {
@@ -115,6 +118,9 @@ export class ClaimCodeService {
     if (await tx.user.findFirst({ where: { swimmerId: code.swimmerId }, select: { id: true } })) {
       throw new ConflictException('Este nadador ya tiene una cuenta vinculada.');
     }
+    // El club pudo cambiar de provincia desde que se generó el código
+    const target = await tx.swimmer.findUniqueOrThrow({ where: { id: code.swimmerId }, select: { currentClub: { select: { name: true, province: true } } } });
+    assertTucumanSwimmer(target);
 
     const now = new Date();
     const request = await tx.accountLinkRequest.create({

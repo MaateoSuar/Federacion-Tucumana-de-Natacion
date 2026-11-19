@@ -26,6 +26,7 @@ suite('códigos de perfil contra Postgres real', () => {
 
   let adminId: string;
   let swimmerId: string;
+  let tucumanClubId: string;
   const registerDto = (over: Record<string, unknown> = {}) => ({
     email: 'emi@test.ar', password: 'Clave1234!', firstName: 'Emiliano', lastName: 'La Marca', ...over,
   });
@@ -36,7 +37,8 @@ suite('códigos de perfil contra Postgres real', () => {
   beforeEach(async () => {
     await db.$executeRawUnsafe(`TRUNCATE users, swimmers, clubs RESTART IDENTITY CASCADE`);
     adminId = (await db.user.create({ data: { email: 'admin@t.ar', passwordHash: 'x', firstName: 'Ad', lastName: 'Min', primaryRole: 'ADMIN' } })).id;
-    swimmerId = (await db.swimmer.create({ data: { firstName: 'Emiliano', lastName: 'La Marca', gender: 'M' } })).id;
+    tucumanClubId = (await db.club.create({ data: { name: 'Club Azucena', shortName: 'CAZU', locality: 'Tucumán', province: 'Tucumán' } })).id;
+    swimmerId = (await db.swimmer.create({ data: { firstName: 'Emiliano', lastName: 'La Marca', gender: 'M', currentClubId: tucumanClubId } })).id;
   });
 
   it('un Admin genera un código: se guarda solo el hash y se muestra una vez', async () => {
@@ -130,7 +132,7 @@ suite('códigos de perfil contra Postgres real', () => {
     await expect(claimCodes.redeem(user.id, code)).resolves.toMatchObject({ swimmerId });
     expect((await db.user.findUniqueOrThrow({ where: { id: user.id } })).swimmerId).toBe(swimmerId);
 
-    const other = await db.swimmer.create({ data: { firstName: 'Otro', lastName: 'Nadador', gender: 'M' } });
+    const other = await db.swimmer.create({ data: { firstName: 'Otro', lastName: 'Nadador', gender: 'M', currentClubId: tucumanClubId } });
     const second = await claimCodes.create(other.id, adminId);
     await expect(claimCodes.redeem(user.id, second.code)).rejects.toBeInstanceOf(ConflictException);
   });
@@ -143,6 +145,25 @@ suite('códigos de perfil contra Postgres real', () => {
 
     await db.user.create({ data: { email: 'c@t.ar', passwordHash: 'x', firstName: 'C', lastName: 'C', swimmerId } });
     await expect(claimCodes.create(swimmerId, adminId)).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('solo nadadores de clubes de Tucumán: no se genera código para otra provincia, sin provincia ni sin club', async () => {
+    const salta = await db.club.create({ data: { name: 'Club Salta', shortName: 'CS', locality: 'Salta', province: 'Salta' } });
+    const sinProvincia = await db.club.create({ data: { name: 'Club Sin Provincia', shortName: 'CSP', locality: 'X' } });
+    const deSalta = await db.swimmer.create({ data: { firstName: 'A', lastName: 'Salteño', gender: 'M', currentClubId: salta.id } });
+    const deClubSinProvincia = await db.swimmer.create({ data: { firstName: 'B', lastName: 'Sin', gender: 'M', currentClubId: sinProvincia.id } });
+    const sinClub = await db.swimmer.create({ data: { firstName: 'C', lastName: 'Suelto', gender: 'M' } });
+    await expect(claimCodes.create(deSalta.id, adminId)).rejects.toThrow(/solo para nadadores de clubes de Tucumán/);
+    await expect(claimCodes.create(deClubSinProvincia.id, adminId)).rejects.toThrow(/todavía no tiene provincia/);
+    await expect(claimCodes.create(sinClub.id, adminId)).rejects.toThrow(/no tiene club asignado/);
+    expect(await db.swimmerClaimCode.count()).toBe(0);
+  });
+
+  it('si el club cambia de provincia después de generar el código, el canje falla y no se crea la cuenta', async () => {
+    const { code } = await claimCodes.create(swimmerId, adminId);
+    await db.club.update({ where: { id: tucumanClubId }, data: { province: 'Salta' } });
+    await expect(auth.register(registerDto({ claimCode: code }) as never)).rejects.toBeInstanceOf(BadRequestException);
+    expect(await db.user.count({ where: { email: 'emi@test.ar' } })).toBe(0);
   });
 
   it('un código usado no se puede revocar', async () => {

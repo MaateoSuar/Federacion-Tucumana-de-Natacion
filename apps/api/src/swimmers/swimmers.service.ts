@@ -11,10 +11,13 @@ import { UpdateSwimmerDto } from './dto/update-swimmer.dto';
 import { AssignClubDto } from './dto/assign-club.dto';
 import { Gender, Prisma, ResultSource } from '@prisma/client';
 import { buildProgression } from './progression/progression';
+import { TUCUMAN_PROVINCE } from '../homologation/record-scopes';
 
 export interface SwimmerFilters {
   search?: string;
   clubId?: string;
+  /** Solo nadadores de clubes de Tucumán que todavía no tienen cuenta vinculada. */
+  linkable?: boolean;
   gender?: Gender;
   isActive?: boolean;
   page?: number;
@@ -59,13 +62,18 @@ export class SwimmersService {
   }
 
   async findAll(filters: SwimmerFilters = {}) {
-    const { search, clubId, gender, isActive, page = 1, limit = 20 } = filters;
+    const { search, clubId, linkable, gender, isActive, page = 1, limit = 20 } = filters;
     const skip = (page - 1) * limit;
 
     const where: Prisma.SwimmerWhereInput = {};
     if (gender) where.gender = gender;
     if (isActive !== undefined) where.isActive = isActive;
     if (clubId) where.currentClubId = clubId;
+    if (linkable) {
+      where.currentClub = { province: TUCUMAN_PROVINCE };
+      where.user = null;
+      where.isActive = true;
+    }
     if (search) {
       // Cada palabra escrita debe aparecer en algún campo — así "Juan Perez"
       // encuentra a alguien con firstName "Juan" y lastName "Pérez".

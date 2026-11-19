@@ -25,7 +25,7 @@ const mockPrisma = {
 const USER = { id: 'u1', firstName: 'Juan', lastName: 'Gomez', swimmerId: null };
 const ADMIN = { id: 'admin1', primaryRole: 'ADMIN' };
 const COACH = { id: 'coach1', primaryRole: 'COACH' };
-const SWIMMER = { id: 'sw1', firstName: 'Juan', lastName: 'Gomez', documentId: null };
+const SWIMMER = { id: 'sw1', firstName: 'Juan', lastName: 'Gomez', documentId: null, currentClub: { name: 'Club Azucena', province: 'Tucumán' } };
 
 describe('AccountLinkService', () => {
   let service: AccountLinkService;
@@ -86,8 +86,39 @@ describe('AccountLinkService', () => {
     });
   });
 
+  describe('solo nadadores de clubes de Tucumán', () => {
+    beforeEach(() => {
+      mockPrisma.user.findUnique.mockResolvedValue(USER);
+      mockPrisma.accountLinkRequest.findFirst.mockResolvedValue(null);
+    });
+
+    it('no se puede pedir vincularse a un nadador de un club de otra provincia', async () => {
+      mockPrisma.swimmer.findUnique.mockResolvedValue({ ...SWIMMER, currentClub: { name: 'Club Salteño', province: 'Salta' } });
+      await expect(service.createRequest('u1', { swimmerId: 'sw1' })).rejects.toThrow(/solo para nadadores de clubes de Tucumán/);
+    });
+
+    it('un club sin provincia asignada tampoco: se le pide a la federación completarla', async () => {
+      mockPrisma.swimmer.findUnique.mockResolvedValue({ ...SWIMMER, currentClub: { name: 'Club Sin Datos', province: null } });
+      await expect(service.createRequest('u1', { swimmerId: 'sw1' })).rejects.toThrow(/todavía no tiene provincia/);
+    });
+
+    it('un nadador sin club no se puede vincular', async () => {
+      mockPrisma.swimmer.findUnique.mockResolvedValue({ ...SWIMMER, currentClub: null });
+      await expect(service.createRequest('u1', { swimmerId: 'sw1' })).rejects.toThrow(/no tiene club asignado/);
+    });
+
+    it('al aprobar se vuelve a verificar: si el club pasó a otra provincia, no se aprueba', async () => {
+      mockPrisma.accountLinkRequest.findUnique.mockResolvedValue({
+        id: 'req1', userId: 'u1', swimmerId: 'sw1', status: AccountLinkStatus.pending,
+        swimmer: { currentClubId: 'clubA', currentClub: { name: 'Club A', province: 'Jujuy' } },
+      });
+      await expect(service.approve('req1', ADMIN, {})).rejects.toThrow(/solo para nadadores de clubes de Tucumán/);
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('approve', () => {
-    const pendingReq = { id: 'req1', userId: 'u1', swimmerId: 'sw1', status: AccountLinkStatus.pending, swimmer: { currentClubId: 'clubA' } };
+    const pendingReq = { id: 'req1', userId: 'u1', swimmerId: 'sw1', status: AccountLinkStatus.pending, swimmer: { currentClubId: 'clubA', currentClub: { name: 'Club A', province: 'Tucumán' } } };
 
     it('approves and sets swimmerId on user', async () => {
       mockPrisma.accountLinkRequest.findUnique.mockResolvedValue(pendingReq);
@@ -117,7 +148,7 @@ describe('AccountLinkService', () => {
   });
 
   describe('reject', () => {
-    const pendingReq = { id: 'req1', userId: 'u1', swimmerId: 'sw1', status: AccountLinkStatus.pending, swimmer: { currentClubId: 'clubA' } };
+    const pendingReq = { id: 'req1', userId: 'u1', swimmerId: 'sw1', status: AccountLinkStatus.pending, swimmer: { currentClubId: 'clubA', currentClub: { name: 'Club A', province: 'Tucumán' } } };
 
     it('rejects with a reason', async () => {
       mockPrisma.accountLinkRequest.findUnique.mockResolvedValue(pendingReq);
@@ -139,7 +170,7 @@ describe('AccountLinkService', () => {
   });
 
   describe('entrenador: solo nadadores de su club', () => {
-    const pendingReq = { id: 'req1', userId: 'u1', swimmerId: 'sw1', status: AccountLinkStatus.pending, swimmer: { currentClubId: 'clubA' } };
+    const pendingReq = { id: 'req1', userId: 'u1', swimmerId: 'sw1', status: AccountLinkStatus.pending, swimmer: { currentClubId: 'clubA', currentClub: { name: 'Club A', province: 'Tucumán' } } };
     const asCoachOf = (clubId: string | null, isActive = true) => mockPrisma.user.findUnique.mockResolvedValue({ clubId, isActive });
 
     beforeEach(() => {
@@ -169,7 +200,7 @@ describe('AccountLinkService', () => {
 
     it('NO puede revisar a un nadador sin club asignado (eso lo ve solo la federación)', async () => {
       asCoachOf('clubA');
-      mockPrisma.accountLinkRequest.findUnique.mockResolvedValue({ ...pendingReq, swimmer: { currentClubId: null } });
+      mockPrisma.accountLinkRequest.findUnique.mockResolvedValue({ ...pendingReq, swimmer: { currentClubId: null, currentClub: null } });
       await expect(service.approve('req1', COACH, {})).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -201,7 +232,7 @@ describe('AccountLinkService', () => {
 
     it('el detalle de una solicitud de otro club da 403', async () => {
       asCoachOf('clubB');
-      mockPrisma.accountLinkRequest.findUnique.mockResolvedValue({ id: 'req1', swimmer: { currentClubId: 'clubA' } });
+      mockPrisma.accountLinkRequest.findUnique.mockResolvedValue({ id: 'req1', swimmer: { currentClubId: 'clubA', currentClub: { name: 'Club A', province: 'Tucumán' } } });
       await expect(service.getRequest('req1', COACH)).rejects.toBeInstanceOf(ForbiddenException);
     });
   });

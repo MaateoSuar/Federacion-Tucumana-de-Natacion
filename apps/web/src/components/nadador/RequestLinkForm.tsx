@@ -50,7 +50,7 @@ export function RequestLinkForm() {
     if (q.length < 3) { setHits(null); return; }
     setSearching(true);
     const timer = setTimeout(() => {
-      apiFetch<{ items: SwimmerHit[] }>(`/swimmers?search=${encodeURIComponent(q)}&limit=8`)
+      apiFetch<{ items: SwimmerHit[] }>(`/swimmers?search=${encodeURIComponent(q)}&limit=8&linkable=true`)
         .then((r) => setHits(r.items))
         .catch((e: Error) => setError(e.message))
         .finally(() => setSearching(false));
@@ -89,7 +89,7 @@ export function RequestLinkForm() {
     <section className="w-full rounded-2xl border border-pool-700/60 bg-pool-900/60 p-6 text-left">
       <h3 className="text-white font-bold text-sm mb-1">¿No tenés código? Pedí que te vinculen</h3>
       <p className="text-pool-400 text-sm leading-relaxed mb-4">
-        Buscá tu nombre y elegí tu perfil. Tu entrenador (o la federación) revisa el pedido y te avisa acá cuando lo aprueba.
+        Buscá tu nombre y elegí tu perfil. Tu entrenador (o la federación) revisa el pedido y te avisa acá cuando lo aprueba. Las cuentas con seguimiento son para nadadores de clubes de Tucumán.
       </p>
 
       {mine.length > 0 && (
@@ -124,7 +124,7 @@ export function RequestLinkForm() {
             className="w-full rounded-xl bg-pool-950 border border-pool-700 px-4 py-3 text-white placeholder-pool-600 focus:outline-none focus:border-aqua-400 focus:ring-2 focus:ring-aqua-400/30"
           />
           {searching && <p className="mt-2 text-xs text-pool-500">Buscando…</p>}
-          {hits && hits.length === 0 && !searching && <p className="mt-3 text-sm text-pool-400">No encontramos a nadie con ese nombre. Probá con solo el apellido.</p>}
+          {hits && hits.length === 0 && !searching && <p className="mt-3 text-sm text-pool-400">No encontramos a nadie con ese nombre entre los nadadores de clubes de Tucumán sin cuenta. Probá con solo el apellido; si tu club todavía no tiene provincia cargada, avisale a la federación.</p>}
           {hits && hits.length > 0 && (
             <>
               <label htmlFor="link-note" className="sr-only">Nota para quien revisa</label>

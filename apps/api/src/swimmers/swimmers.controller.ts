@@ -50,6 +50,7 @@ export class SwimmersController {
   @ApiOperation({ summary: 'Listar nadadores' })
   @ApiQuery({ name: 'search', required: false })
   @ApiQuery({ name: 'clubId', required: false })
+  @ApiQuery({ name: 'linkable', required: false, type: Boolean, description: 'Solo nadadores de clubes de Tucumán sin cuenta (para pedir vinculación)' })
   @ApiQuery({ name: 'gender', required: false, enum: Gender })
   @ApiQuery({ name: 'isActive', required: false, type: Boolean })
   @ApiQuery({ name: 'page', required: false, type: Number })
@@ -57,6 +58,7 @@ export class SwimmersController {
   findAll(
     @Query('search') search?: string,
     @Query('clubId') clubId?: string,
+    @Query('linkable') linkable?: string,
     @Query('gender') gender?: Gender,
     @Query('isActive') isActive?: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
@@ -64,7 +66,7 @@ export class SwimmersController {
   ) {
     const isActiveParsed =
       isActive === 'true' ? true : isActive === 'false' ? false : undefined;
-    return this.swimmersService.findAll({ search, clubId, gender, isActive: isActiveParsed, page, limit });
+    return this.swimmersService.findAll({ search, clubId, linkable: linkable === 'true', gender, isActive: isActiveParsed, page, limit });
   }
 
   @Get(':id')

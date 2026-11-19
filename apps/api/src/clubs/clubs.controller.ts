@@ -46,15 +46,17 @@ export class ClubsController {
   @ApiOperation({ summary: 'Listar clubes' })
   @ApiQuery({ name: 'search', required: false })
   @ApiQuery({ name: 'status', required: false, enum: ClubStatus })
+  @ApiQuery({ name: 'province', required: false, description: 'Provincia exacta, o "none" para clubes sin provincia' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   findAll(
     @Query('search') search?: string,
     @Query('status') status?: ClubStatus,
+    @Query('province') province?: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number = 20,
   ) {
-    return this.clubsService.findAll({ search, status, page, limit });
+    return this.clubsService.findAll({ search, status, province, page, limit });
   }
 
   @Get(':id')
