@@ -120,7 +120,8 @@ export class SwimmersController {
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number = 20,
   ) {
-    return this.swimmersService.getResults(id, page, limit);
+    // Tope para no devolver tablas gigantes; el perfil pide hasta 500 de una vez
+    return this.swimmersService.getResults(id, Math.max(page, 1), Math.min(Math.max(limit, 1), 500));
   }
 
   @Get(':id/statistics')

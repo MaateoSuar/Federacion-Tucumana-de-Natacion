@@ -110,7 +110,9 @@ export default function RankingsPage() {
   // Resolved eventDefId: find the eventDef matching selectedBaseKey + current gender
   const eventDefId = useMemo(() => {
     if (!selectedBaseKey) return '';
-    return eventDefs.find((e) => baseKey(e) === selectedBaseKey && e.gender === gender)?.id ?? '';
+    const matches = eventDefs.filter((e) => baseKey(e) === selectedBaseKey && e.gender === gender);
+    // Si hubiera una definición duplicada con código de género dudoso ("_X"), gana la exacta ("_M"/"_F")
+    return (matches.find((e) => e.code.endsWith(`_${gender}`)) ?? matches[0])?.id ?? '';
   }, [selectedBaseKey, gender, eventDefs]);
 
   // Resultados

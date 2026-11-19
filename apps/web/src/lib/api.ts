@@ -126,7 +126,7 @@ export function fetchSwimmerPersonalBests(id: string) {
 }
 
 export function fetchSwimmerResults(id: string, page = 1) {
-  return serverFetch<SwimmerResultsPage>(`/swimmers/${id}/results?page=${page}&limit=20`, 60);
+  return serverFetch<SwimmerResultsPage>(`/swimmers/${id}/results?page=${page}&limit=500`, 60);
 }
 
 export function fetchSwimmerClubHistory(id: string) {

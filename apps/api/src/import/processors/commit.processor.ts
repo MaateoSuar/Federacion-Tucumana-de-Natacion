@@ -559,8 +559,21 @@ export class CommitProcessor {
         }
 
         for (const event of normalizedMeet.events) {
+          // Una prueba individual de género desconocido ("X") no es una prueba mixta: toma el género de
+          // sus nadadores si todos son del mismo. Antes quedaba una definición "_X" aparte (guardada como
+          // masculina) que partía el ranking y las marcas básicas de la prueba real.
+          let evGender: 'M' | 'F' | 'X' = event.gender;
+          if (evGender === 'X' && !event.is_relay) {
+            const genders = new Set<Gender>();
+            for (const r of resultsByEventKey.get(event.event_key) ?? []) {
+              const sw = swimmerByRef.get(r.swimmer_ref);
+              const g = sw ? swimmerGenderMap[sw.external_athlete_id] : undefined;
+              if (g) genders.add(g);
+            }
+            if (genders.size === 1) evGender = [...genders][0] as 'M' | 'F';
+          }
           const strokeCode = STROKE_CODE[event.stroke] ?? event.stroke;
-          const code = `${event.distance}${strokeCode}_${event.gender}`;
+          const code = `${event.distance}${strokeCode}_${evGender}`;
 
           let eventDef = await tx.eventDefinition.findUnique({ where: { code } });
           if (!eventDef) {
@@ -569,7 +582,7 @@ export class CommitProcessor {
                 code,
                 stroke: event.stroke,
                 distance: event.distance,
-                gender: event.gender === 'F' ? 'F' : ('M' as Gender),
+                gender: evGender === 'F' ? 'F' : ('M' as Gender),
                 isRelay: event.is_relay,
               },
             });
@@ -601,7 +614,7 @@ export class CommitProcessor {
 
           const resultsForEvent = resultsByEventKey.get(event.event_key) ?? [];
           const eventGender: Gender | null =
-            event.gender === 'X' || event.is_relay ? null : event.gender;
+            evGender === 'X' || event.is_relay ? null : evGender;
 
           for (const result of resultsForEvent) {
             const swimmer = swimmerByRef.get(result.swimmer_ref);

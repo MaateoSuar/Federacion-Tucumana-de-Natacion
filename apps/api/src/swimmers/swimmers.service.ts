@@ -248,7 +248,7 @@ export class SwimmersService {
       this.prisma.result.count({ where }),
       this.prisma.result.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ event: { tournament: { startDate: 'desc' } } }, { createdAt: 'desc' }],
         skip,
         take: limit,
         include: {

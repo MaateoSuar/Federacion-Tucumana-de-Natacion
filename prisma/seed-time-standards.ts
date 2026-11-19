@@ -29,7 +29,7 @@ async function main(): Promise<void> {
 
   const categories = new Map((await prisma.category.findMany()).map((c) => [c.code, c.id]));
   const eventDefs = new Map(
-    (await prisma.eventDefinition.findMany({ where: { isRelay: false } })).map((e) => [`${e.stroke}|${e.distance}|${e.gender}`, e.id]),
+    (await prisma.eventDefinition.findMany({ where: { isRelay: false, NOT: { code: { endsWith: '_X' } } } })).map((e) => [`${e.stroke}|${e.distance}|${e.gender}`, e.id]),
   );
 
   const setIds = new Map<string, string>();
