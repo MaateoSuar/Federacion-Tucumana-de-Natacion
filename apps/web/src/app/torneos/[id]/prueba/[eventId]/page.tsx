@@ -16,13 +16,14 @@ import { recordMarks, recordsForGroup, type GroupRecords, type RecordMark } from
 import { standardsMet, type StandardsTable } from '@/lib/standards-match';
 import type { EventResultsResponse, RecordEntry } from '@/lib/api';
 
-// Línea que corta la tabla: de ahí para arriba lograron la marca básica del set
+// Línea fina que corta la tabla: de ahí para arriba lograron la marca básica del set.
+// Discreta a propósito: el nombre aparece solo al pasar el mouse o al enfocarla.
 const STANDARD_CUT: Record<string, string> = {
-  sky: 'border-sky-400/60 bg-sky-500/10 text-sky-300',
-  emerald: 'border-emerald-400/60 bg-emerald-500/10 text-emerald-300',
-  amber: 'border-amber-400/60 bg-amber-500/10 text-amber-300',
+  sky: 'text-sky-300',
+  emerald: 'text-emerald-300',
+  amber: 'text-amber-300',
 };
-const STANDARD_CUT_DEFAULT = 'border-aqua-400/60 bg-aqua-500/10 text-aqua-300';
+const STANDARD_CUT_DEFAULT = 'text-aqua-300';
 
 // Cada alcance tiene su color, igual en el recuadro de récords y en la marca de cada resultado:
 // tucumano = celeste, NOA = verde, nacional = ámbar.
@@ -501,10 +502,15 @@ export default function PruebaPage({ params }: { params: { id: string; eventId: 
                                   .map((set) => (
                                     <tr key={`${r.id}-corte-${set.setId}`}>
                                       <td colSpan={hasSeed ? 7 : 6} className="p-0">
-                                        <div className={`flex items-center gap-3 border-y-2 px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider ${STANDARD_CUT[set.color] ?? STANDARD_CUT_DEFAULT}`}>
-                                          <span className="h-px flex-1 bg-current opacity-40" />
-                                          <span>{set.name} · de acá para arriba la lograron</span>
-                                          <span className="h-px flex-1 bg-current opacity-40" />
+                                        <div
+                                          tabIndex={0}
+                                          title={`${set.name}: de acá para arriba la lograron`}
+                                          className={`group/corte relative flex h-2.5 items-center outline-none ${STANDARD_CUT[set.color] ?? STANDARD_CUT_DEFAULT}`}
+                                        >
+                                          <span className="h-px w-full bg-current opacity-30 transition-opacity group-hover/corte:opacity-90 group-focus/corte:opacity-90" />
+                                          <span className="pointer-events-none absolute right-3 rounded bg-pool-950 px-2 text-[10px] font-semibold uppercase tracking-wider opacity-0 transition-opacity group-hover/corte:opacity-100 group-focus/corte:opacity-100">
+                                            {set.name} · de acá para arriba la lograron
+                                          </span>
                                         </div>
                                       </td>
                                     </tr>
