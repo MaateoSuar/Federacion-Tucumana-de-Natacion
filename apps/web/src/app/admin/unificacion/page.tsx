@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { apiFetch } from '@/lib/api';
 
 interface DuplicateCandidate {
@@ -13,6 +13,7 @@ interface DuplicateCandidate {
   birthDate?: string | null;
   currentClub?: { id: string; name: string; shortName: string } | null;
   locality?: string;
+  province?: string | null;
   resultCount?: number;
   swimmerCount?: number;
 }
@@ -24,18 +25,53 @@ interface DuplicatePair {
   reasons: string[];
 }
 
+interface MergePreview {
+  canonical: { id: string };
+  duplicate: { id: string; hasAccount?: boolean };
+  /** Cantidad de datos del duplicado que pasan al principal. */
+  willMove: Record<string, number>;
+  blockers: string[];
+  warnings: string[];
+}
+
+interface MergeResponse {
+  merged: boolean;
+  moved?: Record<string, number>;
+}
+
 type Tab = 'swimmers' | 'clubs';
+
+const MOVE_LABELS: Record<string, string> = {
+  results: 'resultados',
+  registrations: 'inscripciones',
+  personalBests: 'mejores marcas',
+  records: 'récords',
+  rankings: 'rankings',
+  rankingHistory: 'historial de rankings',
+  clubHistory: 'historial de club',
+  achievements: 'logros',
+  aliases: 'alias',
+  externalIds: 'identificadores externos',
+  swimmers: 'nadadores',
+  users: 'usuarios',
+  coaches: 'entrenadores',
+  tournamentsHosted: 'torneos como sede',
+  affiliations: 'afiliaciones',
+};
+
+const pairKeyOf = (p: DuplicatePair) => `${p.a.id}|${p.b.id}`;
 
 function displayName(c: DuplicateCandidate): string {
   return c.firstName ? `${c.firstName} ${c.lastName}` : (c.name ?? '');
 }
 
-function SubTitle(c: DuplicateCandidate) {
+function subTitle(c: DuplicateCandidate): string {
   const parts: string[] = [];
   if (c.gender) parts.push(c.gender === 'M' ? 'Masculino' : 'Femenino');
   if (c.birthDate) parts.push(c.birthDate.slice(0, 4));
   if (c.currentClub) parts.push(c.currentClub.shortName);
   if (c.locality) parts.push(c.locality);
+  if (c.province) parts.push(c.province);
   if (c.shortName) parts.push(`(${c.shortName})`);
   if (c.resultCount != null) parts.push(`${c.resultCount} resultados`);
   if (c.swimmerCount != null) parts.push(`${c.swimmerCount} nadadores`);
@@ -44,9 +80,9 @@ function SubTitle(c: DuplicateCandidate) {
 
 function ScoreBadge({ score }: { score: number }) {
   const pct = Math.round(score * 100);
-  const color = pct >= 85 ? 'text-red-400 bg-red-500/10 border-red-500/30'
-    : pct >= 70 ? 'text-amber-400 bg-amber-500/10 border-amber-500/30'
-    : 'text-blue-400 bg-blue-500/10 border-blue-500/30';
+  const color = pct >= 85 ? 'text-red-600 bg-red-50 border-red-200'
+    : pct >= 70 ? 'text-amber-700 bg-amber-50 border-amber-200'
+    : 'text-blue-600 bg-blue-50 border-blue-200';
   return (
     <span className={`text-xs font-bold px-2 py-0.5 rounded border ${color}`}>
       {pct}% coincidencia
@@ -57,197 +93,264 @@ function ScoreBadge({ score }: { score: number }) {
 export default function UnificacionPage() {
   const [tab, setTab] = useState<Tab>('swimmers');
   const [pairs, setPairs] = useState<DuplicatePair[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [merging, setMerging] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [merged, setMerged] = useState<Set<string>>(new Set());
-  const [confirmPair, setConfirmPair] = useState<{ pair: DuplicatePair; canonicalId: string } | null>(null);
+  const [slow, setSlow] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [merging, setMerging] = useState(false);
+
+  // Confirmación: qué par y cuál es el que queda; la vista previa se pide al abrir
+  const [confirm, setConfirm] = useState<{ pair: DuplicatePair; canonicalId: string } | null>(null);
+  const [preview, setPreview] = useState<MergePreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+
+  // Evita que una respuesta lenta de otra pestaña pise la lista actual
+  const loadSeq = useRef(0);
 
   const load = useCallback(async (t: Tab) => {
+    const seq = ++loadSeq.current;
     setLoading(true);
-    setError(null);
+    setSlow(false);
+    setListError(null);
+    const slowTimer = setTimeout(() => setSlow(true), 4000);
     try {
       const endpoint = t === 'swimmers' ? '/admin/merge/swimmers/duplicates' : '/admin/merge/clubs/duplicates';
-      const data = await apiFetch<DuplicatePair[]>(endpoint);
+      const data = await apiFetch<DuplicatePair[]>(`${endpoint}?limit=100`);
+      if (seq !== loadSeq.current) return;
       setPairs(data);
+      setLoaded(true);
     } catch (e) {
-      setError((e as Error).message);
+      if (seq !== loadSeq.current) return;
+      setListError((e as Error).message);
     } finally {
-      setLoading(false);
+      clearTimeout(slowTimer);
+      if (seq === loadSeq.current) {
+        setLoading(false);
+        setSlow(false);
+      }
     }
   }, []);
 
+  useEffect(() => { void load('swimmers'); }, [load]);
+
   const handleTabChange = (t: Tab) => {
+    if (t === tab) return;
     setTab(t);
     setPairs([]);
-    setError(null);
+    setLoaded(false);
+    setNotice(null);
     void load(t);
   };
 
-  const handleMerge = async () => {
-    if (!confirmPair) return;
-    const { pair, canonicalId } = confirmPair;
+  const entity = tab === 'swimmers' ? 'swimmers' : 'clubs';
+  const mergeUrl = (canonicalId: string, duplicateId: string) => `/admin/merge/${entity}/${canonicalId}/merge/${duplicateId}`;
+
+  const openConfirm = async (pair: DuplicatePair, canonicalId: string) => {
     const duplicateId = pair.a.id === canonicalId ? pair.b.id : pair.a.id;
-    const pairKey = `${pair.a.id}|${pair.b.id}`;
-    setMerging(pairKey);
-    setConfirmPair(null);
+    setConfirm({ pair, canonicalId });
+    setPreview(null);
+    setModalError(null);
+    setPreviewLoading(true);
     try {
-      const endpoint = tab === 'swimmers'
-        ? `/admin/merge/swimmers/${canonicalId}/merge/${duplicateId}`
-        : `/admin/merge/clubs/${canonicalId}/merge/${duplicateId}`;
-      await apiFetch(endpoint, { method: 'POST' });
-      setMerged((prev) => new Set([...prev, pairKey]));
+      setPreview(await apiFetch<MergePreview>(`${mergeUrl(canonicalId, duplicateId)}/preview`));
     } catch (e) {
-      setError((e as Error).message);
+      setModalError((e as Error).message);
     } finally {
-      setMerging(null);
+      setPreviewLoading(false);
     }
   };
 
-  const visiblePairs = pairs.filter((p) => !merged.has(`${p.a.id}|${p.b.id}`));
+  const closeConfirm = () => {
+    if (merging) return;
+    setConfirm(null);
+    setPreview(null);
+    setModalError(null);
+  };
+
+  const handleMerge = async () => {
+    if (!confirm || merging) return;
+    const { pair, canonicalId } = confirm;
+    const canonical = pair.a.id === canonicalId ? pair.a : pair.b;
+    const duplicate = pair.a.id === canonicalId ? pair.b : pair.a;
+    setMerging(true);
+    setModalError(null);
+    try {
+      // Las advertencias ya se le mostraron al administrador en esta pantalla: se envía la confirmación
+      await apiFetch<MergeResponse>(mergeUrl(canonicalId, duplicate.id), {
+        method: 'POST',
+        body: JSON.stringify({ acknowledgeWarnings: true }),
+      });
+      // El duplicado ya no existe: se sacan TODOS los pares donde aparece (un mismo registro
+      // puede estar en varios pares; clicar en uno viejo daba error "no encontrado").
+      setPairs((prev) => prev.filter((p) => p.a.id !== duplicate.id && p.b.id !== duplicate.id));
+      setNotice(`Listo: "${displayName(duplicate)}" se unificó dentro de "${displayName(canonical)}".`);
+      setConfirm(null);
+      setPreview(null);
+    } catch (e) {
+      const message = (e as Error).message;
+      setModalError(message);
+      // Si alguno ya no existe, la lista quedó vieja: se refresca para no mostrar pares fantasma.
+      if (/ya no existe|no encontrado/i.test(message)) void load(tab);
+    } finally {
+      setMerging(false);
+    }
+  };
+
+  const blocked = (preview?.blockers.length ?? 0) > 0;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      {/* Header */}
+    <div className="max-w-5xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Unificación de duplicados</h1>
         <p className="text-gray-500 text-sm mt-1">
-          Fusioná registros repetidos. Elegí cuál es el canónico (el que queda) y el duplicado se absorbe.
+          Fusioná registros repetidos. Elegí cuál es el principal (el que queda): el otro se absorbe y todo lo suyo pasa al principal.
         </p>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-2 mb-6">
         {(['swimmers', 'clubs'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => handleTabChange(t)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              tab === t
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              tab === t ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
             {t === 'swimmers' ? '🏊 Nadadores' : '🏟 Clubes'}
           </button>
         ))}
         <button
-          onClick={() => load(tab)}
+          onClick={() => void load(tab)}
           disabled={loading}
           className="ml-auto px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50 transition-all"
         >
-          {loading ? 'Buscando…' : 'Buscar duplicados'}
+          {loading ? 'Buscando…' : 'Buscar de nuevo'}
         </button>
       </div>
 
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-          {error}
+      {notice && (
+        <div role="status" className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-800 text-sm flex items-start justify-between gap-3">
+          <span>{notice}</span>
+          <button onClick={() => setNotice(null)} aria-label="Cerrar aviso" className="text-green-700 hover:text-green-900">×</button>
         </div>
       )}
 
-      {!loading && pairs.length === 0 && !error && (
+      {listError && (
+        <div role="alert" className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center justify-between gap-3">
+          <span>No se pudo cargar la lista: {listError}</span>
+          <button onClick={() => void load(tab)} className="shrink-0 px-3 py-1 rounded-md bg-red-600 text-white text-xs font-medium hover:bg-red-700">
+            Reintentar
+          </button>
+        </div>
+      )}
+
+      {loading && (
+        <div className="text-center py-16 text-gray-400">
+          <p className="font-medium">Buscando duplicados…</p>
+          {slow && <p className="text-xs mt-2">El servidor estaba dormido o la base es grande; puede tardar hasta un minuto la primera vez.</p>}
+        </div>
+      )}
+
+      {!loading && loaded && pairs.length === 0 && !listError && (
         <div className="text-center py-16 text-gray-400">
           <div className="text-5xl mb-3">✅</div>
-          <p className="font-medium">Presioná &quot;Buscar duplicados&quot; para analizar la base.</p>
+          <p className="font-medium">No hay posibles duplicados pendientes.</p>
         </div>
       )}
 
-      {/* Lista de pares */}
       <div className="space-y-3">
-        {visiblePairs.map((pair) => {
-          const pairKey = `${pair.a.id}|${pair.b.id}`;
-          const isMerging = merging === pairKey;
-
-          return (
-            <div key={pairKey} className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-100">
-                <div className="flex items-center gap-2">
-                  <ScoreBadge score={pair.score} />
-                  <span className="text-xs text-gray-500">{pair.reasons.join(', ')}</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 divide-x divide-gray-100">
-                {[pair.a, pair.b].map((candidate, idx) => {
-                  const otherCanonicalId = idx === 0 ? pair.b.id : pair.a.id;
-                  const thisCanonicalId = candidate.id;
-                  return (
-                    <div key={candidate.id} className="p-4">
-                      <p className="font-semibold text-gray-900 text-sm">{displayName(candidate)}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">{SubTitle(candidate)}</p>
-                      <div className="mt-3 flex gap-2">
-                        <button
-                          disabled={isMerging}
-                          onClick={() => setConfirmPair({ pair, canonicalId: thisCanonicalId })}
-                          className="px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-all"
-                          title={`Mantener este y absorber ${displayName(idx === 0 ? pair.b : pair.a)}`}
-                        >
-                          ✓ Mantener este
-                        </button>
-                        <button
-                          disabled={isMerging}
-                          onClick={() => setConfirmPair({ pair, canonicalId: otherCanonicalId })}
-                          className="px-3 py-1.5 text-xs font-medium bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-all"
-                          title="Marcar este como duplicado (se elimina)"
-                        >
-                          ✗ Es duplicado
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {isMerging && (
-                <div className="px-4 py-2 bg-blue-50 text-blue-700 text-xs font-medium text-center">
-                  Fusionando…
-                </div>
-              )}
+        {pairs.map((pair) => (
+          <div key={pairKeyOf(pair)} className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 border-b border-gray-100">
+              <ScoreBadge score={pair.score} />
+              <span className="text-xs text-gray-500">{pair.reasons.join(', ')}</span>
             </div>
-          );
-        })}
+            <div className="grid grid-cols-1 sm:grid-cols-2 sm:divide-x divide-y sm:divide-y-0 divide-gray-100">
+              {[pair.a, pair.b].map((candidate) => {
+                const other = candidate.id === pair.a.id ? pair.b : pair.a;
+                return (
+                  <div key={candidate.id} className="p-4">
+                    <p className="font-semibold text-gray-900 text-sm">{displayName(candidate)}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{subTitle(candidate)}</p>
+                    <button
+                      disabled={merging}
+                      onClick={() => void openConfirm(pair, candidate.id)}
+                      className="mt-3 px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-all"
+                      title={`Dejar este como principal y absorber a ${displayName(other)}`}
+                    >
+                      ✓ Dejar este y absorber al otro
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* Modal de confirmación */}
-      {confirmPair && (() => {
-        const { pair, canonicalId } = confirmPair;
+      {confirm && (() => {
+        const { pair, canonicalId } = confirm;
         const canonical = pair.a.id === canonicalId ? pair.a : pair.b;
         const duplicate = pair.a.id === canonicalId ? pair.b : pair.a;
+        const moves = preview ? Object.entries(preview.willMove).filter(([, n]) => n > 0) : [];
         return (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-1">Confirmar fusión</h2>
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-label="Confirmar unificación">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+              <h2 className="text-lg font-bold text-gray-900 mb-1">Confirmar unificación</h2>
               <p className="text-sm text-gray-500 mb-4">Esta acción no se puede deshacer desde la interfaz.</p>
 
-              <div className="space-y-3 mb-6">
+              <div className="space-y-3 mb-4">
                 <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <p className="text-xs font-bold text-green-700 uppercase tracking-wide mb-0.5">Se mantiene (canónico)</p>
+                  <p className="text-xs font-bold text-green-700 uppercase tracking-wide mb-0.5">Se mantiene (principal)</p>
                   <p className="font-semibold text-gray-900 text-sm">{displayName(canonical)}</p>
-                  <p className="text-xs text-gray-500">{SubTitle(canonical)}</p>
+                  <p className="text-xs text-gray-500">{subTitle(canonical)}</p>
                 </div>
                 <div className="text-center text-gray-400 text-xs">↓ absorbe a ↓</div>
                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
                   <p className="text-xs font-bold text-red-700 uppercase tracking-wide mb-0.5">Se elimina (duplicado)</p>
                   <p className="font-semibold text-gray-900 text-sm">{displayName(duplicate)}</p>
-                  <p className="text-xs text-gray-500">{SubTitle(duplicate)}</p>
+                  <p className="text-xs text-gray-500">{subTitle(duplicate)}</p>
                 </div>
               </div>
 
-              <div className="flex gap-3">
+              {previewLoading && <p className="text-sm text-gray-400 mb-4">Calculando qué se va a mover…</p>}
+
+              {preview && moves.length > 0 && (
+                <p className="text-xs text-gray-600 mb-3">
+                  Pasan al principal: {moves.map(([key, n]) => `${n} ${MOVE_LABELS[key] ?? key}`).join(', ')}.
+                </p>
+              )}
+
+              {preview?.blockers.map((b) => (
+                <div key={b} role="alert" className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">⛔ {b}</div>
+              ))}
+              {preview?.warnings.map((w) => (
+                <div key={w} className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">⚠️ {w}</div>
+              ))}
+
+              {modalError && (
+                <div role="alert" className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{modalError}</div>
+              )}
+
+              <div className="flex gap-3 mt-2">
                 <button
-                  onClick={() => setConfirmPair(null)}
-                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-all"
+                  onClick={closeConfirm}
+                  disabled={merging}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-all"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={() => void handleMerge()}
-                  className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-all"
+                  disabled={merging || previewLoading || blocked || !preview}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-all"
                 >
-                  Sí, fusionar
+                  {merging ? 'Unificando…' : 'Sí, unificar'}
                 </button>
               </div>
+              {merging && <p className="text-xs text-gray-400 text-center mt-3">Puede tardar unos segundos si tiene muchos resultados. No cierres la página.</p>}
             </div>
           </div>
         );
