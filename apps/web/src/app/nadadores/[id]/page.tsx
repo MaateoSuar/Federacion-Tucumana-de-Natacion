@@ -10,8 +10,10 @@ import {
   fetchSwimmerClubHistory,
   fetchSwimmerStatistics,
   fetchSwimmerProgression,
+  fetchSwimmerPublicProfile,
 } from '@/lib/api';
 import { SwimmerProgressionView } from '@/components/swimmer/SwimmerProgressionView';
+import { OwnerEditButton } from '@/components/swimmer/OwnerEditButton';
 import { ImprovementCelebration } from '@/components/swimmer/ImprovementCelebration';
 
 export const revalidate = 300;
@@ -20,10 +22,18 @@ const STROKE_ES: Record<string, string> = {
   libre: 'L', espalda: 'E', pecho: 'P', mariposa: 'M', combinado: 'C',
 };
 
+const SOCIAL_LINKS = [
+  { key: 'instagram', label: 'Instagram', url: (h: string) => `https://instagram.com/${h}` },
+  { key: 'tiktok', label: 'TikTok', url: (h: string) => `https://www.tiktok.com/@${h}` },
+  { key: 'facebook', label: 'Facebook', url: (h: string) => `https://facebook.com/${h}` },
+  { key: 'x', label: 'X', url: (h: string) => `https://x.com/${h}` },
+] as const;
+
 export default async function NadadorPage({ params }: { params: { id: string } }) {
   try {
-    const [swimmer, resultsPage, clubHistory, stats, progression] = await Promise.all([
+    const [swimmer, profile, resultsPage, clubHistory, stats, progression] = await Promise.all([
       fetchSwimmer(params.id),
+      fetchSwimmerPublicProfile(params.id).catch(() => null),
       fetchSwimmerResults(params.id).catch(() => ({ total: 0, page: 1, limit: 20, results: [] }) as Awaited<ReturnType<typeof fetchSwimmerResults>>),
       fetchSwimmerClubHistory(params.id).catch(() => [] as Awaited<ReturnType<typeof fetchSwimmerClubHistory>>),
       fetchSwimmerStatistics(params.id).catch(() => null),
@@ -55,10 +65,20 @@ export default async function NadadorPage({ params }: { params: { id: string } }
 
           {/* Header del perfil */}
           <div className="flex items-start gap-5 mb-10">
-            <div className="w-16 h-16 rounded-2xl bg-pool-700/60 flex items-center justify-center text-2xl font-black text-aqua-300 shrink-0">
-              {swimmer.firstName[0]}{swimmer.lastName[0]}
-            </div>
-            <div>
+            {/* (el botón de editar aparece al final de esta fila, solo para el dueño) */}
+            {profile?.photoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={profile.photoUrl}
+                alt={`Foto de ${swimmer.firstName} ${swimmer.lastName}`}
+                className="w-20 h-20 rounded-2xl object-cover shrink-0 border border-pool-700"
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-2xl bg-pool-700/60 flex items-center justify-center text-2xl font-black text-aqua-300 shrink-0">
+                {swimmer.firstName[0]}{swimmer.lastName[0]}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
               <h1 className="text-2xl font-black text-white">
                 {swimmer.firstName} {swimmer.lastName}
               </h1>
@@ -69,6 +89,22 @@ export default async function NadadorPage({ params }: { params: { id: string } }
                 {swimmer.currentClub && <span>· {swimmer.currentClub.name}</span>}
                 {!swimmer.isActive && <span className="text-red-400">· Inactivo</span>}
               </div>
+              {profile?.bio && <p className="mt-3 max-w-2xl whitespace-pre-line text-sm leading-relaxed text-pool-200">{profile.bio}</p>}
+              {profile?.socialLinks && Object.keys(profile.socialLinks).length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {SOCIAL_LINKS.filter((n) => profile.socialLinks?.[n.key]).map((n) => (
+                    <a
+                      key={n.key}
+                      href={n.url(profile.socialLinks?.[n.key] as string)}
+                      target="_blank"
+                      rel="noopener noreferrer nofollow"
+                      className="rounded-full border border-pool-600/60 bg-pool-800/60 px-3 py-1 text-xs text-pool-200 transition-colors hover:border-aqua-500/50 hover:text-aqua-300"
+                    >
+                      {n.label} · @{profile.socialLinks?.[n.key]}
+                    </a>
+                  ))}
+                </div>
+              )}
               {medals.length > 0 && (
                 <div className="flex gap-4 mt-2">
                   {medals.map((m) => (
@@ -80,6 +116,7 @@ export default async function NadadorPage({ params }: { params: { id: string } }
                 </div>
               )}
             </div>
+            <OwnerEditButton swimmerId={swimmer.id} />
           </div>
 
           {/* Progresión: mejores marcas, último torneo con flecha, evolución y torneos */}

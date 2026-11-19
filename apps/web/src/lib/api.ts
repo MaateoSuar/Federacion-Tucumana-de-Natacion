@@ -121,6 +121,18 @@ export function fetchSwimmer(id: string) {
   return serverFetch<Swimmer>(`/swimmers/${id}`, 300);
 }
 
+/** Perfil público: foto, presentación y redes (vienen vacíos si el nadador lo puso como privado). */
+export interface SwimmerPublicProfile {
+  bio: string | null;
+  photoUrl: string | null;
+  publicVisibility: boolean;
+  socialLinks: { instagram?: string; tiktok?: string; facebook?: string; x?: string } | null;
+}
+
+export function fetchSwimmerPublicProfile(id: string) {
+  return serverFetch<SwimmerPublicProfile>(`/swimmers/${id}/profile`, 15);
+}
+
 export function fetchSwimmerPersonalBests(id: string) {
   return serverFetch<PersonalBest[]>(`/swimmers/${id}/personal-bests`, 300);
 }

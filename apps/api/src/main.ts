@@ -8,6 +8,8 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
+  // La foto de perfil viaja embebida (ya recortada y comprimida por la web): hasta ~330 KB en base64
+  app.useBodyParser('json', { limit: '600kb' });
 
   app.useGlobalPipes(
     new ValidationPipe({

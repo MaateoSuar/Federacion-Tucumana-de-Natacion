@@ -158,6 +158,14 @@ export class SwimmersController {
     return this.swimmersService.getProfile(id);
   }
 
+  @Get(':id/profile/edit')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Perfil completo para editarlo (nadador vinculado o admin), aunque sea privado' })
+  getProfileForEditor(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.swimmersService.getProfileForEditor(id, user.id);
+  }
+
   @Patch(':id/profile')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
