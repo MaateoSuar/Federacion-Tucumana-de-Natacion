@@ -54,7 +54,7 @@ Estas reglas se blindan con tests. Nunca modificarlas sin aprobación explícita
 
 1. **Tiempos en milisegundos enteros.** Nunca strings (`"01:02.34"`), nunca floats. Nunca comparar ni rankear resultados de piscina de 25 m contra 50 m. Son universos separados.
 
-2. **Categoría, club y piscina se CONGELAN en el resultado.** `results.category_id`, `results.club_id` y `tournaments.pool_length` se graban al momento de la inscripción/homologación y nunca se recalculan. La verdad histórica es inmutable.
+2. **Categoría, club y piscina se CONGELAN en el resultado.** `results.category_id`, `results.club_id` y `tournaments.pool_length` se graban al momento de la inscripción/homologación y nunca se recalculan. La verdad histórica es inmutable. **Única excepción (decisión del 19/11/2026):** la unificación de clubes duplicados por un Admin (`/admin/unificacion`) reasigna `club_id` del club absorbido al club principal en resultados, inscripciones, récords y rankings, porque corrige la identidad del club (es el mismo club escrito dos veces), no la historia. Queda en `audit_logs` (`CLUB_MERGED`) con el snapshot del club eliminado, y exige confirmar la advertencia si las provincias difieren.
 
 3. **Edad deportiva = edad al 31 de diciembre del año de la competencia.** La función `resolveCategory(birthDate, seasonYear, scope)` usa esta regla. Parametrizable, pero el default es DEC_31.
 
