@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { NavBar } from '@/components/NavBar';
 import { formatTime } from '@/lib/formatTime';
-import { fetchRecords, fetchNationalRecords } from '@/lib/api';
-import { categoryKey } from '@/lib/record-marks';
+import { fetchRecords } from '@/lib/api';
 import type { RecordEntry } from '@/lib/api';
 import Link from 'next/link';
 
@@ -59,7 +58,12 @@ function categoryOrderIndex(code: string): number {
   return idx === -1 ? CATEGORY_ORDER.length : idx;
 }
 
-function EventRecordRow({ record, national }: { record: RecordEntry; national?: RecordEntry }) {
+/** Dónde se logró el récord: el torneo cargado en el récord o, si no, el del resultado que lo originó. */
+function recordPlace(record: RecordEntry): string {
+  return record.tournamentName?.trim() || record.sourceResult?.event.tournament.name || '—';
+}
+
+function EventRecordRow({ record }: { record: RecordEntry }) {
   const date = new Date(record.recordDate).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
   const isTeam = !record.swimmer.lastName || record.swimmer.lastName === 'Equipo de Relevo';
   return (
@@ -75,36 +79,19 @@ function EventRecordRow({ record, national }: { record: RecordEntry; national?: 
         )}
       </td>
       <td className="px-4 py-3 text-pool-300 text-sm hidden sm:table-cell">{record.club?.shortName ?? record.club?.name ?? '—'}</td>
-      <td className="px-4 py-3 text-pool-400 text-xs hidden md:table-cell">{date}</td>
       <td className="px-4 py-3 text-right font-mono font-bold text-aqua-300">{formatTime(record.timeMs)}</td>
-      {national && (
-        <td className="px-4 py-3 text-right">
-          <span className="font-mono text-xs text-pool-400">{formatTime(national.timeMs)}</span>
-          {record.timeMs <= national.timeMs && (
-            <span className="ml-2 text-xs font-bold text-yellow-400">≡ NAC</span>
-          )}
-        </td>
-      )}
+      <td className="px-4 py-3 text-pool-300 text-xs whitespace-nowrap">{date}</td>
+      <td className="px-4 py-3 text-pool-300 text-xs min-w-[10rem]">{recordPlace(record)}</td>
     </tr>
   );
 }
 
 /** Todas las categorías de una prueba+género juntas, una tabla por prueba — como el ranking. */
-function EventRecordsTable({ records, nationals, gender }: { records: RecordEntry[]; nationals: RecordEntry[]; gender: 'M' | 'F' | 'MIX' }) {
+function EventRecordsTable({ records, gender }: { records: RecordEntry[]; gender: 'M' | 'F' | 'MIX' }) {
   const filtered = records
     .filter((r) => r.gender === gender)
     .sort((a, b) => categoryOrderIndex(a.category.code) - categoryOrderIndex(b.category.code));
   if (filtered.length === 0) return null;
-
-  const getNational = (r: RecordEntry) =>
-    nationals
-      .filter((n) => n.eventDefinition.id === r.eventDefinition.id && n.gender === r.gender && n.poolLength === r.poolLength)
-      .find((n) => {
-        // Misma categoría; los Mayores y el Absoluto se comparan con el Absoluto nacional
-        const key = categoryKey(r.category.code);
-        const nKey = categoryKey(n.category.code);
-        return nKey === key || (nKey === 'ABS' && (key === 'MAY' || key === 'ABS'));
-      });
 
   return (
     <div className="overflow-x-auto rounded-xl border border-pool-700/40">
@@ -114,14 +101,14 @@ function EventRecordsTable({ records, nationals, gender }: { records: RecordEntr
             <th className="text-left px-4 py-3">Categoría</th>
             <th className="text-left px-4 py-3">Nadador/a</th>
             <th className="text-left px-4 py-3 hidden sm:table-cell">Club</th>
-            <th className="text-left px-4 py-3 hidden md:table-cell">Fecha</th>
             <th className="text-right px-4 py-3">Tiempo</th>
-            {nationals.length > 0 && <th className="text-right px-4 py-3">Rec. Nacional</th>}
+            <th className="text-left px-4 py-3">Fecha</th>
+            <th className="text-left px-4 py-3">Lugar</th>
           </tr>
         </thead>
         <tbody>
           {filtered.map((r) => (
-            <EventRecordRow key={r.id} record={r} national={nationals.length > 0 ? getNational(r) : undefined} />
+            <EventRecordRow key={r.id} record={r} />
           ))}
         </tbody>
       </table>
@@ -129,15 +116,7 @@ function EventRecordsTable({ records, nationals, gender }: { records: RecordEntr
   );
 }
 
-function EventSection({
-  eventName,
-  records,
-  nationals,
-}: {
-  eventName: string;
-  records: RecordEntry[];
-  nationals: RecordEntry[];
-}) {
+function EventSection({ eventName, records }: { eventName: string; records: RecordEntry[] }) {
   if (records.length === 0) return null;
   const genders: Array<'M' | 'F' | 'MIX'> = ['M', 'F', 'MIX'];
 
@@ -151,7 +130,7 @@ function EventSection({
           return (
             <div key={g}>
               <p className="text-sm font-semibold text-pool-300 mb-2">{GENDER_LABEL[g]}</p>
-              <EventRecordsTable records={gRecords} nationals={nationals} gender={g} />
+              <EventRecordsTable records={gRecords} gender={g} />
             </div>
           );
         })}
@@ -162,7 +141,6 @@ function EventSection({
 
 export default function RecordsPage() {
   const [records, setRecords] = useState<RecordEntry[]>([]);
-  const [nationals, setNationals] = useState<RecordEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [scope, setScope] = useState<'provincial' | 'noa'>('provincial');
@@ -176,11 +154,8 @@ export default function RecordsPage() {
     setLoading(true);
     setError(false);
     setCategoryFilter('');
-    Promise.all([
-      fetchRecords({ scope }),
-      fetchNationalRecords(),
-    ])
-      .then(([r, n]) => { setRecords(r); setNationals(n); })
+    fetchRecords({ scope })
+      .then((r) => setRecords(r))
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, [scope]);
@@ -246,9 +221,6 @@ export default function RecordsPage() {
               </button>
             ))}
           </div>
-          {nationals.length > 0 && (
-            <p className="text-pool-400 text-sm mt-1">Los récords nacionales se muestran como referencia.</p>
-          )}
           {lastUpdated && (
             <p className="text-pool-500 text-xs mt-1">
               Última actualización: {lastUpdated.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}
@@ -304,7 +276,6 @@ export default function RecordsPage() {
               if (poolFilter && poolFilter !== key) return null;
               const poolRecords = filteredRecords.filter((r) => r.poolLength === key);
               if (poolRecords.length === 0) return null;
-              const poolNationals = nationals.filter((n) => n.poolLength === key);
               return (
                 <section key={key}>
                   <h2 className="text-xl font-bold text-white mb-4 pb-2 border-b border-pool-700/40">{label}</h2>
@@ -313,12 +284,7 @@ export default function RecordsPage() {
                       const evRecords = poolRecords.filter((r) => eventBaseKey(r.eventDefinition) === ev.key);
                       if (evRecords.length === 0) return null;
                       return (
-                        <EventSection
-                          key={ev.key}
-                          eventName={ev.label}
-                          records={evRecords}
-                          nationals={poolNationals}
-                        />
+                        <EventSection key={ev.key} eventName={ev.label} records={evRecords} />
                       );
                     })}
                   </div>

@@ -429,6 +429,8 @@ export interface RecordEntry {
   gender: string;
   timeMs: number;
   recordDate: string;
+  /** Torneo o lugar donde se logró (histórico cargado a mano). */
+  tournamentName?: string | null;
   status: string;
   isCurrent: boolean;
   homologatedAt: string | null;
