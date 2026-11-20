@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
+import { DatePicker } from '@/components/DatePicker';
 
 interface Season {
   id: string;
@@ -28,7 +29,7 @@ export default function NuevoTorneoPage() {
     name: '',
     hostClubId: '',
     venue: '',
-    poolLength: 'P50',
+    poolLength: 'P25',
     startDate: '',
     endDate: '',
     numberOfDays: '1',
@@ -70,17 +71,21 @@ export default function NuevoTorneoPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+    if (!form.startDate) { setError('Seleccioná la fecha de inicio.'); return; }
+    if (!form.endDate) { setError('Seleccioná la fecha de fin.'); return; }
+    setLoading(true);
     try {
-      const token = localStorage.getItem('ftn_token');
       await apiFetch('/tournaments', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token ?? ''}` },
         body: JSON.stringify({
-          ...form,
+          name: form.name,
           hostClubId: form.hostClubId || undefined,
           venue: form.venue || undefined,
+          poolLength: form.poolLength,
+          type: form.type,
+          scope: form.scope,
+          seasonId: form.seasonId,
           startDate: new Date(form.startDate).toISOString(),
           endDate: new Date(form.endDate).toISOString(),
         }),
@@ -175,8 +180,8 @@ export default function NuevoTorneoPage() {
               onChange={(e) => set('poolLength', e.target.value)}
               className="input"
             >
-              <option value="P50">50 metros (piscina larga)</option>
               <option value="P25">25 metros (piscina corta)</option>
+              <option value="P50">50 metros (piscina larga)</option>
             </select>
           </div>
           <div>
@@ -198,12 +203,9 @@ export default function NuevoTorneoPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Fecha inicio <span className="text-red-500">*</span>
             </label>
-            <input
-              type="date"
-              required
+            <DatePicker
               value={form.startDate}
-              onChange={(e) => set('startDate', e.target.value)}
-              className="input"
+              onChange={(v) => set('startDate', v)}
             />
           </div>
           <div>
@@ -227,11 +229,9 @@ export default function NuevoTorneoPage() {
               Fecha fin
               <span className="ml-1 text-gray-400 font-normal text-xs">(calculada)</span>
             </label>
-            <input
-              type="date"
+            <DatePicker
               value={form.endDate}
-              onChange={(e) => set('endDate', e.target.value)}
-              className="input bg-gray-50 text-gray-500"
+              onChange={(v) => set('endDate', v)}
             />
           </div>
         </div>

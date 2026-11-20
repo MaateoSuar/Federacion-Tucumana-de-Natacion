@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
 import ImageUpload from '@/components/ImageUpload';
+import { DatePicker } from '@/components/DatePicker';
 
 interface Club { id: string; name: string; shortName: string; }
 
@@ -82,7 +83,7 @@ export default function NuevoNadadoresPage() {
               <input id="documentId" name="documentId" value={form.documentId} onChange={handleChange} className="input" placeholder="Sin puntos ni espacios" />
             </Field>
             <Field label="Fecha de nacimiento" htmlFor="birthDate">
-              <input id="birthDate" name="birthDate" type="date" value={form.birthDate} onChange={handleChange} className="input" />
+              <DatePicker value={form.birthDate} onChange={(v) => setForm((p) => ({ ...p, birthDate: v }))} />
             </Field>
             <Field label="Género *" htmlFor="gender">
               <select id="gender" name="gender" value={form.gender} onChange={handleChange} className="input">

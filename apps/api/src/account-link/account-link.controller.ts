@@ -68,44 +68,44 @@ export class AccountLinkController {
 
   @Get('requests')
   @UseGuards(RolesGuard)
-  @Roles(SystemRole.ADMIN, SystemRole.SUPER_ADMIN)
-  @ApiOperation({ summary: '[Admin] Listar solicitudes de vinculación' })
+  @Roles(SystemRole.ADMIN, SystemRole.SUPER_ADMIN, SystemRole.COACH)
+  @ApiOperation({ summary: '[Admin / Entrenador] Listar solicitudes de vinculación (el entrenador, solo las de su club)' })
   @ApiQuery({ name: 'status', required: false, enum: AccountLinkStatus })
-  listRequests(@Query('status') status?: AccountLinkStatus) {
-    return this.service.listRequests(status);
+  listRequests(@CurrentUser() actor: AuthenticatedUser, @Query('status') status?: AccountLinkStatus) {
+    return this.service.listRequests(actor, status);
   }
 
   @Get('requests/:id')
   @UseGuards(RolesGuard)
-  @Roles(SystemRole.ADMIN, SystemRole.SUPER_ADMIN)
-  @ApiOperation({ summary: '[Admin] Ver detalle de una solicitud' })
-  getRequest(@Param('id') id: string) {
-    return this.service.getRequest(id);
+  @Roles(SystemRole.ADMIN, SystemRole.SUPER_ADMIN, SystemRole.COACH)
+  @ApiOperation({ summary: '[Admin / Entrenador] Ver detalle de una solicitud' })
+  getRequest(@Param('id') id: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.service.getRequest(id, actor);
   }
 
   @Patch('requests/:id/approve')
   @UseGuards(RolesGuard)
-  @Roles(SystemRole.ADMIN, SystemRole.SUPER_ADMIN)
+  @Roles(SystemRole.ADMIN, SystemRole.SUPER_ADMIN, SystemRole.COACH)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: '[Admin] Aprobar solicitud de vinculación' })
+  @ApiOperation({ summary: '[Admin / Entrenador de su club] Aprobar solicitud de vinculación' })
   approve(
     @Param('id') id: string,
-    @CurrentUser() admin: AuthenticatedUser,
+    @CurrentUser() actor: AuthenticatedUser,
     @Body() dto: ReviewLinkRequestDto,
   ) {
-    return this.service.approve(id, admin.id, dto);
+    return this.service.approve(id, actor, dto);
   }
 
   @Patch('requests/:id/reject')
   @UseGuards(RolesGuard)
-  @Roles(SystemRole.ADMIN, SystemRole.SUPER_ADMIN)
+  @Roles(SystemRole.ADMIN, SystemRole.SUPER_ADMIN, SystemRole.COACH)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: '[Admin] Rechazar solicitud (motivo requerido)' })
+  @ApiOperation({ summary: '[Admin / Entrenador de su club] Rechazar solicitud (motivo requerido)' })
   reject(
     @Param('id') id: string,
-    @CurrentUser() admin: AuthenticatedUser,
+    @CurrentUser() actor: AuthenticatedUser,
     @Body() dto: ReviewLinkRequestDto,
   ) {
-    return this.service.reject(id, admin.id, dto);
+    return this.service.reject(id, actor, dto);
   }
 }

@@ -228,17 +228,29 @@ puedo hacer rollback. Reusá el matching del próximo milestone como stub si hac
 ```
 Contexto: plataforma FTN. Respetá CLAUDE.md y MODULO-INGESTA-RESULTADOS.md §3.1–§3.4.
 
-Objetivo de esta sesión (SOLO esto): conciliar atletas y clubes del import contra entidades oficiales.
-Incluí: AthleteMatcher con cascada de confianza (DNI → external_id → nombre+nacimiento+sexo →
-nombre+año+club → fuzzy → nuevo), ClubMatcher análogo, tabla external_id_map (sistema_origen,
-external_id → swimmer_id/club_id), detección de duplicados dentro del archivo y contra la base
-(fuzzy nombre+nacimiento), y manejo de atletas nuevos (crear / vincular a existente / descartar
-desde el preview). Los matches medios/bajos requieren confirmación humana, nunca automáticos.
+Objetivo de esta sesión (SOLO esto): conciliar atletas y clubes del import contra entidades oficiales,
+GARANTIZANDO IDENTIDAD ÚNICA (ver MODULO-INGESTA-RESULTADOS.md §3.6, es el problema central del sistema).
+El nombre NUNCA es la identidad: un error de tipeo ("Mateo Suar" vs "Mateeo Suar") no debe crear dos personas.
+
+Incluí:
+- Normalización canónica de nombres (trim, mayúsculas, sin tildes, orden apellido/nombre, colapso de espacios).
+- AthleteMatcher con cascada de confianza (DNI → external_id → alias conocido → nombre+nacimiento+sexo →
+  nombre+año+club → fuzzy → nuevo). ClubMatcher análogo.
+- Tablas: swimmer_aliases (variantes de nombre → swimmer canónico), club_aliases, external_id_map.
+- ALIAS APRENDIDOS: cuando el admin confirma que una variante corresponde a un swimmer existente, se
+  guarda como alias; los imports futuros la reconocen automáticamente (el error se aprende una sola vez).
+- Detección de duplicados dentro del archivo y contra la base (fuzzy nombre+nacimiento) → en el preview
+  se ofrece "¿es la misma persona que X?" antes de crear.
+- FUSIÓN (merge) de nadadores duplicados: reasigna TODO el historial (resultados, PB, récords, medallas)
+  del duplicado al canónico, elimina el duplicado, y audita la operación en audit_logs.
+- Manejo de atletas nuevos (crear / vincular a existente / descartar desde el preview).
+- Los matches medios/bajos SIEMPRE requieren confirmación humana, nunca automáticos.
 
 Antes de codear, mostrame el PLAN. Esperá aprobación.
 
-Criterio de terminado: typecheck/lint/test verdes; el preview muestra correctamente matches fuertes,
-candidatos a confirmar y atletas nuevos; tests de la cascada de matching y de la detección de duplicados.
+Criterio de terminado: typecheck/lint/test verdes; el preview muestra matches fuertes, candidatos a
+confirmar y atletas nuevos; tests de: cascada de matching, alias aprendido (reimportar la variante mapea
+al canónico sin preguntar), detección de duplicados, y fusión (el merge reasigna el historial completo).
 ```
 
 ---
@@ -253,6 +265,10 @@ Incluí: acción de homologar (por prueba o torneo) que marca resultados como ho
 dominio ResultHomologated; worker (BullMQ) que al homologar actualiza PersonalBest (solo si mejora),
 recalcula Rankings de forma INCREMENTAL (solo la tupla afectada), evalúa Récords (genera candidatos),
 toma snapshot en RankingHistory, recalcula AthleteStatistics y genera AthleteAchievements (medallas).
+Además: deriva/actualiza swimmer_club_history (ver MODULO §3.7) a partir del club CONGELADO de cada
+resultado ordenado por fecha —detecta transferencias (Club X → Club Y), cierra el período anterior,
+abre el nuevo y refresca swimmers.current_club_id con el club del resultado más reciente. NUNCA reescribe
+el club de resultados pasados (verdad histórica inmutable); el historial de clubes es DERIVADO.
 
 Antes de codear, mostrame el PLAN (eventos, jobs, orden de recálculo). Esperá aprobación.
 
@@ -292,8 +308,9 @@ Objetivo de esta sesión (SOLO esto): el sistema de récords.
 Incluí: RecordEvaluator que, sobre resultados homologados, compara contra el récord vigente de la
 clave (scope, event_definition, category, gender, pool_length) y genera candidato (pending) si lo supera;
 flujo de homologación humana del récord por Admin (al homologar: anterior is_current=false +
-previous_record_id, nuevo is_current=true); récords 25 y 50 totalmente independientes;
-trazabilidad (source_result_id, torneo, fecha, nadador, club, homologador).
+previous_record_id, nuevo is_current=true); récords 25 y 50 totalmente independientes; récords nacionales
+solo de referencia (scope=nacional, solo-lectura) mostrados como benchmark con las marcas de Tucumán
+debajo; trazabilidad (source_result_id, torneo, fecha, nadador, club, homologador).
 
 Antes de codear, mostrame el PLAN. Esperá aprobación.
 
@@ -438,7 +455,7 @@ priorizada para que yo decida).
 ## Recordatorios finales
 
 - **Adjuntá los fixtures reales** (HY3, y después CSV/Excel/PDF) en los milestones M6, M7 y M17. Es lo que hace que el parser funcione con datos de verdad.
-- **Resolvé los pendientes menores** de `ESPECIFICACION-FUNCIONAL-v3.md` §10 antes de M9/M10 (categoría del ranking, récords nacionales, licencia, relevos).
+- **Pendientes de v3 §10: TODOS resueltos** (categoría congelada, récords nacionales solo-referencia, licencia bloqueante, relevos doble). Nada que definir antes de M9/M10.
 - **Después de cada prompt:** revisás diff → verificás → commit. Nunca encadenes milestones sin revisar.
 - Si un milestone resulta demasiado grande para revisar en una pasada, pedile a Sonnet que lo **parta en sub-pasos** y aprobás de a uno.
 

@@ -1,6 +1,13 @@
-import type { NormalizedMeet } from '../../ingest/types/normalized-meet.types';
+import type { NormalizedMeet, NormalizedResult } from '../../ingest/types/normalized-meet.types';
 import type { ImportIssue } from '../../ingest/types/import-issue.types';
 import { normalizeText } from './fuzzy';
+
+/** Clave natural de un nado dentro del archivo (regla 5): prueba + nadador + serie + carril. */
+export function resultIdempotencyKey(
+  r: Pick<NormalizedResult, 'event_key' | 'swimmer_ref' | 'heat_no' | 'lane_no'>,
+): string {
+  return `${r.event_key}|${r.swimmer_ref}|${r.heat_no}|${r.lane_no}`;
+}
 
 export interface DuplicateIssues {
   issues: ImportIssue[];
@@ -37,7 +44,7 @@ export class DuplicateDetector {
     // ── Resultados duplicados dentro del archivo ─────────────────────────────
     const resultKeys = new Map<string, number[]>();
     for (const r of meet.results) {
-      const key = `${r.event_ref}|${r.swimmer_ref}|${r.heat_no}|${r.lane_no}`;
+      const key = resultIdempotencyKey(r);
       const lines = resultKeys.get(key) ?? [];
       lines.push(r.source_line);
       resultKeys.set(key, lines);

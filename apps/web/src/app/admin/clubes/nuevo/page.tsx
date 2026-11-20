@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
 import ImageUpload from '@/components/ImageUpload';
+import { PROVINCES } from '@/lib/provinces';
 
 const initialForm = {
-  name: '', shortName: '', locality: '',
+  name: '', shortName: '', locality: '', province: '',
   logoUrl: '', foundedYear: '', contactEmail: '', status: 'afiliado',
 };
 
@@ -29,6 +30,7 @@ export default function NuevoClubPage() {
         name: form.name, shortName: form.shortName,
         locality: form.locality, status: form.status,
       };
+      if (form.province) payload.province = form.province;
       if (form.logoUrl) payload.logoUrl = form.logoUrl;
       if (form.foundedYear) payload.foundedYear = parseInt(form.foundedYear, 10);
       if (form.contactEmail) payload.contactEmail = form.contactEmail;
@@ -83,6 +85,13 @@ export default function NuevoClubPage() {
             <Field label="Localidad *" htmlFor="locality">
               <input id="locality" name="locality" required maxLength={100}
                 value={form.locality} onChange={handleChange} className="input" placeholder="San Miguel de Tucumán" />
+            </Field>
+
+            <Field label="Provincia (opcional)" htmlFor="province" span={2}>
+              <select id="province" name="province" value={form.province} onChange={handleChange} className="input">
+                <option value="">Sin asignar</option>
+                {PROVINCES.map((pv) => <option key={pv} value={pv}>{pv}</option>)}
+              </select>
             </Field>
 
             <div className="col-span-2">

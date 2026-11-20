@@ -1,9 +1,4 @@
-import { IsEnum, IsOptional, IsString } from 'class-validator';
-
-export enum RankingMode {
-  BEST_PER_SWIMMER = 'best_per_swimmer',
-  ALL_PERFORMANCES = 'all_performances',
-}
+import { IsEnum, IsOptional, IsString, Matches } from 'class-validator';
 
 export class EventRankingQueryDto {
   @IsString()
@@ -12,8 +7,8 @@ export class EventRankingQueryDto {
   @IsEnum(['P25', 'P50'])
   poolLength!: 'P25' | 'P50';
 
-  @IsEnum(['M', 'F'])
-  gender!: 'M' | 'F';
+  @IsEnum(['M', 'F', 'MIX'])
+  gender!: 'M' | 'F' | 'MIX';
 
   @IsOptional()
   @IsEnum(['provincial', 'nacional'])
@@ -27,7 +22,13 @@ export class EventRankingQueryDto {
   @IsString()
   categoryId?: string;
 
+  // Período elegido (fecha del torneo / del récord), formato AAAA-MM-DD.
+  // Si viene alguno de los dos, tiene prioridad sobre seasonId.
   @IsOptional()
-  @IsEnum(RankingMode)
-  mode?: RankingMode = RankingMode.ALL_PERFORMANCES;
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'from debe tener formato AAAA-MM-DD' })
+  from?: string;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'to debe tener formato AAAA-MM-DD' })
+  to?: string;
 }

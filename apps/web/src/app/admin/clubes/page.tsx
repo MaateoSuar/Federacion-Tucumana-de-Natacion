@@ -3,12 +3,14 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
+import { PROVINCES } from '@/lib/provinces';
 
 interface Club {
   id: string;
   name: string;
   shortName: string;
   locality: string;
+  province?: string | null;
   status: string;
   logoUrl: string | null;
   foundedYear: number | null;
@@ -32,12 +34,17 @@ export default function ClubesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchClubs = async (q = '') => {
+  const [provinceFilter, setProvinceFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [savingId, setSavingId] = useState<string | null>(null);
+
+  const fetchClubs = async (q = '', prov = provinceFilter, pg = page) => {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ limit: '50' });
+      const params = new URLSearchParams({ limit: '50', page: String(pg) });
       if (q) params.set('search', q);
+      if (prov) params.set('province', prov);
       setData(await apiFetch<ClubsResponse>(`/clubs?${params}`));
     } catch (e) {
       setError((e as Error).message);
@@ -46,7 +53,32 @@ export default function ClubesPage() {
     }
   };
 
-  useEffect(() => { void fetchClubs(); }, []);
+  useEffect(() => { void fetchClubs(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const changeFilter = (prov: string) => {
+    setProvinceFilter(prov);
+    setPage(1);
+    void fetchClubs(search, prov, 1);
+  };
+
+  const goToPage = (pg: number) => {
+    setPage(pg);
+    void fetchClubs(search, provinceFilter, pg);
+  };
+
+  // Asigna la provincia del club sin salir de la lista (habilita cuentas de sus nadadores si es Tucumán)
+  const saveProvince = async (clubId: string, province: string) => {
+    setSavingId(clubId);
+    setError(null);
+    try {
+      await apiFetch(`/clubs/${clubId}`, { method: 'PATCH', body: JSON.stringify({ province: province || null }) });
+      setData((d) => d && { ...d, items: d.items.map((c) => (c.id === clubId ? { ...c, province: province || null } : c)) });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSavingId(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -88,7 +120,7 @@ export default function ClubesPage() {
 
       {/* Buscador */}
       <form
-        onSubmit={(e) => { e.preventDefault(); void fetchClubs(search); }}
+        onSubmit={(e) => { e.preventDefault(); setPage(1); void fetchClubs(search, provinceFilter, 1); }}
         className="flex gap-2"
       >
         <div className="relative flex-1">
@@ -101,6 +133,16 @@ export default function ClubesPage() {
             className="input pl-9"
           />
         </div>
+        <select
+          value={provinceFilter}
+          onChange={(e) => changeFilter(e.target.value)}
+          className="input !w-auto"
+          aria-label="Filtrar por provincia"
+        >
+          <option value="">Todas las provincias</option>
+          <option value="none">Sin provincia (urge completar)</option>
+          {PROVINCES.map((p) => <option key={p} value={p}>{p}</option>)}
+        </select>
         <button type="submit" className="btn-secondary">Buscar</button>
       </form>
 
@@ -121,6 +163,7 @@ export default function ClubesPage() {
               <tr className="bg-gray-50/80">
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Club</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Localidad</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Provincia</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Nadadores</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Estado</th>
                 <th className="px-5 py-3" />
@@ -129,7 +172,7 @@ export default function ClubesPage() {
             <tbody className="divide-y divide-gray-50">
               {data.items.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-5 py-12 text-center text-gray-400">
+                  <td colSpan={6} className="px-5 py-12 text-center text-gray-400">
                     <PoolEmpty />
                     <p className="mt-3 text-sm">No se encontraron clubes</p>
                   </td>
@@ -149,6 +192,18 @@ export default function ClubesPage() {
                       </div>
                     </td>
                     <td className="px-5 py-3.5 text-gray-600">{club.locality}</td>
+                    <td className="px-5 py-3.5">
+                      <select
+                        value={club.province ?? ''}
+                        disabled={savingId === club.id}
+                        onChange={(e) => void saveProvince(club.id, e.target.value)}
+                        aria-label={`Provincia de ${club.name}`}
+                        className={`input !py-1 !w-44 text-sm ${club.province ? '' : 'border-amber-300 bg-amber-50'}`}
+                      >
+                        <option value="">Sin asignar</option>
+                        {PROVINCES.map((p) => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </td>
                     <td className="px-5 py-3.5">
                       <span className="font-semibold text-pool-700">
                         {club._count?.swimmers ?? 0}
@@ -171,6 +226,15 @@ export default function ClubesPage() {
               })}
             </tbody>
           </table>
+          {data.total > 50 && (
+            <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
+              <span>Página {page} de {Math.ceil(data.total / 50)}</span>
+              <div className="flex gap-2">
+                <button className="btn-secondary" disabled={page <= 1} onClick={() => goToPage(page - 1)}>Anterior</button>
+                <button className="btn-secondary" disabled={page >= Math.ceil(data.total / 50)} onClick={() => goToPage(page + 1)}>Siguiente</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

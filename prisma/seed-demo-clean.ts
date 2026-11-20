@@ -10,30 +10,32 @@ const prisma = new PrismaClient();
 const DEMO_EMAILS = ['admin@ftn.ar', 'entrenador@cna.ar', 'nadador@ftn.ar'];
 const DEMO_CLUBS  = ['Club Atlético Natación', 'Club Universitario', 'Natación Norte'];
 const DEMO_DOC_PREFIX = 'DEMO-';
-const DEMO_TOURNAMENT = 'Torneo Apertura Tucumán 2026';
+const DEMO_TOURNAMENTS = ['Torneo Apertura Tucumán 2026', 'Copa Primavera Tucumán 2026'];
 
 async function main() {
   console.log('▶ Limpiando datos DEMO...');
 
   // 1. Tournament (cascades events → results → splits, personal_bests, etc.)
-  const tournament = await prisma.tournament.findFirst({ where: { name: DEMO_TOURNAMENT } });
-  if (tournament) {
-    // Delete in dependency order
-    const events = await prisma.event.findMany({ where: { tournamentId: tournament.id }, select: { id: true } });
-    const eventIds = events.map((e) => e.id);
+  for (const name of DEMO_TOURNAMENTS) {
+    const tournament = await prisma.tournament.findFirst({ where: { name } });
+    if (tournament) {
+      // Delete in dependency order
+      const events = await prisma.event.findMany({ where: { tournamentId: tournament.id }, select: { id: true } });
+      const eventIds = events.map((e) => e.id);
 
-    const results = await prisma.result.findMany({ where: { eventId: { in: eventIds } }, select: { id: true } });
-    const resultIds = results.map((r) => r.id);
+      const results = await prisma.result.findMany({ where: { eventId: { in: eventIds } }, select: { id: true } });
+      const resultIds = results.map((r) => r.id);
 
-    await prisma.split.deleteMany({ where: { resultId: { in: resultIds } } });
-    await prisma.personalBest.deleteMany({ where: { sourceResultId: { in: resultIds } } });
-    await prisma.record.deleteMany({ where: { sourceResultId: { in: resultIds } } });
-    await prisma.result.deleteMany({ where: { id: { in: resultIds } } });
-    await prisma.registration.deleteMany({ where: { eventId: { in: eventIds } } });
-    await prisma.heat.deleteMany({ where: { eventId: { in: eventIds } } });
-    await prisma.event.deleteMany({ where: { tournamentId: tournament.id } });
-    await prisma.tournament.delete({ where: { id: tournament.id } });
-    console.log('  ✓ Torneo eliminado');
+      await prisma.split.deleteMany({ where: { resultId: { in: resultIds } } });
+      await prisma.personalBest.deleteMany({ where: { sourceResultId: { in: resultIds } } });
+      await prisma.record.deleteMany({ where: { sourceResultId: { in: resultIds } } });
+      await prisma.result.deleteMany({ where: { id: { in: resultIds } } });
+      await prisma.registration.deleteMany({ where: { eventId: { in: eventIds } } });
+      await prisma.heat.deleteMany({ where: { eventId: { in: eventIds } } });
+      await prisma.event.deleteMany({ where: { tournamentId: tournament.id } });
+      await prisma.tournament.delete({ where: { id: tournament.id } });
+      console.log(`  ✓ Torneo "${name}" eliminado`);
+    }
   }
 
   // 2. Users

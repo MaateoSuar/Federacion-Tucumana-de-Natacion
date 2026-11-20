@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { bullConnectionFromUrl } from './redis/redis-connection';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -31,15 +33,10 @@ import { ExportModule } from './export/export.module';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const redisUrl = config.get<string>('REDIS_URL') ?? 'redis://localhost:6379';
-        const url = new URL(redisUrl);
-        return {
-          connection: {
-            host: url.hostname,
-            port: parseInt(url.port || '6379', 10),
-          },
-        };
+        return { connection: bullConnectionFromUrl(redisUrl) };
       },
     }),
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 10 }]),
     RedisModule,
     PrismaModule,
     AuthModule,
@@ -58,6 +55,9 @@ import { ExportModule } from './export/export.module';
     ExportModule,
   ],
   controllers: [AppController],
+  // El límite de pedidos se aplica solo en los endpoints de auth (ver AuthController).
+  // Antes era global (10/min para toda la API): en producción todos los visitantes
+  // y el SSR de la web comparten IP de proxy y recibían 429.
   providers: [AppService],
 })
 export class AppModule {}

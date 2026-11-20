@@ -8,6 +8,8 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
+  // La foto de perfil viaja embebida (ya recortada y comprimida por la web): hasta ~330 KB en base64
+  app.useBodyParser('json', { limit: '600kb' });
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -17,19 +19,30 @@ async function bootstrap() {
     }),
   );
 
+  // Detrás del proxy del hosting: la IP real del visitante viene en X-Forwarded-For
+  // (la usa el límite de intentos de login).
+  app.set('trust proxy', 1);
+
+  // CORS_ORIGIN admite varios orígenes separados por coma.
+  const corsOrigins = (process.env['CORS_ORIGIN'] ?? 'http://localhost:3000')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
   app.enableCors({
-    origin: process.env['CORS_ORIGIN'] ?? 'http://localhost:3000',
+    origin: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,
     credentials: true,
   });
 
-  const config = new DocumentBuilder()
-    .setTitle('FTN API')
-    .setDescription('Federación Tucumana de Natación — API REST')
-    .setVersion('0.1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  if (process.env['NODE_ENV'] !== 'production') {
+    const config = new DocumentBuilder()
+      .setTitle('FTN API')
+      .setDescription('Federación Tucumana de Natación — API REST')
+      .setVersion('0.1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api/docs', app, document);
+  }
 
   const port = process.env['PORT'] ?? 3001;
   await app.listen(port);

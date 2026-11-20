@@ -9,6 +9,8 @@ export interface PreviewSummary {
   newSwimmers: number;
   matchedSwimmers: number;
   confirmationRequired: number;
+  /** Matches que requieren confirmación y todavía no tienen decisión del admin; bloquean el commit. */
+  pendingDecisions: number;
   newClubs: number;
   recordCandidates: number;
 }

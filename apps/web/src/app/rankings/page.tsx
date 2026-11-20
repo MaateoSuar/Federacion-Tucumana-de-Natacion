@@ -5,9 +5,10 @@ import Link from 'next/link';
 import { NavBar } from '@/components/NavBar';
 import { MedalIcon } from '@/components/ui/MedalIcon';
 import { formatTime } from '@/lib/formatTime';
+import { matchesFuzzySearch } from '@/lib/search';
 import type {
   RankingEntry, ClubRankingEntry,
-  EventDefinition, Category, Season,
+  EventDefinition, Category, Season, Tournament,
 } from '@/lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -24,14 +25,15 @@ async function fetchJson<T>(url: string): Promise<T> {
 }
 
 type Tab = 'prueba' | 'club';
-type Mode = 'best_per_swimmer' | 'all_performances';
+
+// Valor del selector de período que habilita las fechas "desde / hasta"
+const RANGE_OPTION = '__range__';
 
 // Key to identify a "base event" (distance + stroke), without gender
 function baseKey(e: EventDefinition) { return `${e.distance}-${e.stroke}`; }
 
 export default function RankingsPage() {
   const [tab, setTab] = useState<Tab>('prueba');
-  const [mode, setMode] = useState<Mode>('all_performances');
 
   // Catálogos
   const [eventDefs, setEventDefs] = useState<EventDefinition[]>([]);
@@ -45,7 +47,13 @@ export default function RankingsPage() {
   const [gender, setGender] = useState<'M' | 'F'>('M');
   const [categoryId, setCategoryId] = useState('');
   const [seasonId, setSeasonId] = useState('');
+  // Período elegido a mano (tiene prioridad sobre el año)
+  const [useRange, setUseRange] = useState(false);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [clubScope, setClubScope] = useState('');
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [tournamentId, setTournamentId] = useState('');
 
   // Unique base events (distance+stroke), excluding relays and <50m races, sorted
   const uniqueBaseEvents = useMemo<EventDefinition[]>(() => {
@@ -64,12 +72,17 @@ export default function RankingsPage() {
   // Resolved eventDefId: find the eventDef matching selectedBaseKey + current gender
   const eventDefId = useMemo(() => {
     if (!selectedBaseKey) return '';
-    return eventDefs.find((e) => baseKey(e) === selectedBaseKey && e.gender === gender)?.id ?? '';
+    const matches = eventDefs.filter((e) => baseKey(e) === selectedBaseKey && e.gender === gender);
+    // Si hubiera una definición duplicada con código de género dudoso ("_X"), gana la exacta ("_M"/"_F")
+    return (matches.find((e) => e.code.endsWith(`_${gender}`)) ?? matches[0])?.id ?? '';
   }, [selectedBaseKey, gender, eventDefs]);
 
   // Resultados
   const [eventRankings, setEventRankings] = useState<RankingEntry[] | null>(null);
   const [clubRankings, setClubRankings] = useState<ClubRankingEntry[] | null>(null);
+  // Buscador por nombre de nadador/a o club: filtra la tabla mientras se escribe
+  const [search, setSearch] = useState('');
+  const q = search.trim();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -99,8 +112,9 @@ export default function RankingsPage() {
         poolLength,
         gender,
         categoryId,
-        mode,
-        ...(seasonId ? { seasonId } : {}),
+        ...(!useRange && seasonId ? { seasonId } : {}),
+        ...(useRange && dateFrom ? { from: dateFrom } : {}),
+        ...(useRange && dateTo ? { to: dateTo } : {}),
       });
       const data = await fetchJson<RankingEntry[]>(`${API_BASE}/rankings/event?${params}`);
       setEventRankings(data);
@@ -109,13 +123,17 @@ export default function RankingsPage() {
     } finally {
       setLoading(false);
     }
-  }, [eventDefId, poolLength, gender, categoryId, mode, seasonId]); // categoryId puede ser ''
+  }, [eventDefId, poolLength, gender, categoryId, seasonId, useRange, dateFrom, dateTo]); // categoryId puede ser ''
 
   const loadClubRankings = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const params = new URLSearchParams({ scope: 'provincial', ...(clubScope ? { seasonId: clubScope } : {}) });
+      const params = new URLSearchParams({
+        scope: 'provincial',
+        ...(clubScope ? { seasonId: clubScope } : {}),
+        ...(tournamentId ? { tournamentId } : {}),
+      });
       const data = await fetchJson<ClubRankingEntry[]>(`${API_BASE}/rankings/club?${params}`);
       setClubRankings(data);
     } catch {
@@ -123,15 +141,24 @@ export default function RankingsPage() {
     } finally {
       setLoading(false);
     }
-  }, [clubScope]);
+  }, [clubScope, tournamentId]);
 
   useEffect(() => {
     if (tab === 'prueba' && eventDefId) void loadEventRankings();
-  }, [tab, eventDefId, categoryId, poolLength, gender, mode, seasonId, loadEventRankings]);
+  }, [tab, eventDefId, categoryId, poolLength, gender, seasonId, loadEventRankings]);
 
   useEffect(() => {
     if (tab === 'club') loadClubRankings();
-  }, [tab, clubScope, loadClubRankings]);
+  }, [tab, clubScope, tournamentId, loadClubRankings]);
+
+  // Al elegir un año, cargar sus torneos para poder acotar el ranking a uno puntual
+  useEffect(() => {
+    setTournamentId('');
+    if (!clubScope) { setTournaments([]); return; }
+    fetchJson<{ items: Tournament[] }>(`${API_BASE}/tournaments?seasonId=${clubScope}&limit=200`)
+      .then((d) => setTournaments(d.items))
+      .catch(() => setTournaments([]));
+  }, [clubScope]);
 
   return (
     <div className="min-h-screen bg-pool-950 text-white">
@@ -180,37 +207,90 @@ export default function RankingsPage() {
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
-            <select value={seasonId} onChange={(e) => setSeasonId(e.target.value)} className="bg-pool-800 border border-pool-600 rounded-lg px-3 py-2 text-sm text-white">
-              <option value="">Histórico global</option>
+            <select
+              aria-label="Período"
+              value={useRange ? RANGE_OPTION : seasonId}
+              onChange={(e) => {
+                const v = e.target.value;
+                setUseRange(v === RANGE_OPTION);
+                setSeasonId(v === RANGE_OPTION ? '' : v);
+              }}
+              className="bg-pool-800 border border-pool-600 rounded-lg px-3 py-2 text-sm text-white"
+            >
+              <option value="">Histórico</option>
               {seasons.map((s) => (
-                <option key={s.id} value={s.id}>{s.year}</option>
+                <option key={s.id} value={s.id}>Año {s.year}</option>
               ))}
+              <option value={RANGE_OPTION}>Elegir fechas…</option>
             </select>
-            <div className="flex items-center gap-1 bg-pool-800/40 border border-pool-600/40 rounded-lg p-0.5">
-              {(['best_per_swimmer', 'all_performances'] as Mode[]).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setMode(m)}
-                  className={`flex-1 px-2 py-1.5 rounded text-xs font-semibold transition-all ${mode === m ? 'bg-pool-600 text-white' : 'text-pool-400 hover:text-white'}`}
-                >
-                  {m === 'best_per_swimmer' ? 'Mejor marca' : 'Todas'}
-                </button>
-              ))}
-            </div>
+            {useRange && (
+              <div className="col-span-2 flex flex-wrap items-center gap-2 text-sm text-pool-300">
+                <label className="flex items-center gap-2">
+                  Desde
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    max={dateTo || undefined}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="bg-pool-800 border border-pool-600 rounded-lg px-3 py-2 text-sm text-white [color-scheme:dark]"
+                  />
+                </label>
+                <label className="flex items-center gap-2">
+                  Hasta
+                  <input
+                    type="date"
+                    value={dateTo}
+                    min={dateFrom || undefined}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="bg-pool-800 border border-pool-600 rounded-lg px-3 py-2 text-sm text-white [color-scheme:dark]"
+                  />
+                </label>
+              </div>
+            )}
           </div>
         )}
 
         {/* Filtros — club */}
         {tab === 'club' && (
-          <div className="mb-6">
+          <div className="flex flex-wrap gap-3 mb-6">
             <select value={clubScope} onChange={(e) => setClubScope(e.target.value)} className="bg-pool-800 border border-pool-600 rounded-lg px-3 py-2 text-sm text-white">
               <option value="">Histórico global</option>
               {seasons.map((s) => (
                 <option key={s.id} value={s.id}>{s.year}</option>
               ))}
             </select>
+            {clubScope && (
+              <select value={tournamentId} onChange={(e) => setTournamentId(e.target.value)} className="bg-pool-800 border border-pool-600 rounded-lg px-3 py-2 text-sm text-white">
+                <option value="">Acumulado del año</option>
+                {tournaments.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            )}
           </div>
         )}
+
+        {/* Buscador por nombre */}
+        <div className="relative mb-6">
+          <input
+            type="text"
+            aria-label={tab === 'prueba' ? 'Buscar nadador/a o club' : 'Buscar club'}
+            placeholder={tab === 'prueba' ? 'Buscar nadador/a o club (ej: Perez, Azucena)...' : 'Buscar club...'}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-pool-800/60 border border-pool-700/50 rounded-xl px-4 pr-9 py-2.5 text-sm text-white placeholder-pool-500 focus:outline-none focus:border-aqua-500 transition-colors"
+          />
+          {search && (
+            <button
+              type="button"
+              aria-label="Borrar búsqueda"
+              onClick={() => setSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-pool-500 hover:text-white transition-colors text-lg leading-none"
+            >
+              ×
+            </button>
+          )}
+        </div>
 
         {/* Estado */}
         {loading && <div className="flex justify-center py-16"><div className="w-6 h-6 border-2 border-aqua-400 border-t-transparent rounded-full animate-spin" /></div>}
@@ -220,7 +300,10 @@ export default function RankingsPage() {
         {!loading && tab === 'prueba' && eventRankings && (
           eventRankings.length === 0
             ? <p className="text-pool-400 text-center py-16">Sin resultados para estos filtros.</p>
+            : q && !eventRankings.some((r) => matchesFuzzySearch(`${r.swimmerName} ${r.clubName}`, q))
+            ? <p className="text-pool-400 text-center py-16">Ningún nadador ni club coincide con la búsqueda.</p>
             : (
+              <>
               <div className="overflow-x-auto rounded-xl border border-pool-700/40">
                 <table className="w-full text-sm">
                   <thead>
@@ -228,12 +311,14 @@ export default function RankingsPage() {
                       <th className="text-left px-4 py-3 w-10">#</th>
                       <th className="text-left px-4 py-3">Nadador/a</th>
                       <th className="text-left px-4 py-3 hidden sm:table-cell">Club</th>
+                      <th className="text-left px-4 py-3">Categoría</th>
+                      <th className="text-left px-4 py-3 hidden md:table-cell">Fecha</th>
                       <th className="text-right px-4 py-3">Tiempo</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-pool-700/20">
-                    {eventRankings.map((r) => (
-                      <tr key={`${r.swimmerId}-${r.sourceResultId}`} className="hover:bg-pool-800/30 transition-colors">
+                    {eventRankings.map((r) => (!q || matchesFuzzySearch(`${r.swimmerName} ${r.clubName}`, q)) && (
+                      <tr key={`${r.swimmerId}-${r.categoryId}-${r.sourceResultId}`} className="hover:bg-pool-800/30 transition-colors">
                         <td className="px-4 py-3"><MedalIcon position={r.position} /></td>
                         <td className="px-4 py-3 font-medium text-white">
                           <Link href={`/nadadores/${r.swimmerId}`} className="hover:text-aqua-300 transition-colors">
@@ -241,12 +326,17 @@ export default function RankingsPage() {
                           </Link>
                         </td>
                         <td className="px-4 py-3 text-pool-300 hidden sm:table-cell">{r.clubName}</td>
+                        <td className="px-4 py-3 text-pool-300 text-xs sm:text-sm">{r.categoryName}</td>
+                        <td className="px-4 py-3 text-pool-400 text-xs hidden md:table-cell tabular-nums">
+                          {r.achievedAt ? new Date(r.achievedAt).toLocaleDateString('es-AR', { timeZone: 'UTC' }) : '—'}
+                        </td>
                         <td className="px-4 py-3 text-right font-mono font-bold text-white">{formatTime(r.finalTime)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+              </>
             )
         )}
 
@@ -254,6 +344,8 @@ export default function RankingsPage() {
         {!loading && tab === 'club' && clubRankings && (
           clubRankings.length === 0
             ? <p className="text-pool-400 text-center py-16">Sin datos de clubes disponibles.</p>
+            : q && !clubRankings.some((c) => matchesFuzzySearch(c.clubName, q))
+            ? <p className="text-pool-400 text-center py-16">Ningún club coincide con la búsqueda.</p>
             : (
               <div className="overflow-x-auto rounded-xl border border-pool-700/40">
                 <table className="w-full text-sm">
@@ -270,7 +362,7 @@ export default function RankingsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-pool-700/20">
-                    {clubRankings.map((c) => (
+                    {clubRankings.map((c) => (!q || matchesFuzzySearch(c.clubName, q)) && (
                       <tr key={c.clubId} className="hover:bg-pool-800/30 transition-colors">
                         <td className="px-4 py-3"><MedalIcon position={c.position} /></td>
                         <td className="px-4 py-3 font-semibold text-white">{c.clubName}</td>

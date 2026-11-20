@@ -42,3 +42,9 @@ coverage/
 
 # TypeScript
 *.tsbuildinfo
+
+# Archivos subidos en desarrollo (documentos de torneo, imports, sembrados/resultados)
+apps/api/uploads/
+
+.vercel
+.env*

@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ClaimCodeService, INVALID_CODE } from '../claim-codes/claim-code.service';
 import * as argon2 from 'argon2';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -38,6 +39,14 @@ const mockPrisma = {
     create: jest.fn(),
     update: jest.fn(),
   },
+  $transaction: jest.fn(),
+};
+
+const mockClaimCodes = {
+  redeemInTransaction: jest.fn(),
+  assertNotLockedOut: jest.fn(),
+  isRedeemable: jest.fn(),
+  recordFailure: jest.fn(),
 };
 
 const mockJwt = {
@@ -71,6 +80,7 @@ describe('AuthService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: JwtService, useValue: mockJwt },
         { provide: ConfigService, useValue: mockConfig },
+        { provide: ClaimCodeService, useValue: mockClaimCodes },
       ],
     }).compile();
 
@@ -79,53 +89,75 @@ describe('AuthService', () => {
 
   // ── 1. register ─────────────────────────────────────────────────────────────
 
-  describe('register', () => {
-    it('crea el usuario y devuelve mensaje de éxito', async () => {
+  describe('register (con o sin código de perfil)', () => {
+    const dto = { email: 'nuevo@ftn.ar', password: 'miPassword8', firstName: 'Ana', lastName: 'Gómez', claimCode: 'FTN-7K3M-9PQX' };
+    const tx = { user: { create: jest.fn() } };
+
+    beforeEach(() => {
+      mockClaimCodes.assertNotLockedOut.mockResolvedValue(undefined);
+      mockClaimCodes.isRedeemable.mockResolvedValue(true);
+      mockClaimCodes.recordFailure.mockResolvedValue(undefined);
+      mockClaimCodes.redeemInTransaction.mockResolvedValue({ swimmerId: 'sw1', requestId: 'r1' });
+      tx.user.create.mockResolvedValue(makeUser({ id: 'nuevo-1', email: 'nuevo@ftn.ar' }));
+      mockPrisma.$transaction.mockImplementation((fn: (t: typeof tx) => Promise<unknown>) => fn(tx));
       mockPrisma.user.findUnique.mockResolvedValue(null);
-      mockPrisma.user.create.mockResolvedValue(makeUser());
-
-      const result = await service.register({
-        email: 'test@ftn.ar',
-        password: 'password123',
-        firstName: 'Juan',
-        lastName: 'Pérez',
-      });
-
-      expect(mockPrisma.user.create).toHaveBeenCalledTimes(1);
-      expect(result.message).toMatch(/registro exitoso/i);
     });
 
-    it('lanza ConflictException si el email ya existe', async () => {
+    it('sin código la cuenta se crea igual, sin vincular y con el email dado por verificado', async () => {
+      mockPrisma.user.create.mockResolvedValue(makeUser({ id: 'suelto-1' }));
+      for (const claimCode of [undefined, '', '   ']) {
+        mockPrisma.user.create.mockClear();
+        const result = await service.register({ ...dto, claimCode }, '1.2.3.4');
+        expect(result).toMatchObject({ linked: false, verified: true });
+        expect(mockPrisma.user.create.mock.calls[0][0].data.emailVerifiedAt).toBeInstanceOf(Date);
+      }
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled(); // no se canjea nada
+      expect(mockClaimCodes.assertNotLockedOut).not.toHaveBeenCalled();
+      expect(mockClaimCodes.recordFailure).not.toHaveBeenCalled();
+    });
+
+    it('sin código también se rechaza un email ya registrado', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(makeUser());
-
-      await expect(
-        service.register({
-          email: 'test@ftn.ar',
-          password: 'password123',
-          firstName: 'Juan',
-          lastName: 'Pérez',
-        }),
-      ).rejects.toThrow(ConflictException);
+      await expect(service.register({ ...dto, claimCode: undefined }, '1.2.3.4')).rejects.toThrow(ConflictException);
     });
 
-    it('hashea la contraseña con argon2 (nunca guarda en claro)', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-      mockPrisma.user.create.mockResolvedValue(makeUser());
+    it('con un código válido crea la cuenta verificada y vinculada, todo en una transacción', async () => {
+      const result = await service.register(dto, '1.2.3.4');
+      expect(result).toMatchObject({ linked: true, verified: true });
+      expect(tx.user.create.mock.calls[0][0].data.emailVerifiedAt).toBeInstanceOf(Date);
+      expect(mockClaimCodes.redeemInTransaction).toHaveBeenCalledWith(tx, 'nuevo-1', 'FTN-7K3M-9PQX');
+    });
 
-      await service.register({
-        email: 'nuevo@ftn.ar',
-        password: 'miPassword8',
-        firstName: 'A',
-        lastName: 'B',
-      });
+    it('con un código inválido: error genérico, intento anotado y NO se hashea ni se toca la base de usuarios', async () => {
+      mockClaimCodes.isRedeemable.mockResolvedValue(false);
+      await expect(service.register(dto, '1.2.3.4')).rejects.toThrow(INVALID_CODE);
+      expect(mockClaimCodes.recordFailure).toHaveBeenCalledWith('1.2.3.4', 'register');
+      expect(mockPrisma.user.findUnique).not.toHaveBeenCalled(); // no se puede sondear qué emails existen sin un código válido
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
 
-      const createCall = mockPrisma.user.create.mock.calls[0][0] as {
-        data: { passwordHash: string; email: string };
-      };
-      expect(createCall.data.passwordHash).not.toBe('miPassword8');
-      // Verifica que lo que se guardó es un hash argon2 válido
-      const isValid = await argon2.verify(createCall.data.passwordHash, 'miPassword8');
-      expect(isValid).toBe(true);
+    it('si la IP está bloqueada por demasiados intentos, corta antes de mirar el código', async () => {
+      mockClaimCodes.assertNotLockedOut.mockRejectedValue(new BadRequestException('bloqueada'));
+      await expect(service.register(dto, '1.2.3.4')).rejects.toThrow('bloqueada');
+      expect(mockClaimCodes.isRedeemable).not.toHaveBeenCalled();
+    });
+
+    it('lanza ConflictException si el email ya existe (solo con un código válido)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(makeUser());
+      await expect(service.register(dto, '1.2.3.4')).rejects.toThrow(ConflictException);
+    });
+
+    it('si otro registro canjea el código en el medio, falla y cuenta como intento fallido', async () => {
+      mockClaimCodes.redeemInTransaction.mockRejectedValue(new BadRequestException(INVALID_CODE));
+      await expect(service.register(dto, '1.2.3.4')).rejects.toThrow(INVALID_CODE);
+      expect(mockClaimCodes.recordFailure).toHaveBeenCalledWith('1.2.3.4', 'register');
+    });
+
+    it('hashea la contraseña con argon2 (nunca guarda en claro), con y sin código', async () => {
+      await service.register(dto, '1.2.3.4');
+      const data = tx.user.create.mock.calls[0][0].data as { passwordHash: string };
+      expect(data.passwordHash).not.toBe('miPassword8');
+      expect(await argon2.verify(data.passwordHash, 'miPassword8')).toBe(true);
     });
   });
 

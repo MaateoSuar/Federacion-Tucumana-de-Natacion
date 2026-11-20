@@ -34,7 +34,7 @@ const SWIMMERS_DATA = [
   { firstName: 'Facundo',   lastName: 'Acosta',     gender: 'M' as Gender, birthDate: d('2008-10-25'), clubKey: 'NNO' },
 ];
 
-const TOURNAMENT = {
+const TOURNAMENT_1 = {
   name: 'Torneo Apertura Tucumán 2026',
   venue: 'Complejo Acuático Tucumán',
   poolLength: 'P25' as PoolLength,
@@ -48,6 +48,8 @@ const TOURNAMENT = {
 
 interface ResultRow {
   swimmerKey: string;
+  /** Tiempo de sembrado (ms): con el que se inscribió. Opcional. */
+  seedMs?: number;
   timeMs: number | null;
   status: ResultStatus;
   place: number | null;
@@ -60,7 +62,7 @@ interface EventConfig {
   results: ResultRow[];
 }
 
-const EVENTS_CONFIG: EventConfig[] = [
+const EVENTS_1: EventConfig[] = [
   {
     eventCode: '50L_M',
     categoryCode: 'CAD_1',
@@ -100,6 +102,67 @@ const EVENTS_CONFIG: EventConfig[] = [
       { swimmerKey: 'Facundo Acosta',     timeMs: 64890, status: 'OK', place: 2, isPb: true  },
     ],
   },
+];
+
+// Segundo torneo de ejemplo: los mismos nadadores repiten las pruebas cuatro meses
+// después. Sirve para ver la progresión del perfil (▼ bajó / ▲ subió, gráfico por
+// prueba, "nueva mejor marca") y un podio completo de tres puestos.
+const TOURNAMENT_2 = {
+  ...TOURNAMENT_1,
+  name: 'Copa Primavera Tucumán 2026',
+  startDate: d('2026-10-17'),
+  endDate:   d('2026-10-17'),
+};
+
+const EVENTS_2: EventConfig[] = [
+  {
+    eventCode: '50L_M',
+    categoryCode: 'CAD_1',
+    results: [
+      { swimmerKey: 'Lucas Díaz',         seedMs: 27450, timeMs: 26870, status: 'OK', place: 1, isPb: true  }, // bajó 0.58
+      { swimmerKey: 'Agustín López',      seedMs: 28910, timeMs: 29240, status: 'OK', place: 2, isPb: false }, // subió 0.33
+      { swimmerKey: 'Sebastián Martínez', timeMs: 29900, status: 'OK', place: 3, isPb: true  }, // primera vez
+    ],
+  },
+  {
+    eventCode: '50L_F',
+    categoryCode: 'CAD_1',
+    results: [
+      { swimmerKey: 'Valentina García',  seedMs: 29820, timeMs: 29240, status: 'OK', place: 1, isPb: true  }, // bajó 0.58
+      { swimmerKey: 'Julieta Morales',   seedMs: 31550, timeMs: 31100, status: 'OK', place: 2, isPb: true  }, // bajó 0.45
+      { swimmerKey: 'Milagros Castillo', timeMs: 33400, status: 'OK', place: 3, isPb: true  }, // primera vez
+    ],
+  },
+  {
+    eventCode: '100L_M',
+    categoryCode: 'JUV_1',
+    results: [
+      { swimmerKey: 'Tomás Pérez',        seedMs: 59340, timeMs: 59980, status: 'OK', place: 1, isPb: false }, // subió 0.64
+      { swimmerKey: 'Sebastián Martínez', seedMs: 62180, timeMs: 61500, status: 'OK', place: 2, isPb: true  }, // bajó 0.68
+    ],
+  },
+  {
+    eventCode: '100L_F',
+    categoryCode: 'JUV_1',
+    results: [
+      { swimmerKey: 'Camila Torres',     seedMs: 65720, timeMs: 64950, status: 'OK', place: 1, isPb: true  }, // bajó 0.77
+      { swimmerKey: 'Florencia Herrera', timeMs: 66300, status: 'OK', place: 2, isPb: true  }, // primera vez
+    ],
+  },
+  {
+    eventCode: '100MA_M',
+    categoryCode: 'JUV_2',
+    results: [
+      { swimmerKey: 'Santiago Rodríguez', seedMs: 61450, timeMs: 60720, status: 'OK', place: 1, isPb: true  }, // bajó 0.73
+      { swimmerKey: 'Facundo Acosta',     seedMs: 64890, timeMs: 65300, status: 'OK', place: 2, isPb: false }, // subió 0.41
+    ],
+  },
+];
+
+// Se cargan en orden cronológico: la mejor marca personal queda en el torneo correcto.
+const DEMO_TOURNAMENTS = [
+  { tournament: TOURNAMENT_1, events: EVENTS_1 },
+  { tournament: TOURNAMENT_2, events: EVENTS_2 },
 ];
 
 async function main() {
@@ -252,119 +315,123 @@ async function main() {
 
   console.log('     3 usuarios OK  (admin@ftn.ar / entrenador@cna.ar / nadador@ftn.ar)');
 
-  // 5. Tournament
-  console.log('  → Torneo demo...');
-  const existingTournament = await prisma.tournament.findFirst({
-    where: { name: TOURNAMENT.name },
-  });
-
-  if (existingTournament) {
-    console.log('     Torneo ya existe, reutilizando.');
-  } else {
-    const tournament = await prisma.tournament.create({  // tournamentId usado abajo como tournament.id
-      data: {
-        name:       TOURNAMENT.name,
-        venue:      TOURNAMENT.venue,
-        poolLength: TOURNAMENT.poolLength,
-        startDate:  TOURNAMENT.startDate,
-        endDate:    TOURNAMENT.endDate,
-        type:       TOURNAMENT.type,
-        scope:      TOURNAMENT.scope,
-        status:     TOURNAMENT.status,
-        seasonId:   season.id,
-        hostClubId: clubMap[TOURNAMENT.hostClubKey],
-      },
+  // 5-6. Torneos demo, con sus pruebas y resultados
+  for (const { tournament: TOURNAMENT, events: EVENTS_CONFIG } of DEMO_TOURNAMENTS) {
+    // 5. Tournament
+    console.log(`  → Torneo demo "${TOURNAMENT.name}"...`);
+    const existingTournament = await prisma.tournament.findFirst({
+      where: { name: TOURNAMENT.name },
     });
-    console.log(`     Torneo "${TOURNAMENT.name}" creado.`);
 
-    // 6. Events + Results
-    let orderNo = 1;
-    for (const evConfig of EVENTS_CONFIG) {
-      const eventDef = await prisma.eventDefinition.findFirst({
-        where: { code: evConfig.eventCode },
-      });
-      if (!eventDef) {
-        console.warn(`     ⚠ EventDefinition "${evConfig.eventCode}" no encontrada, saltando.`);
-        continue;
-      }
-
-      const category = await prisma.category.findFirst({
-        where: { code: evConfig.categoryCode },
-      });
-      if (!category) {
-        console.warn(`     ⚠ Categoría "${evConfig.categoryCode}" no encontrada, saltando.`);
-        continue;
-      }
-
-      const event = await prisma.event.create({
+    if (existingTournament) {
+      console.log('     Torneo ya existe, reutilizando.');
+    } else {
+      const tournament = await prisma.tournament.create({  // tournamentId usado abajo como tournament.id
         data: {
-          tournamentId: tournament.id,
-          eventDefinitionId: eventDef.id,
-          categoryId:        category.id,
-          round:             'serie_unica',
-          orderNo:           orderNo++,
-          status:            EventStatus.finalizado,
+          name:       TOURNAMENT.name,
+          venue:      TOURNAMENT.venue,
+          poolLength: TOURNAMENT.poolLength,
+          startDate:  TOURNAMENT.startDate,
+          endDate:    TOURNAMENT.endDate,
+          type:       TOURNAMENT.type,
+          scope:      TOURNAMENT.scope,
+          status:     TOURNAMENT.status,
+          seasonId:   season.id,
+          hostClubId: clubMap[TOURNAMENT.hostClubKey],
         },
       });
+      console.log(`     Torneo "${TOURNAMENT.name}" creado.`);
 
-      for (const r of evConfig.results) {
-        const swimmerId = swimmerMap[r.swimmerKey];
-        if (!swimmerId) {
-          console.warn(`     ⚠ Nadador "${r.swimmerKey}" no encontrado, saltando.`);
+      // 6. Events + Results
+      let orderNo = 1;
+      for (const evConfig of EVENTS_CONFIG) {
+        const eventDef = await prisma.eventDefinition.findFirst({
+          where: { code: evConfig.eventCode },
+        });
+        if (!eventDef) {
+          console.warn(`     ⚠ EventDefinition "${evConfig.eventCode}" no encontrada, saltando.`);
           continue;
         }
 
-        const swimmer = await prisma.swimmer.findUniqueOrThrow({
-          where: { id: swimmerId },
-          select: { currentClubId: true },
+        const category = await prisma.category.findFirst({
+          where: { code: evConfig.categoryCode },
         });
-        const clubId = swimmer.currentClubId ?? canId;
+        if (!category) {
+          console.warn(`     ⚠ Categoría "${evConfig.categoryCode}" no encontrada, saltando.`);
+          continue;
+        }
 
-        const result = await prisma.result.create({
+        const event = await prisma.event.create({
           data: {
-            eventId:       event.id,
-            swimmerId,
-            finalTime:     r.timeMs,
-            place:         r.place,
-            status:        r.status,
-            isPb:          r.isPb,
-            isRecord:      false,
-            homologated:   true,
-            homologatedAt: now,
-            homologatedBy: adminUser.id,
-            source:        ResultSource.manual,
-            categoryId:    category.id,
-            clubId,
+            tournamentId: tournament.id,
+            eventDefinitionId: eventDef.id,
+            categoryId:        category.id,
+            round:             'serie_unica',
+            orderNo:           orderNo++,
+            status:            EventStatus.finalizado,
           },
         });
 
-        if (r.isPb && r.timeMs !== null) {
-          await prisma.personalBest.upsert({
-            where: {
-              swimmerId_eventDefinitionId_poolLength: {
+        for (const r of evConfig.results) {
+          const swimmerId = swimmerMap[r.swimmerKey];
+          if (!swimmerId) {
+            console.warn(`     ⚠ Nadador "${r.swimmerKey}" no encontrado, saltando.`);
+            continue;
+          }
+
+          const swimmer = await prisma.swimmer.findUniqueOrThrow({
+            where: { id: swimmerId },
+            select: { currentClubId: true },
+          });
+          const clubId = swimmer.currentClubId ?? canId;
+
+          const result = await prisma.result.create({
+            data: {
+              eventId:       event.id,
+              swimmerId,
+              finalTime:     r.timeMs,
+              seedTime:      r.seedMs ?? null,
+              place:         r.place,
+              status:        r.status,
+              isPb:          r.isPb,
+              isRecord:      false,
+              homologated:   true,
+              homologatedAt: now,
+              homologatedBy: adminUser.id,
+              source:        ResultSource.manual,
+              categoryId:    category.id,
+              clubId,
+            },
+          });
+
+          if (r.isPb && r.timeMs !== null) {
+            await prisma.personalBest.upsert({
+              where: {
+                swimmerId_eventDefinitionId_poolLength: {
+                  swimmerId,
+                  eventDefinitionId: eventDef.id,
+                  poolLength:        TOURNAMENT.poolLength,
+                },
+              },
+              update: {
+                bestTime:       r.timeMs,
+                achievedAt:     TOURNAMENT.startDate,
+                sourceResultId: result.id,
+              },
+              create: {
                 swimmerId,
                 eventDefinitionId: eventDef.id,
                 poolLength:        TOURNAMENT.poolLength,
+                bestTime:          r.timeMs,
+                achievedAt:        TOURNAMENT.startDate,
+                sourceResultId:    result.id,
               },
-            },
-            update: {
-              bestTime:       r.timeMs,
-              achievedAt:     TOURNAMENT.startDate,
-              sourceResultId: result.id,
-            },
-            create: {
-              swimmerId,
-              eventDefinitionId: eventDef.id,
-              poolLength:        TOURNAMENT.poolLength,
-              bestTime:          r.timeMs,
-              achievedAt:        TOURNAMENT.startDate,
-              sourceResultId:    result.id,
-            },
-          });
+            });
+          }
         }
       }
+      console.log(`     ${EVENTS_CONFIG.length} pruebas y resultados creados.`);
     }
-    console.log(`     ${EVENTS_CONFIG.length} pruebas y resultados creados.`);
   }
 
   console.log('');

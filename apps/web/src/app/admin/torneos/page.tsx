@@ -31,7 +31,7 @@ const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   cerrado:                 { label: 'Cerrado',               cls: 'badge-yellow' },
   en_curso:                { label: 'En curso',              cls: 'bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md text-xs font-medium' },
   finalizado:              { label: 'Finalizado',            cls: 'badge-red' },
-  homologado:              { label: 'Homologado',            cls: 'bg-purple-100 text-purple-700 px-2 py-0.5 rounded-md text-xs font-medium' },
+  homologado:              { label: 'Finalizado',            cls: 'badge-red' },
 };
 
 const POOL_LABEL: Record<string, string> = { P25: '25 m', P50: '50 m' };
@@ -86,7 +86,7 @@ export default function TorneosPage() {
           <StatCard label="Total torneos" value={data.total} />
           <StatCard label="Programados" value={data.items.filter(t => t.status === 'programado').length} />
           <StatCard label="En curso" value={data.items.filter(t => t.status === 'en_curso').length} />
-          <StatCard label="Homologados" value={data.items.filter(t => t.status === 'homologado').length} />
+          <StatCard label="Finalizados" value={data.items.filter(t => t.status === 'finalizado' || t.status === 'homologado').length} />
         </div>
       )}
 
@@ -108,9 +108,11 @@ export default function TorneosPage() {
           className="input w-52"
         >
           <option value="">Todos los estados</option>
-          {Object.entries(STATUS_MAP).map(([k, v]) => (
-            <option key={k} value={k}>{v.label}</option>
-          ))}
+          {Object.entries(STATUS_MAP)
+            .filter(([k]) => k !== 'homologado')
+            .map(([k, v]) => (
+              <option key={k} value={k}>{v.label}</option>
+            ))}
         </select>
         <button type="submit" className="btn-secondary">Buscar</button>
       </form>

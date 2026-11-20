@@ -9,11 +9,16 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateSwimmerDto } from './dto/create-swimmer.dto';
 import { UpdateSwimmerDto } from './dto/update-swimmer.dto';
 import { AssignClubDto } from './dto/assign-club.dto';
+import { UpdateAthleteProfileDto } from './dto/update-athlete-profile.dto';
 import { Gender, Prisma, ResultSource } from '@prisma/client';
+import { buildProgression } from './progression/progression';
+import { TUCUMAN_PROVINCE } from '../homologation/record-scopes';
 
 export interface SwimmerFilters {
   search?: string;
   clubId?: string;
+  /** Solo nadadores de clubes de Tucumán que todavía no tienen cuenta vinculada. */
+  linkable?: boolean;
   gender?: Gender;
   isActive?: boolean;
   page?: number;
@@ -58,19 +63,29 @@ export class SwimmersService {
   }
 
   async findAll(filters: SwimmerFilters = {}) {
-    const { search, clubId, gender, isActive, page = 1, limit = 20 } = filters;
+    const { search, clubId, linkable, gender, isActive, page = 1, limit = 20 } = filters;
     const skip = (page - 1) * limit;
 
     const where: Prisma.SwimmerWhereInput = {};
     if (gender) where.gender = gender;
     if (isActive !== undefined) where.isActive = isActive;
     if (clubId) where.currentClubId = clubId;
+    if (linkable) {
+      where.currentClub = { province: TUCUMAN_PROVINCE };
+      where.user = null;
+      where.isActive = true;
+    }
     if (search) {
-      where.OR = [
-        { firstName: { contains: search, mode: 'insensitive' } },
-        { lastName: { contains: search, mode: 'insensitive' } },
-        { documentId: { contains: search, mode: 'insensitive' } },
-      ];
+      // Cada palabra escrita debe aparecer en algún campo — así "Juan Perez"
+      // encuentra a alguien con firstName "Juan" y lastName "Pérez".
+      const tokens = search.trim().split(/\s+/).filter(Boolean);
+      where.AND = tokens.map((token) => ({
+        OR: [
+          { firstName: { contains: token, mode: 'insensitive' } },
+          { lastName: { contains: token, mode: 'insensitive' } },
+          { documentId: { contains: token, mode: 'insensitive' } },
+        ],
+      }));
     }
 
     const [items, total] = await Promise.all([
@@ -237,11 +252,12 @@ export class SwimmersService {
   async getResults(id: string, page = 1, limit = 20) {
     await this.findOne(id);
     const skip = (page - 1) * limit;
+    const where: Prisma.ResultWhereInput = { swimmerId: id, status: { in: ['OK', 'DSQ', 'DNS', 'DNF'] as ('OK' | 'DSQ' | 'DNS' | 'DNF')[] } };
     const [total, results] = await Promise.all([
-      this.prisma.result.count({ where: { swimmerId: id, homologated: true, status: 'OK' } }),
+      this.prisma.result.count({ where }),
       this.prisma.result.findMany({
-        where: { swimmerId: id, homologated: true, status: 'OK' },
-        orderBy: { createdAt: 'desc' },
+        where,
+        orderBy: [{ event: { tournament: { startDate: 'desc' } } }, { createdAt: 'desc' }],
         skip,
         take: limit,
         include: {
@@ -346,6 +362,10 @@ export class SwimmersService {
     });
   }
 
+  /**
+   * Perfil público. Si el nadador lo puso como privado, foto, presentación y redes no se muestran
+   * (los resultados y marcas son datos deportivos de la federación y siguen públicos).
+   */
   async getProfile(swimmerId: string) {
     const swimmer = await this.prisma.swimmer.findUnique({
       where: { id: swimmerId },
@@ -353,22 +373,24 @@ export class SwimmersService {
     });
     if (!swimmer) throw new NotFoundException(`Nadador ${swimmerId} no encontrado`);
 
-    const profile = await this.prisma.athleteProfile.findUnique({
-      where: { swimmerId },
-    });
-    if (!profile) {
-      return this.prisma.athleteProfile.create({
-        data: { swimmerId },
-      });
-    }
-    return profile;
+    const profile =
+      (await this.prisma.athleteProfile.findUnique({ where: { swimmerId } })) ??
+      (await this.prisma.athleteProfile.create({ data: { swimmerId } }));
+    if (profile.publicVisibility) return profile;
+    return { ...profile, bio: null, photoUrl: null, socialLinks: null };
   }
 
-  async updateProfile(
-    swimmerId: string,
-    requestingUserId: string,
-    data: { bio?: string; photoUrl?: string; publicVisibility?: boolean },
-  ) {
+  /** Perfil completo para quien lo edita (el propio nadador vinculado o un Admin), aunque sea privado. */
+  async getProfileForEditor(swimmerId: string, requestingUserId: string) {
+    await this.assertCanEditProfile(swimmerId, requestingUserId);
+    await this.findOne(swimmerId);
+    return (
+      (await this.prisma.athleteProfile.findUnique({ where: { swimmerId } })) ??
+      (await this.prisma.athleteProfile.create({ data: { swimmerId } }))
+    );
+  }
+
+  private async assertCanEditProfile(swimmerId: string, requestingUserId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: requestingUserId },
       select: { swimmerId: true, primaryRole: true },
@@ -378,14 +400,64 @@ export class SwimmersService {
     if (!isAdmin && !isOwner) {
       throw new ForbiddenException('Solo el nadador vinculado o un Admin pueden editar este perfil.');
     }
+  }
 
+  async updateProfile(swimmerId: string, requestingUserId: string, data: UpdateAthleteProfileDto) {
+    await this.assertCanEditProfile(swimmerId, requestingUserId);
     await this.findOne(swimmerId);
+
+    // Vacío = borrar. Las redes se guardan solo con los usuarios que tengan valor.
+    const clean: Prisma.AthleteProfileUncheckedUpdateInput = {};
+    if (data.bio !== undefined) clean.bio = data.bio?.trim() ? data.bio.trim() : null;
+    if (data.photoUrl !== undefined) clean.photoUrl = data.photoUrl ? data.photoUrl : null;
+    if (data.publicVisibility !== undefined) clean.publicVisibility = data.publicVisibility;
+    if (data.socialLinks !== undefined) {
+      const links = Object.fromEntries(Object.entries(data.socialLinks).filter(([, v]) => typeof v === 'string' && v.length > 0));
+      clean.socialLinks = Object.keys(links).length > 0 ? (links as Prisma.InputJsonValue) : Prisma.JsonNull;
+    }
 
     return this.prisma.athleteProfile.upsert({
       where: { swimmerId },
-      create: { swimmerId, ...data },
-      update: data,
+      create: { ...(clean as Prisma.AthleteProfileUncheckedCreateInput), swimmerId },
+      update: clean,
     });
+  }
+
+  async getProgression(swimmerId: string, pool?: 'P25' | 'P50') {
+    await this.findOne(swimmerId);
+
+    const rows = await this.prisma.result.findMany({
+      where: {
+        swimmerId,
+        status: 'OK',
+        homologated: true,
+        finalTime: { not: null },
+        ...(pool ? { event: { tournament: { poolLength: pool } } } : {}),
+      },
+      select: {
+        id: true,
+        finalTime: true,
+        status: true,
+        homologated: true,
+        place: true,
+        isPb: true,
+        event: {
+          select: {
+            orderNo: true,
+            eventDefinition: {
+              select: { id: true, stroke: true, distance: true, gender: true, code: true },
+            },
+            tournament: {
+              select: { id: true, name: true, startDate: true, poolLength: true },
+            },
+          },
+        },
+        category: { select: { id: true, name: true } },
+        club: { select: { id: true, name: true, shortName: true } },
+      },
+    });
+
+    return buildProgression(swimmerId, rows as Parameters<typeof buildProgression>[1], pool);
   }
 
   private async ensureClubExists(clubId: string) {
