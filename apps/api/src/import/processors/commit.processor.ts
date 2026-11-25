@@ -22,7 +22,7 @@ import { AthleteMatcher } from '../matching/athlete-matcher';
 import { ClubMatcher } from '../matching/club-matcher';
 import { HomologationService } from '../../homologation/homologation.service';
 import { resultIdempotencyKey } from '../matching/duplicate-detector';
-import { BASE_ROUND, resolveResultRounds } from '../rounds/resolve-result-rounds';
+import { BASE_ROUND, findPhantomFinals, resolveResultRounds } from '../rounds/resolve-result-rounds';
 
 /** Cómo se encola la homologación del torneo tras confirmar. */
 export type HomologationMode = 'background' | 'await' | 'skip';
@@ -534,6 +534,7 @@ export class CommitProcessor {
         const swimmerByRef = new Map(normalizedMeet.swimmers.map((s) => [s.external_athlete_id, s]));
         // Jornada de pruebas vs final: si el nadador repite la prueba en otra jornada, ese nado es la final.
         const roundByResult = resolveResultRounds(normalizedMeet);
+        const phantomFinals = findPhantomFinals(normalizedMeet);
         // Varias pruebas del archivo (una por categoría de edad) comparten Event y serie en la base
         const heatIdByEventAndNo = new Map<string, string>();
         const insertedKeys = new Set<string>();
@@ -651,6 +652,18 @@ export class CommitProcessor {
                 swimmer_ref: result.swimmer_ref,
                 reason: 'gender_mismatch',
                 detail: `Nadador ${swimmerGender} en prueba ${eventGender} (${code})`,
+              });
+              continue;
+            }
+
+            // Copia de la tabla de eliminatorias que el PDF también lista como final: no es un nado nuevo.
+            if (phantomFinals.has(result)) {
+              rollback.skippedResults.push({
+                source_line: result.source_line,
+                event_key: result.event_key,
+                swimmer_ref: result.swimmer_ref,
+                reason: 'duplicate_in_file',
+                detail: 'Copia de la eliminatoria leída como final (misma serie, carril y tiempo)',
               });
               continue;
             }

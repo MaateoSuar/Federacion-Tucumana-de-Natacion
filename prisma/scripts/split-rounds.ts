@@ -15,14 +15,15 @@
  * Uso (por defecto SOLO MUESTRA qué haría):
  *   DATABASE_URL=... npx ts-node-transpile-only -P apps/api/tsconfig.json prisma/scripts/split-rounds.ts --root C:\ruta\ftn-drive-copia
  *   ... --only "San Luis"          (solo torneos cuyo nombre contenga ese texto)
- *   ... --min-swims 10             (por defecto 10: menos repetidos que eso = no es un torneo de dos jornadas)
+ *   ... --min-swims 10             (por defecto 10: menos nados de jornada de pruebas que eso = no es un torneo de dos jornadas)
+ *   ... --max-ambiguous 0.1        (por defecto 10%: más ambiguos que eso = datos duplicados, el torneo no se toca)
  *   ... --apply                    (escribe; contra una base que no es local exige FTN_CONFIRM_APPLY=yes)
  */
 import { readFileSync } from 'node:fs';
 import { PrismaClient } from '@prisma/client';
 import { planTournaments, scanDrive } from '../../apps/api/src/import/drive-loader/drive-scan';
 import { MeetManagerPdfAdapter } from '../../apps/api/src/ingest/adapters/meet-manager-pdf/meet-manager-pdf-adapter';
-import { resolveResultRounds } from '../../apps/api/src/import/rounds/resolve-result-rounds';
+import { BASE_ROUND, findPhantomFinals, resolveResultRounds } from '../../apps/api/src/import/rounds/resolve-result-rounds';
 import { matchSwims, type StoredSwim, type SwimKeyParts } from '../../apps/api/src/import/rounds/match-existing-swims';
 
 function arg(name: string): string | undefined {
@@ -38,7 +39,12 @@ const only = arg('--only')?.toLowerCase();
 const minSwims = Number(arg('--min-swims') ?? '10');
 const prisma = new PrismaClient();
 
-interface Totals { tournaments: number; wanted: number; matched: number; alreadyDone: number; unmatched: number; ambiguous: number; moved: number }
+const maxAmbiguousRatio = Number(arg('--max-ambiguous') ?? '0.1');
+if (!Number.isFinite(minSwims) || !Number.isFinite(maxAmbiguousRatio)) {
+  throw new Error('--min-swims y --max-ambiguous deben ser números');
+}
+
+interface Totals { skippedTournaments: number; tournaments: number; wanted: number; matched: number; alreadyDone: number; unmatched: number; ambiguous: number; moved: number }
 
 async function main() {
   if (!root) throw new Error('Falta --root <carpeta de la copia del Drive>');
@@ -53,7 +59,7 @@ async function main() {
   const files = await scanDrive(root);
   const plan = planTournaments(files);
   const adapter = new MeetManagerPdfAdapter();
-  const totals: Totals = { tournaments: 0, wanted: 0, matched: 0, alreadyDone: 0, unmatched: 0, ambiguous: 0, moved: 0 };
+  const totals: Totals = { skippedTournaments: 0, tournaments: 0, wanted: 0, matched: 0, alreadyDone: 0, unmatched: 0, ambiguous: 0, moved: 0 };
 
   for (const t of plan.tournaments) {
     if (only && !t.name.toLowerCase().includes(only)) continue;
@@ -66,16 +72,20 @@ async function main() {
       const meet = await adapter.parse(readFileSync(f.absPath), f.fileName);
       const eventByKey = new Map(meet.events.map((e) => [e.event_key, e]));
       const genderByRef = new Map(meet.swimmers.map((s) => [s.external_athlete_id, s.gender]));
-      for (const [result, round] of resolveResultRounds(meet)) {
-        if (round !== 'clasificatorio') continue;
+      const changed = resolveResultRounds(meet);
+      const phantoms = findPhantomFinals(meet);
+      for (const result of meet.results) {
         const ev = eventByKey.get(result.event_key);
+        if (!ev || ev.is_relay || phantoms.has(result)) continue;
+        // Ronda efectiva: la que decide la regla o, si no cambia, la que dice el archivo (Eliminatorias = clasificatorio)
+        if ((changed.get(result) ?? BASE_ROUND[ev.round]) !== 'clasificatorio') continue;
         const gender = genderByRef.get(result.swimmer_ref);
-        if (!ev || !gender) continue;
+        if (!gender) continue;
         wanted.push({ stroke: ev.stroke, distance: ev.distance, gender, heatNo: result.heat_no, lane: result.lane_no, finalTimeMs: result.final_time_ms });
       }
     }
     if (wanted.length < minSwims) {
-      console.log(`- ${t.name}: ${wanted.length} repetidos (menos de ${minSwims}): no es un torneo con dos jornadas, no se toca`);
+      console.log(`- ${t.name}: ${wanted.length} nados de jornada de pruebas (menos de ${minSwims}): no es un torneo con dos jornadas, no se toca`);
       continue;
     }
 
@@ -101,6 +111,13 @@ async function main() {
     console.log(
       `- ${t.name}: clasificatorios en el PDF ${wanted.length} · a mover ${toMove.length} · ya movidos ${alreadyDone} · sin pareja ${outcome.unmatched} · ambiguos ${outcome.ambiguous}`,
     );
+    // Muchos ambiguos = la base tiene nados duplicados (el lector leía dos veces la tabla de eliminatorias de
+    // los puestos que no pasaron a la final). Mover solo una parte dejaría el torneo a medias: no se toca.
+    if (outcome.ambiguous > wanted.length * maxAmbiguousRatio) {
+      console.log(`    ! demasiados ambiguos (${outcome.ambiguous} de ${wanted.length}): probable duplicado de datos viejos; este torneo no se toca (requiere limpiar duplicados o reimportar)`);
+      totals.skippedTournaments++;
+      continue;
+    }
     totals.tournaments++;
     totals.wanted += wanted.length;
     totals.matched += toMove.length;
@@ -177,7 +194,7 @@ async function main() {
     }
   }
 
-  console.log(`\nTotal: ${totals.tournaments} torneos · a mover ${totals.matched} · ya movidos ${totals.alreadyDone} · sin pareja ${totals.unmatched} · ambiguos ${totals.ambiguous}${apply ? ` · movidos ${totals.moved}` : ''}`);
+  console.log(`\nTotal: ${totals.tournaments} torneos (${totals.skippedTournaments} omitidos por ambiguos) · a mover ${totals.matched} · ya movidos ${totals.alreadyDone} · sin pareja ${totals.unmatched} · ambiguos ${totals.ambiguous}${apply ? ` · movidos ${totals.moved}` : ''}`);
 }
 
 main()

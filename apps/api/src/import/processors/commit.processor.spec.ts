@@ -576,6 +576,27 @@ describe('CommitProcessor — importar dentro de un torneo existente (jornadas)'
     expect(mapping.skippedResults.map((s) => s.reason)).toEqual(['already_in_tournament', 'already_in_tournament']);
   });
 
+  it('no guarda como final la copia de la tabla de eliminatorias que el PDF lista dos veces', async () => {
+    const meet = makeMeet('pdf');
+    const base = meet.events[0]!;
+    const first = meet.results[0]!;
+    meet.events = [
+      { ...base, event_key: 'ev-f', round: 'F' },
+      { ...base, event_key: 'ev-f|P', round: 'P' },
+    ];
+    const swim = { ...first, swimmer_ref: MATEO, heat_no: 1, lane_no: 10, final_time_ms: 140_960 };
+    meet.results = [
+      { ...swim, event_key: 'ev-f', source_line: 45 }, // copia leída como final
+      { ...swim, event_key: 'ev-f|P', source_line: 109 }, // la eliminatoria real
+    ];
+    const { processor, tx } = setup(meet, resolved());
+    await processor.commit('job-1');
+
+    expect(tx.result.create).toHaveBeenCalledTimes(1);
+    const mapping = (tx.meetManagerImport.update.mock.calls[0] as [{ data: { mapping: { skippedResults: Array<{ reason: string; event_key: string }> } } }])[0].data.mapping;
+    expect(mapping.skippedResults).toEqual([expect.objectContaining({ reason: 'duplicate_in_file', event_key: 'ev-f' })]);
+  });
+
   it('la clasificatoria y la final del mismo nadador (misma serie y carril) se guardan las dos', async () => {
     const meet = makeMeet('csv');
     const base = meet.events[0]!;
@@ -586,7 +607,7 @@ describe('CommitProcessor — importar dentro de un torneo existente (jornadas)'
     const first = meet.results[0]!;
     meet.results = [
       { ...first, event_key: 'ev-m', swimmer_ref: MATEO, heat_no: 1, lane_no: 4 },
-      { ...first, event_key: 'ev-m|P', swimmer_ref: MATEO, heat_no: 1, lane_no: 4, source_line: 99 },
+      { ...first, event_key: 'ev-m|P', swimmer_ref: MATEO, heat_no: 1, lane_no: 4, final_time_ms: 36_000, source_line: 99 },
     ];
     const { processor, tx } = setup(meet, resolved());
     await processor.commit('job-1');

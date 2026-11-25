@@ -5,7 +5,7 @@ import type {
   NormalizedRound,
   NormalizedStroke,
 } from '../../ingest/types/normalized-meet.types';
-import { resolveResultRounds } from './resolve-result-rounds';
+import { findPhantomFinals, resolveResultRounds } from './resolve-result-rounds';
 
 function ev(
   key: string,
@@ -61,9 +61,9 @@ describe('resolveResultRounds', () => {
 
   it('Nacionales: Eliminatorias y Finales comparten número de prueba; la eliminatoria va antes', () => {
     const events = [ev('p', 10, { round: 'P' }), ev('f', 10, { round: 'F' })];
-    const prelim = res('p', 'ana');
-    const final = res('f', 'ana');
-    const eliminated = res('p', 'bea');
+    const prelim = res('p', 'ana', { final_time_ms: 61_000 });
+    const final = res('f', 'ana', { final_time_ms: 60_000 });
+    const eliminated = res('p', 'bea', { final_time_ms: 62_000 });
     const map = resolveResultRounds({ events, results: [final, prelim, eliminated] });
 
     expect(map.get(prelim)).toBe('clasificatorio');
@@ -116,6 +116,32 @@ describe('resolveResultRounds', () => {
     const events = [ev('p1', 10, { round: 'P' }), ev('p2', 110, { round: 'P' })];
     const results = [res('p1', 'ana'), res('p2', 'ana')];
     expect(resolveResultRounds({ events, results }).size).toBe(0);
+  });
+
+  it('la tabla de eliminatorias leída también como final (misma serie, carril y tiempo) es un nado fantasma', () => {
+    const events = [ev('f', 1, { round: 'F' }), ev('p', 1, { round: 'P' })];
+    const real = res('p', 'bea', { heat_no: 1, lane_no: 10, final_time_ms: 140_960 });
+    const copy = res('f', 'bea', { heat_no: 1, lane_no: 10, final_time_ms: 140_960 });
+    // Otra nadadora con final de verdad: mismo número de prueba pero otro tiempo
+    const finalist = res('f', 'ana', { heat_no: 1, lane_no: 4, final_time_ms: 137_000 });
+    const finalistPrelim = res('p', 'ana', { heat_no: 1, lane_no: 2, final_time_ms: 139_000 });
+
+    const phantoms = findPhantomFinals({ events, results: [real, copy, finalist, finalistPrelim] });
+    expect([...phantoms]).toEqual([copy]);
+
+    // El fantasma no se reclasifica como "final": la nadadora eliminada queda con su sola eliminatoria
+    const map = resolveResultRounds({ events, results: [real, copy, finalist, finalistPrelim] });
+    expect(map.has(copy)).toBe(false);
+    expect(map.has(real)).toBe(false);
+    expect(map.get(finalistPrelim)).toBe('clasificatorio');
+    expect(map.get(finalist)).toBe('final');
+  });
+
+  it('una línea sin tiempo (DQ/DNS) no se descarta como copia aunque coincidan serie y carril', () => {
+    const events = [ev('f', 1, { round: 'F' }), ev('p', 1, { round: 'P' })];
+    const prelimDq = res('p', 'bea', { status: 'DSQ', final_time_ms: null });
+    const finalDq = res('f', 'bea', { status: 'DSQ', final_time_ms: null });
+    expect(findPhantomFinals({ events, results: [prelimDq, finalDq] }).size).toBe(0);
   });
 
   it('un DSQ o DNS en la final también cuenta como nado posterior', () => {
