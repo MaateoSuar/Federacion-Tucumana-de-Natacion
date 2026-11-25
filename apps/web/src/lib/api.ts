@@ -187,6 +187,8 @@ export interface ProgressionHistoryEntry {
   clubName: string;
   place: number | null;
   medal: 'gold' | 'silver' | 'bronze' | null;
+  /** 'prueba' (mañana) o 'final' (tarde) si nadó la prueba en las dos jornadas del torneo; null si fue una sola. */
+  phase: 'prueba' | 'final' | null;
 }
 
 export interface ProgressionEvent {

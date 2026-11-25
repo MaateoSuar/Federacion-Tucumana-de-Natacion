@@ -7,7 +7,7 @@ import {
 
 const hist = (date: string, timeMs: number, isPb = false, deltaVsPreviousMs: number | null = null): ProgressionHistoryEntry => ({
   tournamentId: `t-${date}`, tournamentName: `Torneo ${date}`, date, timeMs, deltaVsPreviousMs, deltaVsPbMs: null,
-  isPb, categoryName: 'Cadete 1', clubName: 'CAN', place: null, medal: null,
+  isPb, categoryName: 'Cadete 1', clubName: 'CAN', place: null, medal: null, phase: null,
 });
 const ev = (stroke: string, distance: number, pool: 'P25' | 'P50', totalImprovementMs: number | null = null, history: ProgressionHistoryEntry[] = []): ProgressionEvent => ({
   eventDefinitionId: `${distance}-${stroke}`, label: '', stroke, distance, pool,

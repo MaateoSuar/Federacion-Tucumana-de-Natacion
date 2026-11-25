@@ -121,6 +121,8 @@ export interface ChartPoint {
   /** Es la mejor marca vigente de la prueba (no "fue mejor marca en su momento"). */
   isPb: boolean;
   deltaVsPreviousMs: number | null;
+  /** 'prueba' (mañana) o 'final' (tarde) si el torneo tuvo las dos jornadas para esta prueba. */
+  phase: 'prueba' | 'final' | null;
 }
 
 /** Serie cronológica de una prueba para el gráfico. */
@@ -137,6 +139,7 @@ export function chartSeries(event: ProgressionEvent): ChartPoint[] {
         bestSoFarMs: best,
         isPb: isCurrentBest(event, h),
         deltaVsPreviousMs: h.deltaVsPreviousMs,
+        phase: h.phase,
       };
     });
 }

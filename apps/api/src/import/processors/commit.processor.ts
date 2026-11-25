@@ -14,7 +14,6 @@ import { ResultsGateway } from '../../results-gateway/results.gateway';
 import type {
   NormalizedMeet,
   NormalizedStroke,
-  NormalizedRound,
   CompetitionType,
 } from '../../ingest/types/normalized-meet.types';
 import type { MatchResolution, MatchResultsPayload } from '../matching/types';
@@ -23,6 +22,7 @@ import { AthleteMatcher } from '../matching/athlete-matcher';
 import { ClubMatcher } from '../matching/club-matcher';
 import { HomologationService } from '../../homologation/homologation.service';
 import { resultIdempotencyKey } from '../matching/duplicate-detector';
+import { BASE_ROUND, resolveResultRounds } from '../rounds/resolve-result-rounds';
 
 /** Cómo se encola la homologación del torneo tras confirmar. */
 export type HomologationMode = 'background' | 'await' | 'skip';
@@ -151,13 +151,6 @@ const LEVEL_MAP: Partial<Record<CompetitionType, string>> = {
   FEDERADOS: 'FEDERADOS',
   PROMOCIONALES: 'PROMOCIONAL',
   ESCUELA: 'ESCUELA',
-};
-
-const ROUND_MAP: Record<NormalizedRound, EventRound> = {
-  F: 'final',
-  S: 'serie_unica',
-  P: 'clasificatorio',
-  T: 'serie_unica',
 };
 
 function resolveCategory(
@@ -539,22 +532,33 @@ export class CommitProcessor {
           else resultsByEventKey.set(r.event_key, [r]);
         }
         const swimmerByRef = new Map(normalizedMeet.swimmers.map((s) => [s.external_athlete_id, s]));
+        // Jornada de pruebas vs final: si el nadador repite la prueba en otra jornada, ese nado es la final.
+        const roundByResult = resolveResultRounds(normalizedMeet);
         // Varias pruebas del archivo (una por categoría de edad) comparten Event y serie en la base
         const heatIdByEventAndNo = new Map<string, string>();
         const insertedKeys = new Set<string>();
 
         // Dentro de un torneo existente: nados que YA estaban cargados antes de este import (evento + nadador +
         // serie + carril). Sirve para que reimportar un archivo con el mismo contenido no duplique (regla 5).
-        // No se agregan los nados de este mismo import: la prueba clasificatoria y la final de un nadador comparten
-        // Event y serie en la base y pueden coincidir en serie y carril; esos son nados distintos.
+        // No se agregan los nados de este mismo import: dos nados de un nadador en la misma prueba pueden
+        // coincidir en serie y carril; son nados distintos.
+        // La clave NO incluye la ronda del evento (prueba, nivel, nadador, serie, carril y tiempo): un torneo
+        // cargado antes de separar la jornada de pruebas de la final tiene todo en un solo evento, y reimportar
+        // no debe duplicar el nado de la mañana en un evento clasificatorio nuevo.
+        const swimIdentity = (eventDefinitionId: string, level: string | null, swimmerId: string, heatNo: number | null, lane: number | null, timeMs: number | null) =>
+          `${eventDefinitionId}|${level ?? ''}|${swimmerId}|${heatNo ?? ''}|${lane ?? ''}|${timeMs ?? ''}`;
         const existingSwims = new Set<string>();
         if (target) {
           const present = await tx.result.findMany({
             where: { event: { tournamentId } },
-            select: { eventId: true, swimmerId: true, lane: true, heat: { select: { heatNumber: true } } },
+            select: {
+              swimmerId: true, lane: true, finalTime: true,
+              heat: { select: { heatNumber: true } },
+              event: { select: { eventDefinitionId: true, level: true } },
+            },
           });
           for (const r of present) {
-            existingSwims.add(`${r.eventId}|${r.swimmerId}|${r.heat?.heatNumber ?? ''}|${r.lane ?? ''}`);
+            existingSwims.add(swimIdentity(r.event.eventDefinitionId, r.event.level, r.swimmerId, r.heat?.heatNumber ?? null, r.lane, r.finalTime));
           }
         }
 
@@ -588,33 +592,45 @@ export class CommitProcessor {
             });
           }
 
-          // Deduplicate: si esa prueba y nivel ya tienen un evento en este torneo, se reutiliza
+          // Deduplicate: si esa prueba, nivel y ronda ya tienen un evento en este torneo, se reutiliza.
+          // La ronda separa la jornada de pruebas (clasificatorio) de la final: son nados distintos.
           const level = LEVEL_MAP[event.competition_type] ?? null;
-          const existingDbEvent = await tx.event.findFirst({
-            where: { tournamentId, eventDefinitionId: eventDef.id, level },
-            select: { id: true },
-          });
-          let createdEvent: { id: string };
-          if (existingDbEvent) {
-            createdEvent = existingDbEvent;
-          } else {
-            createdEvent = await tx.event.create({
-              data: {
-                tournamentId,
-                eventDefinitionId: eventDef.id,
-                categoryId: fallbackCategory.id,
-                round: ROUND_MAP[event.round] ?? 'serie_unica',
-                orderNo: event.event_no,
-                level,
-                status: 'finalizado',
-              },
+          const baseRound: EventRound = BASE_ROUND[event.round] ?? 'serie_unica';
+          const eventIdByRound = new Map<EventRound, string>();
+          const ensureEvent = async (round: EventRound): Promise<string> => {
+            const known = eventIdByRound.get(round);
+            if (known) return known;
+            const existingDbEvent = await tx.event.findFirst({
+              where: { tournamentId, eventDefinitionId: eventDef.id, level, round },
+              select: { id: true },
             });
-            rollback.newEventIds.push(createdEvent.id);
-          }
+            let eventId: string;
+            if (existingDbEvent) {
+              eventId = existingDbEvent.id;
+            } else {
+              const created = await tx.event.create({
+                data: {
+                  tournamentId,
+                  eventDefinitionId: eventDef.id,
+                  categoryId: fallbackCategory.id,
+                  round,
+                  orderNo: event.event_no,
+                  level,
+                  status: 'finalizado',
+                },
+              });
+              eventId = created.id;
+              rollback.newEventIds.push(eventId);
+            }
+            eventIdByRound.set(round, eventId);
+            return eventId;
+          };
 
           const resultsForEvent = resultsByEventKey.get(event.event_key) ?? [];
           const eventGender: Gender | null =
             evGender === 'X' || event.is_relay ? null : evGender;
+          // Una prueba sin resultados igual queda cargada (con la ronda que dice el archivo)
+          if (resultsForEvent.length === 0) await ensureEvent(baseRound);
 
           for (const result of resultsForEvent) {
             const swimmer = swimmerByRef.get(result.swimmer_ref);
@@ -653,7 +669,8 @@ export class CommitProcessor {
             }
             insertedKeys.add(idempotencyKey);
 
-            const swimKey = `${createdEvent.id}|${swimmerId}|${result.heat_no}|${result.lane_no}`;
+            const eventId = await ensureEvent(roundByResult.get(result) ?? baseRound);
+            const swimKey = swimIdentity(eventDef.id, level, swimmerId, result.heat_no, result.lane_no, result.final_time_ms);
             if (existingSwims.has(swimKey)) {
               rollback.skippedResults.push({
                 source_line: result.source_line,
@@ -665,19 +682,19 @@ export class CommitProcessor {
               continue;
             }
 
-            const heatKey = `${createdEvent.id}|${result.heat_no}`;
+            const heatKey = `${eventId}|${result.heat_no}`;
             let heatId = heatIdByEventAndNo.get(heatKey);
             if (!heatId) {
               // La serie puede existir ya (otra jornada u otra categoría de la misma prueba).
               const existingHeat = await tx.heat.findUnique({
-                where: { eventId_heatNumber: { eventId: createdEvent.id, heatNumber: result.heat_no } },
+                where: { eventId_heatNumber: { eventId, heatNumber: result.heat_no } },
                 select: { id: true },
               });
               if (existingHeat) {
                 heatId = existingHeat.id;
               } else {
                 const heat = await tx.heat.create({
-                  data: { eventId: createdEvent.id, heatNumber: result.heat_no },
+                  data: { eventId, heatNumber: result.heat_no },
                 });
                 heatId = heat.id;
                 rollback.newHeatIds?.push(heat.id);
@@ -693,7 +710,7 @@ export class CommitProcessor {
 
             const createdResult = await tx.result.create({
               data: {
-                eventId: createdEvent.id,
+                eventId,
                 swimmerId,
                 heatId,
                 lane: result.lane_no,

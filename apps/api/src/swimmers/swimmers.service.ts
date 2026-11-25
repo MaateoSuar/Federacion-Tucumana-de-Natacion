@@ -443,6 +443,7 @@ export class SwimmersService {
         event: {
           select: {
             orderNo: true,
+            round: true,
             eventDefinition: {
               select: { id: true, stroke: true, distance: true, gender: true, code: true },
             },

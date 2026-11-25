@@ -352,6 +352,36 @@ describe('CommitProcessor — cada resultado en su prueba (M2b)', () => {
     expect(lookups).toEqual(['FEDERADOS', 'PROMOCIONAL', 'ESCUELA']);
   });
 
+  it('jornada de pruebas y final: el nadador que repite la prueba queda en dos eventos (clasificatorio y final)', async () => {
+    const meet = makeMeet('pdf');
+    const base = meet.events[0]!;
+    const res = (event_key: string, swimmer_ref: string, event_ref: number): NormalizedMeet['results'][number] => ({
+      ...meet.results[0]!, event_key, event_ref, swimmer_ref, source_line: 100 + event_ref,
+    });
+    meet.events = [
+      { ...base, event_key: 'ev-manana', event_no: 3, round: 'F' },
+      { ...base, event_key: 'ev-tarde', event_no: 203, round: 'F' },
+    ];
+    // Mateo nada la mañana y la final; Juan solo la mañana
+    meet.results = [res('ev-manana', MATEO, 3), res('ev-tarde', MATEO, 203), res('ev-manana', JUAN, 3)];
+    const { processor, tx } = setup(meet, makeMatches({ mateo: link('sw-mateo'), club: link('club-azu') }));
+    const idByRound = new Map<string, string>();
+    tx.event.findFirst.mockImplementation(({ where }: { where: { round: string } }) =>
+      Promise.resolve(idByRound.has(where.round) ? { id: idByRound.get(where.round) } : null),
+    );
+    tx.event.create.mockImplementation(({ data }: { data: { round: string } }) => {
+      idByRound.set(data.round, `ev-${data.round}`);
+      return Promise.resolve({ id: `ev-${data.round}` });
+    });
+    await processor.commit('job-1');
+
+    const rounds = (tx.event.create.mock.calls as Array<[{ data: { round: string } }]>).map(([a]) => a.data.round).sort();
+    expect(rounds).toEqual(['clasificatorio', 'final']);
+    const swims = (tx.result.create.mock.calls as Array<[{ data: { swimmerId: string; eventId: string } }]>).map(([a]) => a.data);
+    const mateo = swims.filter((s) => s.swimmerId === 'sw-mateo').map((s) => s.eventId).sort();
+    expect(mateo).toEqual(['ev-clasificatorio', 'ev-final']);
+  });
+
   it('no inserta un resultado si el nadador es del otro género que la prueba, y lo deja registrado', async () => {
     // El Admin vinculó a "Mateo" con una nadadora existente (F): su nado en la prueba de varones no entra.
     const matches = resolved();
@@ -507,13 +537,41 @@ describe('CommitProcessor — importar dentro de un torneo existente (jornadas)'
     const { processor, tx, prisma } = setup(makeMeet('csv'), resolved());
     prisma.tournament.findUnique.mockResolvedValue(existingTournament);
     tx.event.findFirst.mockResolvedValue({ id: 'ev-1' });
+    const event = { eventDefinitionId: 'ed-1', level: 'FEDERADOS' };
     tx.result.findMany.mockResolvedValue([
-      { eventId: 'ev-1', swimmerId: 'sw-mateo', lane: 1, heat: { heatNumber: 1 } },
-      { eventId: 'ev-1', swimmerId: 'sw-juan', lane: 2, heat: { heatNumber: 1 } },
+      { swimmerId: 'sw-mateo', lane: 1, finalTime: 35_000, heat: { heatNumber: 1 }, event },
+      { swimmerId: 'sw-juan', lane: 2, finalTime: 35_001, heat: { heatNumber: 1 }, event },
     ]);
     await processor.commit('job-1', 'sys', { tournamentId: 't-exist' });
 
     expect(tx.result.create).toHaveBeenCalledTimes(1);
+    const mapping = (tx.meetManagerImport.update.mock.calls[0] as [{ data: { mapping: { skippedResults: Array<{ reason: string }> } } }])[0].data.mapping;
+    expect(mapping.skippedResults.map((s) => s.reason)).toEqual(['already_in_tournament', 'already_in_tournament']);
+  });
+
+  it('reimportar un torneo cargado con la pruebas y la final juntas en un evento no duplica el nado de la mañana', async () => {
+    const meet = makeMeet('pdf');
+    const base = meet.events[0]!;
+    const first = meet.results[0]!;
+    meet.events = [
+      { ...base, event_key: 'ev-manana', event_no: 3 },
+      { ...base, event_key: 'ev-tarde', event_no: 203 },
+    ];
+    meet.results = [
+      { ...first, event_key: 'ev-manana', swimmer_ref: MATEO, heat_no: 2, lane_no: 4, final_time_ms: 61_000, source_line: 50 },
+      { ...first, event_key: 'ev-tarde', swimmer_ref: MATEO, heat_no: 1, lane_no: 4, final_time_ms: 59_000, source_line: 90 },
+    ];
+    const { processor, tx, prisma } = setup(meet, resolved());
+    prisma.tournament.findUnique.mockResolvedValue(existingTournament);
+    // Cargado antes de separar las jornadas: los dos nados están en el mismo evento (ronda final)
+    const event = { eventDefinitionId: 'ed-1', level: 'FEDERADOS' };
+    tx.result.findMany.mockResolvedValue([
+      { swimmerId: 'sw-mateo', lane: 4, finalTime: 61_000, heat: { heatNumber: 2 }, event },
+      { swimmerId: 'sw-mateo', lane: 4, finalTime: 59_000, heat: { heatNumber: 1 }, event },
+    ]);
+    await processor.commit('job-1', 'sys', { tournamentId: 't-exist' });
+
+    expect(tx.result.create).not.toHaveBeenCalled();
     const mapping = (tx.meetManagerImport.update.mock.calls[0] as [{ data: { mapping: { skippedResults: Array<{ reason: string }> } } }])[0].data.mapping;
     expect(mapping.skippedResults.map((s) => s.reason)).toEqual(['already_in_tournament', 'already_in_tournament']);
   });

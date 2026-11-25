@@ -74,7 +74,10 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: Array<{
   return (
     <div className="rounded-lg border border-pool-600 bg-pool-900 px-3 py-2 text-xs shadow-lg">
       <p className="font-semibold text-white">{p.tournamentName}</p>
-      <p className="text-pool-400">{shortDate(p.date)}</p>
+      <p className="text-pool-400">
+        {shortDate(p.date)}
+        {p.phase && ` · ${p.phase === 'final' ? 'Final (tarde)' : 'Pruebas (mañana)'}`}
+      </p>
       <p className="mt-1 flex items-center gap-2">
         <span className="font-mono text-sm font-bold text-aqua-300">{formatTime(p.timeMs)}</span>
         {p.isPb && <PbBadge />}
@@ -138,13 +141,18 @@ function EventDetail({ event }: { event: ProgressionEvent }) {
           </thead>
           <tbody className="divide-y divide-pool-700/20">
             {rows.map((h) => (
-              <tr key={`${h.tournamentId}-${h.date}`}>
+              <tr key={`${h.tournamentId}-${h.date}-${h.phase ?? ''}`}>
                 <td className="py-2 pr-3">
                   <Link href={`/torneos/${h.tournamentId}`} className="text-white hover:text-aqua-300 transition-colors">
                     {h.tournamentName}
                   </Link>
                   <span className="block text-xs text-pool-400">
                     {shortDate(h.date)}
+                    {h.phase && (
+                      <span className={`ml-1.5 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${h.phase === 'final' ? 'bg-aqua-500/15 text-aqua-300' : 'bg-pool-700/50 text-pool-300'}`}>
+                        {h.phase === 'final' ? 'Final · tarde' : 'Pruebas · mañana'}
+                      </span>
+                    )}
                     {h.place !== null && ` · ${h.place}°`}
                   </span>
                 </td>

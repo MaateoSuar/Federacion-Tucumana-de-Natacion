@@ -58,12 +58,19 @@ export function EventList({ events, tournamentId }: { events: TournamentEvent[];
   // Collapse events with the same eventDefinition into one row
   const groups = useMemo<EventGroup[]>(() => {
     const seen = new Map<string, EventGroup>();
+    // Pruebas que tuvieron jornada de pruebas (mañana) además de la final: se listan por separado
+    const withPrelim = new Set(
+      events.filter((e) => e.round === 'clasificatorio').map((e) => `${e.eventDefinition.id}|${e.level ?? ''}`),
+    );
     for (const ev of events) {
-      const key = `${ev.eventDefinition.id}|${ev.level ?? ''}`;
+      const base = `${ev.eventDefinition.id}|${ev.level ?? ''}`;
+      const isPrelim = ev.round === 'clasificatorio';
+      const key = isPrelim ? `${base}|P` : base;
       const stroke = STROKE_ES[ev.eventDefinition.stroke] ?? ev.eventDefinition.stroke;
       const gender = ev.eventDefinition.gender === 'M' ? 'Hombres' : 'Mujeres';
       const levelName = ev.level ? ` · ${LEVEL_ES[ev.level] ?? ev.level}` : '';
-      const label = `${ev.eventDefinition.distance} m ${stroke} — ${gender}${levelName}`;
+      const roundName = isPrelim ? ' · Pruebas (mañana)' : withPrelim.has(base) ? ' · Finales (tarde)' : '';
+      const label = `${ev.eventDefinition.distance} m ${stroke} — ${gender}${levelName}${roundName}`;
       const existing = seen.get(key);
       if (!existing) {
         seen.set(key, { eventDefId: key, ev, eventIds: [ev.id], totalResults: ev._count.results, label, categories: [ev.category.name], level: ev.level ?? '' });

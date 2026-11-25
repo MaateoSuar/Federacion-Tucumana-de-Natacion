@@ -13,6 +13,7 @@ function makeRow(overrides: {
   status?: string;
   homologated?: boolean;
   place?: number | null;
+  round?: string;
 }): ProgressionResultRow {
   const pool = overrides.pool ?? 'P25';
   const eventDefId = overrides.eventDefId ?? 'ed-freestyle-100';
@@ -25,6 +26,7 @@ function makeRow(overrides: {
     isPb: false,
     event: {
       orderNo: 1,
+      round: overrides.round,
       eventDefinition: {
         id: eventDefId,
         stroke: 'freestyle',
@@ -70,6 +72,62 @@ describe('buildProgression — filtros', () => {
     const result = buildProgression('sw-1', rows);
     expect(result.events).toHaveLength(1);
     expect(result.events[0]!.history).toHaveLength(1);
+  });
+});
+
+describe('buildProgression — jornada de pruebas y final', () => {
+  const sanLuis = { tournamentId: 't-sl', tournamentDate: makeDate(2026, 10, 23), pool: 'P25' as const };
+
+  it('separa la jornada de pruebas y la final del mismo torneo en dos entradas, la de la mañana primero', () => {
+    const rows = [
+      makeRow({ finalTime: 59_000, round: 'final', place: 2, ...sanLuis }),
+      makeRow({ finalTime: 61_000, round: 'clasificatorio', place: 1, ...sanLuis }),
+    ];
+    const [event] = buildProgression('sw-1', rows).events;
+    expect(event!.history.map((h) => [h.timeMs, h.phase])).toEqual([
+      [61_000, 'prueba'],
+      [59_000, 'final'],
+    ]);
+    // La final se compara contra la jornada de pruebas
+    expect(event!.history[1]!.deltaVsPreviousMs).toBe(-2_000);
+    expect(event!.personalBest?.timeMs).toBe(59_000);
+  });
+
+  it('el puesto de la jornada de pruebas no da medalla; el de la final sí', () => {
+    const rows = [
+      makeRow({ finalTime: 61_000, round: 'clasificatorio', place: 1, ...sanLuis }),
+      makeRow({ finalTime: 59_000, round: 'final', place: 3, ...sanLuis }),
+    ];
+    const result = buildProgression('sw-1', rows);
+    const [pruebaEntry, finalEntry] = result.events[0]!.history;
+    expect(pruebaEntry!.medal).toBeNull();
+    expect(finalEntry!.medal).toBe('bronze');
+    expect(result.tournaments[0]!.medals).toEqual({ gold: 0, silver: 0, bronze: 1 });
+  });
+
+  it('si nadó la prueba una sola vez en el torneo no lleva etiqueta de jornada', () => {
+    const rows = [makeRow({ finalTime: 59_000, round: 'final', ...sanLuis })];
+    const [event] = buildProgression('sw-1', rows).events;
+    expect(event!.history).toHaveLength(1);
+    expect(event!.history[0]!.phase).toBeNull();
+  });
+
+  it('dos nados en la misma jornada siguen quedándose con el mejor', () => {
+    const rows = [
+      makeRow({ finalTime: 60_000, round: 'final', ...sanLuis }),
+      makeRow({ finalTime: 58_000, round: 'final', ...sanLuis }),
+    ];
+    const [event] = buildProgression('sw-1', rows).events;
+    expect(event!.history).toHaveLength(1);
+    expect(event!.history[0]!.timeMs).toBe(58_000);
+  });
+
+  it('cuenta una sola mejor marca por prueba en el resumen del torneo aunque mejore en las dos jornadas', () => {
+    const rows = [
+      makeRow({ finalTime: 61_000, round: 'clasificatorio', ...sanLuis }),
+      makeRow({ finalTime: 59_000, round: 'final', ...sanLuis }),
+    ];
+    expect(buildProgression('sw-1', rows).tournaments[0]!.pbs).toBe(1);
   });
 });
 
