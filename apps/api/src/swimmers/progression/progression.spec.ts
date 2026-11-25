@@ -45,10 +45,12 @@ function makeRow(overrides: {
 }
 
 describe('buildProgression — filtros', () => {
-  it('excluye resultados sin homologar', () => {
-    const rows = [makeRow({ finalTime: 60_000, homologated: false })];
+  it('incluye resultados sin homologar (torneos NOA, nacionales, San Luis…)', () => {
+    const rows = [makeRow({ finalTime: 60_000, homologated: false, pool: 'P50' })];
     const result = buildProgression('sw-1', rows);
-    expect(result.events).toHaveLength(0);
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0]!.pool).toBe('P50');
+    expect(result.events[0]!.personalBest?.timeMs).toBe(60_000);
   });
 
   it('excluye resultados con status != OK', () => {
@@ -60,7 +62,7 @@ describe('buildProgression — filtros', () => {
     expect(result.events).toHaveLength(0);
   });
 
-  it('incluye solo resultados OK + homologados', () => {
+  it('incluye solo resultados OK con tiempo', () => {
     const rows = [
       makeRow({ finalTime: 60_000 }),
       makeRow({ finalTime: 61_000, status: 'DSQ' }),

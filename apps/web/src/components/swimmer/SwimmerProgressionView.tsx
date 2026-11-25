@@ -264,7 +264,7 @@ export function SwimmerProgressionView({ progression }: { progression: SwimmerPr
 
       {events.length === 0 ? (
         <div className="rounded-xl border border-pool-700/40 bg-pool-800/20 px-4 py-12 text-center text-pool-400">
-          Todavía no tiene resultados homologados en pileta de {POOL_LABEL[pool]}.
+          Todavía no tiene resultados en pileta de {POOL_LABEL[pool]}.
         </div>
       ) : (
         <>

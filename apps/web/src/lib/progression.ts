@@ -165,8 +165,8 @@ export interface Improvement {
 
 /**
  * Mejoras para festejar: pruebas donde el ÚLTIMO torneo fue su mejor marca y bajó
- * el tiempo respecto del torneo anterior. Solo sale de resultados homologados (es
- * lo único que trae la progresión) y nunca compara 25 m con 50 m (cada prueba ya
+ * el tiempo respecto del torneo anterior. Sale de la progresión (resultados OK de
+ * cualquier torneo, homologado o no) y nunca compara 25 m con 50 m (cada prueba ya
  * viene separada por pileta). `seen` son las claves que el nadador ya vio.
  */
 export function findNewImprovements(progression: SwimmerProgression, seen: ReadonlySet<string>): Improvement[] {

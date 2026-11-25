@@ -4,7 +4,8 @@
  *
  * Reglas (spec TRASPASO-SONNET.md §5.3):
  * - Cada (eventDefinitionId, poolLength) es una serie independiente. 25m y 50m NO se mezclan.
- * - Solo resultados status=OK con tiempo no nulo y homologados (homologated=true).
+ * - Solo resultados status=OK con tiempo no nulo. NO se exige homologación: el perfil muestra las marcas
+ *   del nadador en cualquier torneo (NOA, nacionales, San Luis…). La homologación solo condiciona récords y rankings.
  * - Si en un torneo nadó la prueba más de una vez, el valor del torneo = mejor tiempo.
  * - Orden cronológico por fecha del torneo; empate por orderNo del evento.
  * - deltaVsPrevious = time_t − time_{t−1} (negativo = mejoró).
@@ -104,10 +105,8 @@ export function buildProgression(
   rows: ProgressionResultRow[],
   poolFilter?: 'P25' | 'P50',
 ): SwimmerProgression {
-  // Filtrar: solo OK, tiempo no nulo, homologados
-  const valid = rows.filter(
-    (r) => r.status === 'OK' && r.finalTime != null && r.homologated,
-  );
+  // Filtrar: solo OK y tiempo no nulo (homologado o no: es el historial del nadador, no un récord)
+  const valid = rows.filter((r) => r.status === 'OK' && r.finalTime != null);
 
   // Agrupar por (eventDefinitionId, poolLength) → torneo → mejor tiempo
   const byEvent = new Map<EventKey, Map<string, ProgressionResultRow>>();

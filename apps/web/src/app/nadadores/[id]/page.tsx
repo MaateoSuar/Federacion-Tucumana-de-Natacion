@@ -130,7 +130,7 @@ export default async function NadadorPage({ params }: { params: { id: string } }
               <h2 className="text-lg font-bold text-white mb-1">
                 Todos los resultados ({resultsPage.total})
               </h2>
-              <p className="text-xs text-pool-400 mb-4">Incluye descalificaciones y resultados todavía no homologados, que no cuentan para las mejores marcas.</p>
+              <p className="text-xs text-pool-400 mb-4">Incluye descalificaciones y resultados de torneos de otras provincias; las descalificaciones no cuentan para las mejores marcas.</p>
               <div className="overflow-x-auto rounded-xl border border-pool-700/40">
                 <table className="w-full text-sm">
                   <thead>
@@ -164,7 +164,6 @@ export default async function NadadorPage({ params }: { params: { id: string } }
                           <td className="px-4 py-3 text-center hidden sm:table-cell">
                             <div className="flex items-center justify-center gap-1">
                               {r.isRecord && <RecordBadge />}
-                              {!r.homologated && <span className="text-xs text-pool-500 bg-pool-800/60 px-1.5 py-0.5 rounded">Pendiente</span>}
                             </div>
                           </td>
                         </tr>

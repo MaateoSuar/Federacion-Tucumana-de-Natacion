@@ -9,7 +9,7 @@ import { describeDelta, findNewImprovements, type Improvement } from '@/lib/prog
 /**
  * Cartel "¡Felicitaciones, bajaste tu tiempo!".
  * Solo lo ve el nadador dueño del perfil (cuenta vinculada), y solo por marcas
- * homologadas que todavía no vio. Lo ya visto se recuerda en este navegador.
+ * (de cualquier torneo) que todavía no vio. Lo ya visto se recuerda en este navegador.
  */
 
 const seenKey = (swimmerId: string) => `ftn:logros-vistos:${swimmerId}`;

@@ -430,7 +430,6 @@ export class SwimmersService {
       where: {
         swimmerId,
         status: 'OK',
-        homologated: true,
         finalTime: { not: null },
         ...(pool ? { event: { tournament: { poolLength: pool } } } : {}),
       },
