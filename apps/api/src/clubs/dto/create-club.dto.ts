@@ -32,6 +32,12 @@ export class CreateClubDto {
   @MaxLength(100)
   locality!: string;
 
+  @ApiPropertyOptional({ example: 'Tucumán', description: 'Provincia del club. Opcional: la completa el administrador. Define si puede batir récords tucumanos o del NOA.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  province?: string | null;
+
   @ApiPropertyOptional({ example: 'https://cdn.example.com/logos/cat.png' })
   @IsOptional()
   @IsUrl()

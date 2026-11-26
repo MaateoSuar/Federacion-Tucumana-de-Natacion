@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import type { Category } from '@/lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const PAGE_SIZE = 25;
 
 interface ClubInfo {
   id: string;
@@ -42,6 +43,11 @@ export default function EntrenadorPage() {
   const router = useRouter();
   const [club, setClub] = useState<ClubInfo | null>(null);
   const [swimmers, setSwimmers] = useState<SwimmerCard[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [listLoading, setListLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
 
@@ -56,20 +62,13 @@ export default function EntrenadorPage() {
     if (!user?.clubId || !accessToken) return;
     void (async () => {
       try {
-        const [clubRes, swimmersRes, catsRes] = await Promise.all([
+        const [clubRes, catsRes] = await Promise.all([
           fetch(`${API_BASE}/clubs/${user.clubId}`, {
-            headers: { Authorization: `Bearer ${accessToken}` },
-          }),
-          fetch(`${API_BASE}/swimmers?clubId=${user.clubId}&limit=50`, {
             headers: { Authorization: `Bearer ${accessToken}` },
           }),
           fetch(`${API_BASE}/tournaments/categories`),
         ]);
         if (clubRes.ok) setClub(await clubRes.json() as ClubInfo);
-        if (swimmersRes.ok) {
-          const data = await swimmersRes.json() as { items?: SwimmerCard[] } | SwimmerCard[];
-          setSwimmers(Array.isArray(data) ? data : (data.items ?? []));
-        }
         if (catsRes.ok) {
           const cats = await catsRes.json() as Category[];
           setCategories(cats.filter((c) => c.scope === 'provincial').sort((a, b) => (a.orderNo ?? 0) - (b.orderNo ?? 0)));
@@ -80,9 +79,41 @@ export default function EntrenadorPage() {
     })();
   }, [user, accessToken]);
 
+  // El buscador espera un instante a que termines de escribir y vuelve a la primera página
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Nadadores del club: de a ${PAGE_SIZE} por página y con búsqueda por nombre en el servidor
+  useEffect(() => {
+    if (!user?.clubId) return;
+    let cancelled = false;
+    setListLoading(true);
+    const params = new URLSearchParams({ clubId: user.clubId, page: String(page), limit: String(PAGE_SIZE), isActive: 'true' });
+    if (debouncedSearch) params.set('search', debouncedSearch);
+    void (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/swimmers?${params}`);
+        if (!res.ok || cancelled) return;
+        const data = await res.json() as { items: SwimmerCard[]; total: number };
+        setSwimmers(data.items);
+        setTotal(data.total);
+      } finally {
+        if (!cancelled) setListLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.clubId, page, debouncedSearch]);
+
   if (isLoading || !user) {
     return <LoadingScreen />;
   }
+
+  const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const handleLogout = () => {
     logout();
@@ -100,6 +131,9 @@ export default function EntrenadorPage() {
           <span className="text-pool-500 text-xs">Entrenador</span>
         </div>
         <div className="flex items-center gap-4">
+          <Link href="/entrenador/solicitudes" className="text-aqua-300 hover:text-aqua-200 text-sm font-medium transition-colors">
+            Solicitudes de vinculación
+          </Link>
           <div className="hidden sm:flex items-center gap-2 bg-emerald-950/60 border border-emerald-500/30 rounded-full px-3 py-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
             <span className="text-emerald-300 text-xs font-semibold">
@@ -150,7 +184,7 @@ export default function EntrenadorPage() {
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'Nadadores', value: dataLoading ? '–' : String(swimmers.length), icon: '🏊', color: 'text-aqua-400' },
+            { label: 'Nadadores', value: dataLoading && total === 0 ? '–' : String(total), icon: '🏊', color: 'text-aqua-400' },
             { label: 'Temporada activa', value: '2026', icon: '📅', color: 'text-pool-300' },
             { label: 'Próximos torneos', value: '–', icon: '🏆', color: 'text-yellow-400' },
             { label: 'Resultados pendientes', value: '–', icon: '⏱', color: 'text-orange-400' },
@@ -178,31 +212,49 @@ export default function EntrenadorPage() {
             </Link>
           </div>
 
-          {dataLoading ? (
+          {/* Buscador por nombre */}
+          <div className="relative mb-4">
+            <label htmlFor="swimmer-search" className="sr-only">Buscar nadador por nombre</label>
+            <input
+              id="swimmer-search"
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar nadador por nombre o apellido…"
+              autoComplete="off"
+              className="w-full rounded-xl bg-pool-900/70 border border-pool-700/60 px-4 py-3 text-white placeholder-pool-500 focus:outline-none focus:border-aqua-400 focus:ring-2 focus:ring-aqua-400/30"
+            />
+          </div>
+
+          {dataLoading && swimmers.length === 0 ? (
             <div className="space-y-2">
               {[1, 2, 3, 4].map((i) => (
                 <div key={i} className="h-14 bg-pool-800/40 rounded-xl animate-pulse" />
               ))}
             </div>
-          ) : swimmers.length === 0 ? (
+          ) : total === 0 && !listLoading ? (
             <div className="bg-pool-800/30 border border-pool-700/30 rounded-2xl p-10 text-center">
-              <p className="text-pool-400 text-sm">No hay nadadores cargados para este club.</p>
-              <Link
-                href="/entrenador/nadadores/nuevo"
-                className="inline-block mt-4 bg-aqua-500 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-aqua-400 transition-colors"
-              >
-                Cargar primer nadador
-              </Link>
+              <p className="text-pool-400 text-sm">
+                {debouncedSearch ? `No hay nadadores del club que coincidan con "${debouncedSearch}".` : 'No hay nadadores cargados para este club.'}
+              </p>
+              {!debouncedSearch && (
+                <Link
+                  href="/entrenador/nadadores/nuevo"
+                  className="inline-block mt-4 bg-aqua-500 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-aqua-400 transition-colors"
+                >
+                  Cargar primer nadador
+                </Link>
+              )}
             </div>
           ) : (
-            <div className="bg-pool-800/40 border border-pool-700/40 rounded-2xl overflow-hidden">
+            <div className={`bg-pool-800/40 border border-pool-700/40 rounded-2xl overflow-hidden transition-opacity ${listLoading ? 'opacity-60' : ''}`}>
               <div className="grid grid-cols-[1fr_auto_auto] gap-4 px-5 py-3 border-b border-pool-700/40 text-pool-500 text-xs font-semibold uppercase tracking-wider">
                 <span>Nombre</span>
                 <span>Género</span>
                 <span>Acción</span>
               </div>
               <div className="divide-y divide-pool-700/20">
-                {swimmers.slice(0, 20).map((sw) => (
+                {swimmers.map((sw) => (
                   <div
                     key={sw.id}
                     className="grid grid-cols-[1fr_auto_auto] gap-4 items-center px-5 py-4 hover:bg-pool-700/20 transition-colors"
@@ -229,14 +281,31 @@ export default function EntrenadorPage() {
                   </div>
                 ))}
               </div>
-              {swimmers.length > 20 && (
-                <div className="px-5 py-3 text-center text-pool-500 text-xs">
-                  Mostrando 20 de {swimmers.length} nadadores.{' '}
-                  <Link href="/admin/nadadores" className="text-aqua-400 hover:underline">
-                    Ver todos →
-                  </Link>
-                </div>
-              )}
+              <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-t border-pool-700/40 text-pool-400 text-xs">
+                <span>
+                  Mostrando {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} de {total} nadadores
+                  {debouncedSearch ? ` que coinciden con "${debouncedSearch}"` : ''}
+                </span>
+                {lastPage > 1 && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page <= 1 || listLoading}
+                      className="px-3 py-1.5 rounded-lg bg-pool-800 border border-pool-700 text-pool-200 hover:text-white disabled:opacity-40 transition-colors"
+                    >
+                      ← Anterior
+                    </button>
+                    <span>Página {page} de {lastPage}</span>
+                    <button
+                      onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
+                      disabled={page >= lastPage || listLoading}
+                      className="px-3 py-1.5 rounded-lg bg-pool-800 border border-pool-700 text-pool-200 hover:text-white disabled:opacity-40 transition-colors"
+                    >
+                      Siguiente →
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </section>

@@ -12,10 +12,13 @@ import { CommitProcessor } from './processors/commit.processor';
 import { AthleteMatcher } from './matching/athlete-matcher';
 import { ClubMatcher } from './matching/club-matcher';
 import { DuplicateDetector } from './matching/duplicate-detector';
+import { MATCH_CONFIG, parseMatchConfig } from './matching/match-config';
 import { MeetManagerPdfAdapter } from '../ingest/adapters/meet-manager-pdf/meet-manager-pdf-adapter';
 import { CsvAdapter } from '../ingest/adapters/csv/csv-adapter';
 import { ExcelAdapter } from '../ingest/adapters/excel/excel-adapter';
 import { IMPORT_QUEUE } from './import.queue';
+import { HomologationModule } from '../homologation/homologation.module';
+import { bullConnectionFromUrl } from '../redis/redis-connection';
 
 @Module({
   imports: [
@@ -24,18 +27,13 @@ import { IMPORT_QUEUE } from './import.queue';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const redisUrl = config.get<string>('REDIS_URL') ?? 'redis://localhost:6379';
-        const url = new URL(redisUrl);
-        return {
-          connection: {
-            host: url.hostname,
-            port: parseInt(url.port || '6379', 10),
-          },
-        };
+        return { connection: bullConnectionFromUrl(redisUrl) };
       },
     }),
     PrismaModule,
     AuthModule,
     IngestModule,
+    HomologationModule,
   ],
   controllers: [ImportController],
   providers: [
@@ -43,6 +41,12 @@ import { IMPORT_QUEUE } from './import.queue';
     ImportRepository,
     ImportProcessor,
     CommitProcessor,
+    {
+      provide: MATCH_CONFIG,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) =>
+        parseMatchConfig(config.get<string>('IMPORT_MATCHING_CONFIG')),
+    },
     AthleteMatcher,
     ClubMatcher,
     DuplicateDetector,

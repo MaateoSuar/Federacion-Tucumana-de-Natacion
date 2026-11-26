@@ -12,6 +12,7 @@ import {
   HttpStatus,
   ParseIntPipe,
   DefaultValuePipe,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -49,6 +50,7 @@ export class SwimmersController {
   @ApiOperation({ summary: 'Listar nadadores' })
   @ApiQuery({ name: 'search', required: false })
   @ApiQuery({ name: 'clubId', required: false })
+  @ApiQuery({ name: 'linkable', required: false, type: Boolean, description: 'Solo nadadores de clubes de Tucumán sin cuenta (para pedir vinculación)' })
   @ApiQuery({ name: 'gender', required: false, enum: Gender })
   @ApiQuery({ name: 'isActive', required: false, type: Boolean })
   @ApiQuery({ name: 'page', required: false, type: Number })
@@ -56,6 +58,7 @@ export class SwimmersController {
   findAll(
     @Query('search') search?: string,
     @Query('clubId') clubId?: string,
+    @Query('linkable') linkable?: string,
     @Query('gender') gender?: Gender,
     @Query('isActive') isActive?: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
@@ -63,7 +66,7 @@ export class SwimmersController {
   ) {
     const isActiveParsed =
       isActive === 'true' ? true : isActive === 'false' ? false : undefined;
-    return this.swimmersService.findAll({ search, clubId, gender, isActive: isActiveParsed, page, limit });
+    return this.swimmersService.findAll({ search, clubId, linkable: linkable === 'true', gender, isActive: isActiveParsed, page, limit });
   }
 
   @Get(':id')
@@ -119,7 +122,8 @@ export class SwimmersController {
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number = 20,
   ) {
-    return this.swimmersService.getResults(id, page, limit);
+    // Tope para no devolver tablas gigantes; el perfil pide hasta 500 de una vez
+    return this.swimmersService.getResults(id, Math.max(page, 1), Math.min(Math.max(limit, 1), 500));
   }
 
   @Get(':id/statistics')
@@ -135,10 +139,31 @@ export class SwimmersController {
     return this.swimmersService.getTimeEvolution(id, poolLength);
   }
 
+  @Get(':id/progression')
+  @ApiOperation({ summary: 'Progresión del nadador: historia por prueba con deltas y PBs' })
+  @ApiQuery({ name: 'pool', required: false, enum: ['P25', 'P50'] })
+  getProgression(
+    @Param('id') id: string,
+    @Query('pool') pool?: string,
+  ) {
+    if (pool !== undefined && pool !== 'P25' && pool !== 'P50') {
+      throw new BadRequestException('pool debe ser P25 o P50.');
+    }
+    return this.swimmersService.getProgression(id, pool);
+  }
+
   @Get(':id/profile')
   @ApiOperation({ summary: 'Perfil público del atleta' })
   getProfile(@Param('id') id: string) {
     return this.swimmersService.getProfile(id);
+  }
+
+  @Get(':id/profile/edit')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Perfil completo para editarlo (nadador vinculado o admin), aunque sea privado' })
+  getProfileForEditor(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.swimmersService.getProfileForEditor(id, user.id);
   }
 
   @Patch(':id/profile')

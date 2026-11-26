@@ -32,15 +32,17 @@ export class AthleteStatsProcessor {
         finalTime: true,
         isPb: true,
         place: true,
-        event: { select: { tournamentId: true } },
+        event: { select: { tournamentId: true, round: true } },
       },
     });
 
     const totalEvents = results.length;
     const totalPbs = results.filter((r) => r.isPb).length;
-    const gold = results.filter((r) => r.place === 1).length;
-    const silver = results.filter((r) => r.place === 2).length;
-    const bronze = results.filter((r) => r.place === 3).length;
+    // Las medallas salen de finales y series únicas: el puesto de la jornada de pruebas no cuenta
+    const podium = results.filter((r) => r.event.round !== 'clasificatorio');
+    const gold = podium.filter((r) => r.place === 1).length;
+    const silver = podium.filter((r) => r.place === 2).length;
+    const bronze = podium.filter((r) => r.place === 3).length;
     const totalMedals = gold + silver + bronze;
     const tournamentIds = new Set(results.map((r) => r.event.tournamentId));
     const totalCompetitions = tournamentIds.size;

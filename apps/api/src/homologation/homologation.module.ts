@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
 import { PrismaModule } from '../prisma/prisma.module';
+import { bullConnectionFromUrl } from '../redis/redis-connection';
 import { AuthModule } from '../auth/auth.module';
 import { HomologationController } from './homologation.controller';
 import { HomologationService } from './homologation.service';
@@ -20,13 +21,7 @@ import { HOMOLOGATION_QUEUE } from './homologation.queue';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const redisUrl = config.get<string>('REDIS_URL') ?? 'redis://localhost:6379';
-        const url = new URL(redisUrl);
-        return {
-          connection: {
-            host: url.hostname,
-            port: parseInt(url.port || '6379', 10),
-          },
-        };
+        return { connection: bullConnectionFromUrl(redisUrl) };
       },
     }),
     PrismaModule,

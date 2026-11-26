@@ -15,9 +15,19 @@ import type { MatchResultsPayload } from '../matching/types';
 import type { FormatAdapter } from '../../ingest/types/format-adapter.interface';
 import { readFileSync } from 'fs';
 
+/** Datos del torneo que mandan sobre lo que dice el encabezado del archivo (que a veces falta). */
+export interface MeetOverrides {
+  name?: string;
+  /** YYYY-MM-DD */
+  startDate?: string;
+  /** YYYY-MM-DD */
+  endDate?: string;
+}
+
 export interface ProcessImportJobData {
   jobId: string;
   filePath: string;
+  meetOverrides?: MeetOverrides;
 }
 
 const SOURCE_SYSTEM = 'meet_manager';
@@ -43,7 +53,7 @@ export class ImportProcessor extends WorkerHost {
   }
 
   async process(job: Job<ProcessImportJobData>): Promise<void> {
-    const { jobId, filePath } = job.data;
+    const { jobId, filePath, meetOverrides } = job.data;
     this.logger.log(`Processing import job ${jobId}`);
 
     try {
@@ -83,6 +93,9 @@ export class ImportProcessor extends WorkerHost {
       }
 
       const normalizedMeet = await adapter.parse(fileBuffer, filePath);
+      if (meetOverrides?.name) normalizedMeet.meet.name = meetOverrides.name;
+      if (meetOverrides?.startDate) normalizedMeet.meet.start_date = meetOverrides.startDate;
+      if (meetOverrides?.endDate) normalizedMeet.meet.end_date = meetOverrides.endDate;
 
       // ─── 2. VALIDATE ────────────────────────────────────────────
       await this.repo.updateStatus(jobId, 'validating');
@@ -108,10 +121,13 @@ export class ImportProcessor extends WorkerHost {
       );
 
       // Matching de nadadores
-      const swimmerResults = await Promise.all(
-        normalizedMeet.swimmers.map((swimmer) =>
-          this.athleteMatcher.match(swimmer, SOURCE_SYSTEM),
-        ),
+      const clubIdByRef: Record<string, string | null> = {};
+      for (const cr of clubResults) clubIdByRef[cr.clubRef] = cr.clubId;
+      const seasonYear = parseInt(normalizedMeet.meet.start_date.slice(0, 4), 10);
+      const swimmerResults = await this.athleteMatcher.matchAll(
+        normalizedMeet.swimmers,
+        SOURCE_SYSTEM,
+        { seasonYear: Number.isNaN(seasonYear) ? undefined : seasonYear, clubIdByRef },
       );
 
       const matchResults: MatchResultsPayload = {
@@ -132,10 +148,14 @@ export class ImportProcessor extends WorkerHost {
             suggested_action: 'Se creará como nuevo nadador al confirmar el import.',
           });
         } else if (sr.requiresConfirmation) {
+          const top = sr.candidates?.[0];
+          const hint = top
+            ? ` Posible coincidencia: "${top.displayName}" (${Math.round(top.score * 100)}%: ${top.reasons.join(', ')}).`
+            : '';
           issues.push({
             severity: 'WARNING',
             stage: 'match',
-            message: `Atleta requiere confirmación: "${sr.displayName}" — match ${sr.confidence} por ${sr.matchedBy}.`,
+            message: `Atleta requiere confirmación: "${sr.displayName}" — match ${sr.confidence} por ${sr.matchedBy}.${hint}`,
             suggested_action: 'Revisá en el preview antes de confirmar.',
           });
         }

@@ -89,6 +89,53 @@ describe('AthleteMatcher', () => {
     expect(result.requiresConfirmation).toBe(true);
   });
 
+  it('sugiere candidatos rankeados con motivo para nombres escritos distinto', async () => {
+    const prisma = makePrisma();
+    (prisma.swimmer.findMany as jest.Mock)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { id: 'hermano', firstName: 'Juan', lastName: 'Rodriguez Suar', gender: 'M', birthDate: new Date('2010-02-01'), currentClubId: 'club-1', currentClub: { name: 'Club Azucena' } },
+        { id: 'mateo', firstName: 'Mateo', lastName: 'Rodriguez Suar', gender: 'M', birthDate: new Date('2010-05-01'), currentClubId: 'club-1', currentClub: { name: 'Club Azucena' } },
+        { id: 'otra', firstName: 'Mateo', lastName: 'Suar', gender: 'F', birthDate: null, currentClubId: null, currentClub: null },
+      ]);
+    const matcher = new AthleteMatcher(prisma as never);
+    const result = await matcher.match(
+      makeSwimmer({ first_name: 'Mateo', last_name: 'Suar', birth_date: undefined, age: 16 }),
+      'meet_manager',
+      { seasonYear: 2026, clubId: 'club-1' },
+    );
+    expect(result.matchedBy).toBe('fuzzy');
+    expect(result.swimmerId).toBeNull();
+    expect(result.requiresConfirmation).toBe(true);
+    expect(result.candidates?.map((c) => c.swimmerId)).toEqual(['mateo']);
+    expect(result.candidates?.[0]?.reasons).toEqual(
+      expect.arrayContaining(['comparte apellido Suar', 'mismo club']),
+    );
+    expect(result.candidates?.[0]?.clubName).toBe('Club Azucena');
+  });
+
+  it('matchAll carga el padrón una sola vez', async () => {
+    const prisma = makePrisma();
+    const pool = [{ id: 'mateo', firstName: 'Mateo', lastName: 'Rodriguez Suar', gender: 'M', birthDate: null, currentClubId: null, currentClub: null }];
+    (prisma.swimmer.findMany as jest.Mock).mockImplementation((args: { select?: unknown }) =>
+      Promise.resolve(args.select ? pool : []),
+    );
+    const matcher = new AthleteMatcher(prisma as never);
+    const results = await matcher.matchAll(
+      [
+        makeSwimmer({ external_athlete_id: 'a', first_name: 'Mateo', last_name: 'Suar', birth_date: undefined }),
+        makeSwimmer({ external_athlete_id: 'b', first_name: 'Mateo', last_name: 'Rodriguez', birth_date: undefined }),
+      ],
+      'meet_manager',
+      { clubIdByRef: {} },
+    );
+    const poolCalls = (prisma.swimmer.findMany as jest.Mock).mock.calls.filter(
+      ([args]: [{ select?: unknown }]) => args.select,
+    );
+    expect(poolCalls).toHaveLength(1);
+    expect(results.map((r) => r.candidateSwimmerId)).toEqual(['mateo', 'mateo']);
+  });
+
   it('retorna none si no hay match', async () => {
     const prisma = makePrisma();
     (prisma.swimmer.findFirst as jest.Mock).mockResolvedValue(null);

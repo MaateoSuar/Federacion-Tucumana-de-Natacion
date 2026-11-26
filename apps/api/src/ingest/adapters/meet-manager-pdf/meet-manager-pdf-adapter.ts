@@ -53,7 +53,8 @@ export class MeetManagerPdfAdapter implements FormatAdapter {
       name: fileName.replace('.pdf', ''),
       start_date: '',
       end_date: '',
-      course: 25 as const,
+      // El largo de pileta sale de las pruebas ("CC Metro" 25 m, "CL Metro" 50 m), no de los tiempos.
+      course: parsed.course ?? (25 as const),
     };
 
     return {

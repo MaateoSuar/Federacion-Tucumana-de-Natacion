@@ -10,12 +10,6 @@ import { HomologationService } from './homologation.service';
 export class HomologationController {
   constructor(private readonly service: HomologationService) {}
 
-  @Patch('tournaments/:id/homologate')
-  @Roles(SystemRole.SUPER_ADMIN, SystemRole.ADMIN)
-  homologateTournament(@Param('id') id: string, @Request() req: { user: { id: string } }) {
-    return this.service.homologateTournament(id, req.user.id);
-  }
-
   @Patch('results/:id/homologate')
   @Roles(SystemRole.SUPER_ADMIN, SystemRole.ADMIN)
   homologateResult(@Param('id') id: string, @Request() req: { user: { id: string } }) {

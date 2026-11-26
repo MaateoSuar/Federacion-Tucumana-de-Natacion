@@ -17,10 +17,11 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage, StorageEngine } from 'multer';
+import { diskStorage, memoryStorage, StorageEngine } from 'multer';
 import type { Request as ExpressRequest } from 'express';
 import { extname, join } from 'path';
-import { mkdirSync } from 'fs';
+import { mkdirSync, writeFileSync } from 'fs';
+import { randomUUID } from 'crypto';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -36,11 +37,12 @@ import { UpdateTournamentDto } from './dto/update-tournament.dto';
 import { AddEventDto } from './dto/add-event.dto';
 import { GenerateHeatsDto } from './dto/generate-heats.dto';
 import { UploadDocumentDto } from './dto/upload-document.dto';
+import { UploadDayFileDto } from './dto/upload-day-file.dto';
 import { TransitionStatusDto } from './dto/transition-status.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentUser, AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { SystemRole } from '@ftn/shared';
 
 
@@ -123,8 +125,12 @@ export class TournamentsController {
   @Roles(SystemRole.ADMIN, SystemRole.SUPER_ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Transicionar estado del torneo' })
-  transition(@Param('id') id: string, @Body() dto: TransitionStatusDto) {
-    return this.service.transition(id, dto.status);
+  transition(
+    @Param('id') id: string,
+    @Body() dto: TransitionStatusDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.transition(id, dto.status, user.id);
   }
 
   // ─── Pruebas (Events) ──────────────────────────────────────────────────────
@@ -152,6 +158,15 @@ export class TournamentsController {
   @ApiOperation({ summary: 'Quitar prueba del torneo (solo si sin inscripciones ni resultados)' })
   removeEvent(@Param('id') id: string, @Param('eventId') eventId: string) {
     return this.service.removeEvent(id, eventId);
+  }
+
+  @Patch(':id/events/:eventId/split-day')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(SystemRole.ADMIN, SystemRole.SUPER_ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Mover esta prueba y todas las siguientes (mismo orden) a la próxima jornada' })
+  splitDayFromEvent(@Param('id') id: string, @Param('eventId') eventId: string) {
+    return this.service.splitDayFromEvent(id, eventId);
   }
 
   // ─── Series (Heats) ────────────────────────────────────────────────────────
@@ -242,11 +257,11 @@ export class TournamentsController {
     @Param('id') id: string,
     @UploadedFile() file: Express.Multer.File | undefined,
     @Body() dto: UploadDocumentDto,
-    @CurrentUser() user: { sub: string },
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     if (!file) throw new BadRequestException('Se requiere un archivo');
     const fileUrl = `/uploads/tournaments/${id}/${file.filename}`;
-    return this.service.addDocument(id, fileUrl, file.mimetype, dto, user.sub);
+    return this.service.addDocument(id, fileUrl, file.mimetype, dto, user.id);
   }
 
   @Delete(':id/documents/:docId')
@@ -257,5 +272,72 @@ export class TournamentsController {
   @ApiOperation({ summary: 'Eliminar documento del torneo' })
   removeDocument(@Param('id') id: string, @Param('docId') docId: string) {
     return this.service.removeDocument(id, docId);
+  }
+
+  // ─── Archivos de sembrados/resultados por jornada ─────────────────────────
+
+  @Get(':id/days/:day/files')
+  @ApiOperation({ summary: 'Listar archivos de sembrados/resultados de una jornada' })
+  listDayFiles(@Param('id') id: string, @Param('day', ParseIntPipe) day: number) {
+    return this.service.listDayFiles(id, day);
+  }
+
+  @Post(':id/days/:day/files')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(SystemRole.ADMIN, SystemRole.SUPER_ADMIN)
+  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        type: { type: 'string', enum: ['sembrados', 'resultados'] },
+        title: { type: 'string' },
+      },
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
+      fileFilter: (_req, file, cb) => {
+        const ext = extname(file.originalname).toLowerCase();
+        const allowed = ['.pdf', '.hy3', '.sd3', '.csv', '.xlsx', '.xls'];
+        if (allowed.includes(ext)) {
+          cb(null, true);
+        } else {
+          cb(new BadRequestException('Formato no soportado. Permitidos: PDF, HY3, CSV, XLSX.'), false);
+        }
+      },
+    }),
+  )
+  @ApiOperation({ summary: 'Subir archivo de sembrados o resultados de una jornada del torneo' })
+  async uploadDayFile(
+    @Param('id') id: string,
+    @Param('day', ParseIntPipe) day: number,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Body() dto: UploadDayFileDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (!file) throw new BadRequestException('Se requiere un archivo');
+
+    const uploadDir = join(process.cwd(), 'uploads', 'tournaments', id, 'day-files', String(day));
+    mkdirSync(uploadDir, { recursive: true });
+    const filename = `${randomUUID()}${extname(file.originalname)}`;
+    writeFileSync(join(uploadDir, filename), file.buffer);
+    const fileUrl = `/uploads/tournaments/${id}/day-files/${day}/${filename}`;
+
+    return this.service.addDayFile(id, day, file.buffer, fileUrl, file.mimetype, dto, user.id);
+  }
+
+  @Delete(':id/days/:day/files/:fileId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(SystemRole.ADMIN, SystemRole.SUPER_ADMIN)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Eliminar archivo de sembrados/resultados de una jornada' })
+  removeDayFile(@Param('id') id: string, @Param('fileId') fileId: string) {
+    return this.service.removeDayFile(id, fileId);
   }
 }

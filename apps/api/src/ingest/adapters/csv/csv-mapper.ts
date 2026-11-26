@@ -1,4 +1,6 @@
+import { basename } from 'path';
 import { parseTimeToMs } from '../meet-manager-pdf/pdf-time-parser';
+import { buildEventKey } from '../../event-key';
 import { CSV_PROFILES, CsvSemanticField } from './csv-profile';
 import type { CsvProfile } from './csv-profile';
 import type {
@@ -313,8 +315,19 @@ export function mapRowsToMeet(
   const swimmerKey = (r: ParsedRow) =>
     `${normalize(r.swimmerLast)}_${normalize(r.swimmerFirst)}_${normalize(r.clubName)}`;
 
+  const csvEventKey = (r: ParsedRow, nos: Map<string, number>) =>
+    buildEventKey({
+      event_no: nos.get(`${r.eventDistance}-${r.eventStroke}-${r.eventGender}-${r.eventCategory}`)!,
+      gender: r.eventGender,
+      age_group: r.eventCategory,
+      distance: r.eventDistance,
+      stroke: r.eventStroke,
+      is_relay: false,
+    });
+
   // ── Build results ──────────────────────────────────────────────────────────
   const results: NormalizedMeet['results'] = parsed.map((r) => ({
+    event_key: csvEventKey(r, eventKeyMap),
     event_ref: eventKeyMap.get(`${r.eventDistance}-${r.eventStroke}-${r.eventGender}-${r.eventCategory}`)!,
     swimmer_ref: swimmerKeyMap.get(swimmerKey(r))!,
     heat_no: r.heat,
@@ -335,6 +348,7 @@ export function mapRowsToMeet(
     if (seenEventKeys.has(key)) continue;
     seenEventKeys.add(key);
     events.push({
+      event_key: csvEventKey(r, eventKeyMap),
       event_no: eventKeyMap.get(key)!,
       stroke: r.eventStroke,
       distance: r.eventDistance,
@@ -352,7 +366,7 @@ export function mapRowsToMeet(
 
   return {
     meet: {
-      name: fileName.replace(/\.[^.]+$/, ''),
+      name: basename(fileName).replace(/\.[^.]+$/, ''),
       venue: '',
       course: 50,
       start_date: '',

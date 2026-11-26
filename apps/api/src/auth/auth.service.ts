@@ -9,6 +9,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { ClaimCodeService, INVALID_CODE } from '../claim-codes/claim-code.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -40,30 +41,65 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly claimCodes: ClaimCodeService,
   ) {}
 
   // ── Registro ──────────────────────────────────────────────────────────────
 
-  async register(dto: RegisterDto) {
-    const existing = await this.prisma.user.findUnique({
-      where: { email: dto.email },
-    });
+  /**
+   * Registro con o sin código de perfil (decisión del 19/11/2026):
+   *  - CON código: la cuenta nace vinculada al nadador del código. Todo o nada: si el código no
+   *    sirve, no se crea nada y se informa (no se crea una cuenta suelta en silencio).
+   *  - SIN código: la cuenta se crea sin vincular; después, en su panel, se le pide el código o
+   *    hace la solicitud de vinculación, que aprueba una persona (regla 6).
+   * Mientras no haya envío real de emails, la cuenta nace con el email dado por verificado (si no,
+   * no podría ingresar). Revisar cuando se conecte un servicio de correo.
+   * Contra abusos con código: primero límite de intentos y existencia del código (barato), recién
+   * después el hash de la contraseña (caro) y el chequeo de email (no se sondean emails con códigos falsos).
+   */
+  async register(dto: RegisterDto, ip: string | null = null) {
+    const claimCode = dto.claimCode?.trim();
+
+    if (claimCode) {
+      await this.claimCodes.assertNotLockedOut(ip);
+      if (!(await this.claimCodes.isRedeemable(claimCode))) {
+        await this.claimCodes.recordFailure(ip, 'register');
+        throw new BadRequestException(INVALID_CODE);
+      }
+    }
+
+    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) throw new ConflictException('El email ya está registrado');
 
     const passwordHash = await argon2.hash(dto.password);
-    const user = await this.prisma.user.create({
-      data: {
-        email: dto.email,
-        passwordHash,
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-      },
-    });
+    const base = { email: dto.email, passwordHash, firstName: dto.firstName, lastName: dto.lastName, emailVerifiedAt: new Date() };
 
-    const verificationToken = this.signEmailVerificationToken(user.id, user.email);
-    this.sendEmailVerification(user.email, verificationToken);
+    if (!claimCode) {
+      const user = await this.prisma.user.create({ data: base });
+      this.logger.log(`Registro sin código: usuario ${user.id} (queda sin vincular)`);
+      return {
+        message: 'Cuenta creada. Ya podés ingresar. Para ver y seguir tu perfil de nadador vas a necesitar tu código de perfil o hacer la solicitud de vinculación.',
+        linked: false,
+        verified: true,
+      };
+    }
 
-    return { message: 'Registro exitoso. Revisá tu email para verificar tu cuenta.' };
+    try {
+      const created = await this.prisma.$transaction(
+        async (tx) => {
+          const newUser = await tx.user.create({ data: base });
+          const { swimmerId } = await this.claimCodes.redeemInTransaction(tx, newUser.id, claimCode);
+          return { userId: newUser.id, swimmerId };
+        },
+        { maxWait: 10_000, timeout: 30_000 },
+      );
+      this.logger.log(`Registro con código de perfil: usuario ${created.userId} → nadador ${created.swimmerId}`);
+      return { message: 'Cuenta creada y vinculada a tu perfil de nadador. Ya podés ingresar.', linked: true, verified: true };
+    } catch (error) {
+      // Otro registro ganó la carrera por el mismo código: cuenta como intento fallido
+      if (error instanceof BadRequestException) await this.claimCodes.recordFailure(ip, 'register');
+      throw error;
+    }
   }
 
   // ── Verificación de email ─────────────────────────────────────────────────

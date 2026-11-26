@@ -1,4 +1,32 @@
-import { normalizeText, levenshtein, similarity } from './fuzzy';
+import { normalizeText, levenshtein, similarity, tokenize, jaroWinkler } from './fuzzy';
+
+describe('tokenize', () => {
+  it('separa palabras normalizadas', () => {
+    expect(tokenize('  Rodríguez-Suár, Mateo ')).toEqual(['rodriguez', 'suar', 'mateo']);
+  });
+  it('compacta siglas con puntos', () => {
+    expect(tokenize('C.A.T.')).toEqual(['cat']);
+    expect(tokenize('C.N. Monteros')).toEqual(['cn', 'monteros']);
+  });
+  it('no pega una inicial con la palabra siguiente', () => {
+    expect(tokenize('M. Rodriguez')).toEqual(['m', 'rodriguez']);
+    expect(tokenize('Club Atl. Tucumán')).toEqual(['club', 'atl', 'tucuman']);
+  });
+});
+
+describe('jaroWinkler', () => {
+  it('idénticos → 1', () => {
+    expect(jaroWinkler('mateo', 'mateo')).toBe(1);
+  });
+  it('error de tipeo → alto', () => {
+    expect(jaroWinkler('mateeo', 'mateo')).toBeGreaterThan(0.9);
+    expect(jaroWinkler('rodrigues', 'rodriguez')).toBeGreaterThan(0.9);
+  });
+  it('nombres distintos → bajo', () => {
+    expect(jaroWinkler('mateo', 'matias')).toBeLessThan(0.85);
+    expect(jaroWinkler('juan', 'pedro')).toBeLessThan(0.6);
+  });
+});
 
 describe('normalizeText', () => {
   it('lowercase y sin tildes', () => {

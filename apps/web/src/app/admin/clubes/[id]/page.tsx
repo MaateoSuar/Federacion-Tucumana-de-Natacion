@@ -5,12 +5,14 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
 import ImageUpload from '@/components/ImageUpload';
+import { PROVINCES } from '@/lib/provinces';
 
 interface Club {
   id: string;
   name: string;
   shortName: string;
   locality: string;
+  province: string | null;
   status: string;
   logoUrl: string | null;
   foundedYear: number | null;
@@ -47,6 +49,7 @@ export default function EditarClubPage() {
         method: 'PATCH',
         body: JSON.stringify({
           name: club.name, shortName: club.shortName, locality: club.locality, status: club.status,
+          province: club.province || null,
           logoUrl: club.logoUrl || undefined,
           foundedYear: club.foundedYear ? Number(club.foundedYear) : undefined,
           contactEmail: club.contactEmail || undefined,
@@ -111,6 +114,13 @@ export default function EditarClubPage() {
             </Field>
             <Field label="Localidad *" htmlFor="locality">
               <input id="locality" name="locality" required value={club.locality} onChange={handleChange} className="input" />
+            </Field>
+            <Field label="Provincia (opcional)" htmlFor="province" span={2}>
+              <select id="province" name="province" value={club.province ?? ''} onChange={handleChange} className="input">
+                <option value="">Sin asignar</option>
+                {PROVINCES.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">Define si sus nadadores pueden batir récords tucumanos o del NOA. Si no se conoce, se deja sin asignar.</p>
             </Field>
             <div className="col-span-2">
               <ImageUpload

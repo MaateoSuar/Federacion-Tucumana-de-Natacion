@@ -1,0 +1,20 @@
+# Lo que NO se sube a Vercel (solo se despliega apps/web)
+node_modules
+.next
+dist
+build
+out
+.turbo
+*.log
+*.tsbuildinfo
+
+# Secretos y datos locales
+.env
+.env.*
+!.env.example
+apps/api/uploads
+*.pdf
+
+# Herramientas locales
+.claude
+.git
