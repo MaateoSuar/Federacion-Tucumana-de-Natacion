@@ -34,9 +34,19 @@ describe('matchSwims', () => {
     expect(out.matchedResultIds).toEqual(['r1']);
   });
 
-  it('el mismo nado pedido dos veces no duplica el resultado a mover', () => {
+  it('el mismo nado pedido dos veces con una sola fila en la base: se mueve esa y la otra queda sin pareja', () => {
     const out = matchSwims([swim(), swim()], [stored('r1')]);
-    expect(out.matchedResultIds).toEqual(['r1']);
+    expect(out).toEqual({ matchedResultIds: ['r1'], unmatched: 1, ambiguous: 0 });
+  });
+
+  it('dos nadadores empatados (misma serie, carril y tiempo): el PDF pide 2 y la base tiene 2, se emparejan los dos', () => {
+    const out = matchSwims([swim(), swim()], [stored('r1'), stored('r2')]);
+    expect(out).toEqual({ matchedResultIds: ['r1', 'r2'], unmatched: 0, ambiguous: 0 });
+  });
+
+  it('el PDF pide 2 y la base tiene 3 (hay una copia vieja): es ambiguo y no se mueve ninguna', () => {
+    const out = matchSwims([swim(), swim()], [stored('r1'), stored('r2'), stored('r3')]);
+    expect(out).toEqual({ matchedResultIds: [], unmatched: 0, ambiguous: 2 });
   });
 
   it('la clave no depende del orden de los campos de entrada', () => {

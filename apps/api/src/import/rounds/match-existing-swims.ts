@@ -4,8 +4,11 @@
  * prisma/scripts/split-rounds.ts).
  *
  * En la base no quedó el número de prueba del PDF, así que un nado se identifica por lo que sí se guardó:
- * estilo, distancia, género, serie, carril y tiempo (ms). Si más de un resultado coincide, el nado es
- * ambiguo y NO se toca (mejor dejarlo como está que moverlo mal).
+ * estilo, distancia, género, serie, carril y tiempo (ms). Dos nados de nadadores distintos pueden compartir clave
+ * (mismo tiempo en series numeradas por separado, o los puestos empatados de una tabla de eliminatorias, donde el
+ * "carril" es el puesto): si el PDF pide N nados con esa clave y la base tiene exactamente N filas, se emparejan
+ * todas. Si la base tiene MÁS filas que las pedidas (duplicados viejos), es ambiguo y NO se toca (mejor
+ * dejarlo como está que moverlo mal).
  */
 
 export interface SwimKeyParts {
@@ -31,7 +34,7 @@ export interface MatchOutcome {
   matchedResultIds: string[];
   /** Nados del PDF sin ningún resultado equivalente en la base. */
   unmatched: number;
-  /** Nados del PDF que coinciden con más de un resultado de la base (no se tocan). */
+  /** Nados del PDF cuya clave tiene más filas en la base que las pedidas (no se tocan). */
   ambiguous: number;
 }
 
@@ -43,15 +46,20 @@ export function matchSwims(wanted: SwimKeyParts[], stored: StoredSwim[]): MatchO
     if (list) list.push(s.resultId);
     else byKey.set(k, [s.resultId]);
   }
+  const wantedCount = new Map<string, number>();
+  for (const w of wanted) wantedCount.set(swimKey(w), (wantedCount.get(swimKey(w)) ?? 0) + 1);
 
-  const matched = new Set<string>();
+  const matched: string[] = [];
   let unmatched = 0;
   let ambiguous = 0;
-  for (const w of wanted) {
-    const hits = byKey.get(swimKey(w));
-    if (!hits || hits.length === 0) unmatched++;
-    else if (hits.length > 1) ambiguous++;
-    else matched.add(hits[0]!);
+  for (const [key, asked] of wantedCount) {
+    const hits = byKey.get(key) ?? [];
+    if (hits.length === 0) unmatched += asked;
+    else if (hits.length > asked) ambiguous += asked;
+    else {
+      matched.push(...hits);
+      unmatched += asked - hits.length;
+    }
   }
-  return { matchedResultIds: [...matched], unmatched, ambiguous };
+  return { matchedResultIds: matched, unmatched, ambiguous };
 }
